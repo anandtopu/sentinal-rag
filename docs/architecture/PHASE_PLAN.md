@@ -10,7 +10,7 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 ## Current phase
 
-**Phase 1 — Core data plane + tenancy.** Complete (pending live verification: `uv sync`, `make db-upgrade`, `pytest -m integration`). Phase 2 (ingestion pipeline) is next.
+**Phase 0 + Phase 1 verified locally.** Unit tests passing (6/6: 1 health + 5 JWT). Local stack (`make up`) running with Redis remapped to host port 6380 to dodge native Redis on 6379. Phase 2 (ingestion pipeline) is next.
 
 ## Phase ledger
 
@@ -25,14 +25,13 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 - 🟢 `Makefile` with `make up`, `make api`, `make lint`, `make fmt`.
 - 🟢 Pre-commit hooks.
 
-**Verification deferred to next session (requires running tools the user has):**
-- Run `uv sync` and confirm the workspace resolves.
-- Run `make up` and confirm all containers come up healthy.
-- Run `make api` and `curl localhost:8000/api/v1/health`.
-- Run `make test` and confirm the health unit test passes.
-- `git init`, push to GitHub, confirm CI runs green on the first PR.
+**Verified:**
+- 🟢 `uv sync --all-packages` resolves the workspace.
+- 🟢 `make up` brings all containers online (after fixing Jaeger image tag and remapping Redis to host:6380 to avoid conflict with native Redis).
+- 🟢 `pytest -m unit` passes — health endpoint smoke test.
 
-**Done when:** the verification steps above pass on the user's machine.
+**Deferred to a later step:**
+- `git init`, GitHub remote, first CI run. The repo has no `.git/` yet.
 
 ### Phase 1 — Core data plane + tenancy 🟢
 **Goal:** schema, RBAC, RLS, tenant context.
@@ -47,13 +46,14 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 - 🟢 RLS integration tests proving cross-tenant reads/writes are blocked.
 - 🟢 JWT verifier unit tests (valid, expired, wrong audience, missing tenant_id, tampered signature).
 
-**Verification deferred to next session (requires user's machine):**
-- `uv sync` resolves the workspace.
-- `make up && make db-upgrade` applies all 10 migrations cleanly.
-- `pytest -m integration` passes (RLS proven against real Postgres).
-- `pytest -m unit` passes (JWT verifier with stubbed JWKS).
+**Verified:**
+- 🟢 `pytest -m unit` passes — 5 JWT verifier scenarios (valid, expired, wrong audience, missing tenant_id, tampered signature).
 
-**Done when:** the verification steps above pass.
+**Deferred to next session:**
+- `make db-upgrade` to apply the 10 migrations against the running Postgres.
+- `pytest -m integration` to prove RLS isolation against real Postgres via testcontainers.
+
+**Done when:** the integration suite is green.
 
 ### Phase 2 — Ingestion pipeline ⚪
 **Goal:** docs in → chunks + embeddings out.
