@@ -10,15 +10,12 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 ## Current phase
 
-**Phases 3 + 4 + 5 complete; Phase 6 in progress (cost + audit + metrics slice landed).** Unit tests passing (49/49: 5 jwt + 6 dev-token guard + 10 chunkers + 11 evaluators + 1 health + 9 cost service + 6 audit dual-write + 1 misc). Frontend vitest passing (5/5: api client). FastAPI app boots cleanly with 42 routes. `uv run ruff check` is clean across the workspace. Phase 6 cost + audit + metrics slice — ADR-0022 (per-tenant budgets), migration 0012 (`tenant_budgets`), `CostService` with soft-cap downgrade + hard-cap deny wired into `RagOrchestrator` before generation, `BudgetExceededError` (HTTP 402), `AuditService` with `PostgresAuditSink` + `ObjectStorageAuditSink` (S3 Object Lock-ready) + `DualWriteAuditService` recording `query.executed`, `query.failed`, `budget.downgraded`, `budget.denied`, OTel meters (`sentinelrag_queries_total`, `sentinelrag_stage_latency_ms`, `sentinelrag_grounding_score`, `sentinelrag_budget_decisions_total`, `sentinelrag_llm_cost_usd_total`), and 3 Grafana dashboards-as-code (rag-overview, cost-tenant, quality) provisioned via `grafana-dashboards.yml`.
+**Phases 3 + 4 + 5 complete; Phase 6 + 6.5 complete (cost + audit + metrics slice + reconciliation landed).** Unit tests collecting 65 (5 jwt + 6 dev-token guard + 10 chunkers + 11 evaluators + 1 health + 11 cost service + 5 audit dual-write + 16 audit reconciliation). 64 pass clean; `test_dev_token_disabled_by_default` is a pre-existing flake — `test_health.py`'s `create_app()` warms a process-level env that pollutes `Settings(_env_file=None)` in suite-wide runs (passes when run in isolation; reproduces on a clean `git stash`-ed tree). Tracked separately. Frontend vitest passing (5/5: api client). FastAPI app boots cleanly with 42 routes. `uv run ruff check` is clean across the workspace. Phase 6 cost + audit + metrics slice — ADR-0022 (per-tenant budgets), migration 0012 (`tenant_budgets`), `CostService` with soft-cap downgrade + hard-cap deny wired into `RagOrchestrator` before generation, `BudgetExceededError` (HTTP 402), `AuditService` with `PostgresAuditSink` + `ObjectStorageAuditSink` (S3 Object Lock-ready) + `DualWriteAuditService` recording `query.executed`, `query.failed`, `budget.downgraded`, `budget.denied`, OTel meters (`sentinelrag_queries_total`, `sentinelrag_stage_latency_ms`, `sentinelrag_grounding_score`, `sentinelrag_budget_decisions_total`, `sentinelrag_llm_cost_usd_total`), and 3 Grafana dashboards-as-code (rag-overview, cost-tenant, quality) provisioned via `grafana-dashboards.yml`.
 
-**Re-verified after the 2026-04-27 session restart:**
-- `uv run pytest -m unit` → 49 passed, 11 deselected.
-- `cd apps/frontend && npx vitest run` → 5 passed.
-- `app.main:app` imports cleanly with 42 routes.
+**Re-verified after the 2026-04-28 Phase 6.5 restart:**
+- `uv run pytest -m unit` → 64 passed, 1 pre-existing flake (see header), 11 deselected.
+- `uv run pytest apps/api/tests/unit/test_audit_reconciliation.py` → 16/16 pass in isolation.
 - `uv run ruff check apps packages migrations` → All checks passed.
-- `npx tsc --noEmit` (frontend) → 0 errors.
-- `npx playwright test --list` → 7 specs across 3 files registered.
 
 **Still deferred (Docker required, not run this session):**
 - `make db-upgrade` to apply the 11 migrations.
@@ -121,7 +118,7 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 **Done when:** all major API features are usable through the UI. _(Done.)_
 
-### Phase 6 — Observability + cost + audit hardening 🟡
+### Phase 6 — Observability + cost + audit hardening 🟢
 **Goal:** prod-grade telemetry and audit immutability.
 - 🟢 ADR-0022 — per-tenant budgets with soft (downgrade) / hard (deny) thresholds.
 - 🟢 Migration 0012 — `tenant_budgets` table with RLS + active-window index. ORM model + `TenantBudgetRepository` exposing `get_active` and `period_spend(SUM(usage_records))`.
@@ -131,11 +128,11 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 - 🟢 OTel meters (`sentinelrag_shared.telemetry.meters`) — `sentinelrag_queries_total`, `sentinelrag_stage_latency_ms`, `sentinelrag_grounding_score`, `sentinelrag_budget_decisions_total`, `sentinelrag_llm_cost_usd_total`. Cardinality-disciplined (no tenant_id on high-volume counters).
 - 🟢 Grafana dashboards as JSON — `infra/observability/grafana/dashboards/{rag-overview,cost-tenant,quality}.json` with provisioning via `grafana-dashboards.yml`. Mounted into the Grafana container by docker-compose.
 - 🟢 Unit tests — 9 for `CostService` (estimate, allow/downgrade/deny boundaries, override policy, exception mapping), 6 for audit dual-write (primary failure propagates, secondary failure isolated, S3 key format, JSON serialization).
-- ⚪ Audit reconciliation job — Temporal-scheduled daily diff between Postgres `audit_events` and S3 prefix; alert on drift. Deferred (needs Temporal scheduling + S3 in CI; lands as a Phase 6.5 in the same docker-up session).
+- 🟢 **Phase 6.5 — Audit reconciliation.** `AuditReconciliationWorkflow` + two activities (`reconcile_tenant_day` does the per-tenant diff/backfill; `emit_audit_drift_metrics` aggregates and emits OTel + structured-log drift). Pure orchestration in `sentinelrag_shared.audit.reconciliation` (`diff_event_sets`, `reconcile_one_tenant`) so unit tests don't need Postgres or S3. Workflow input contract `AuditReconciliationInput` accepts `day=None` (recurring Schedule) and derives yesterday-UTC from `workflow.now()` per fire. New OTel meter `sentinelrag_audit_reconciliation_drift{side}` (cardinality-disciplined: no tenant_id). `ObjectStorage.list_keys()` added to the protocol + S3Storage. Schedule registration helper at `sentinelrag_worker.scripts.register_audit_schedule` is idempotent — upserts a daily Schedule reading tenant IDs from `AUDIT_RECON_TENANT_IDS`. Worker `main.py` now runs an `audit` task queue alongside ingestion/evaluation. 16 unit tests cover diff math, backfill cap, idempotent re-run, race-deletion safety, and key-prefix invariants.
 - ⚪ Tempo for traces — `docker-compose.yml` ships Jaeger today. Tempo as the long-term store is a one-config swap; deferred until we add the Tempo Helm dependency in Phase 7.
 - ⚪ Live SLO + budget-alert demo — needs `make up` + Prom + a synthetic load run to capture before/after panels. Deferred to Phase 9 portfolio polish.
 
-**Done when:** Grafana shows live RAG metrics; budget alert demonstrably fires. _(Code-side complete; the live demo is gated on Docker availability.)_
+**Done when:** Grafana shows live RAG metrics; budget alert demonstrably fires. _(Code-side complete including reconciliation; live demo + Schedule registration against a real Temporal cluster gated on Docker availability.)_
 
 ### Phase 7 — AWS production deployment ⚪
 **Goal:** live `dev.<domain>` on AWS.

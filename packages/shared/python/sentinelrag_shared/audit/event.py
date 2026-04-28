@@ -46,3 +46,26 @@ class AuditEvent(BaseModel):
             f"hour={d.hour:02d}/"
             f"{self.id}.json.gz"
         )
+
+    @staticmethod
+    def event_id_from_key(key: str) -> UUID:
+        """Inverse of :meth:`s3_key` — recover the event UUID from a key.
+
+        Raises ``ValueError`` if the basename isn't ``<uuid>.json.gz``.
+        """
+        basename = key.rsplit("/", 1)[-1]
+        suffix = ".json.gz"
+        if not basename.endswith(suffix):
+            raise ValueError(f"unexpected audit s3 key shape: {key!r}")
+        return UUID(basename[: -len(suffix)])
+
+    @staticmethod
+    def day_prefix(tenant_id: UUID, day: datetime) -> str:
+        """Prefix that lists every event for ``tenant_id`` on ``day`` (UTC)."""
+        d = day.astimezone(UTC)
+        return (
+            f"tenant_id={tenant_id}/"
+            f"year={d.year:04d}/"
+            f"month={d.month:02d}/"
+            f"day={d.day:02d}/"
+        )

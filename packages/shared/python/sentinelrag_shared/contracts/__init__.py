@@ -12,6 +12,11 @@ Conventions:
       Pydantic's standard parsing.
 """
 
+from sentinelrag_shared.contracts.audit import (
+    AuditReconciliationInput,
+    AuditReconciliationResult,
+    TenantDriftReport,
+)
 from sentinelrag_shared.contracts.base import Contract
 from sentinelrag_shared.contracts.evaluation import (
     EvaluationRunWorkflowInput,
@@ -23,9 +28,12 @@ from sentinelrag_shared.contracts.ingestion import (
 )
 
 __all__ = [
+    "AuditReconciliationInput",
+    "AuditReconciliationResult",
     "Contract",
     "EvaluationRunWorkflowInput",
     "EvaluationRunWorkflowResult",
     "IngestionWorkflowInput",
     "IngestionWorkflowResult",
+    "TenantDriftReport",
 ]

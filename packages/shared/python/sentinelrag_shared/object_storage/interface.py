@@ -68,6 +68,17 @@ class ObjectStorage(Protocol):
         """Fetch object metadata without downloading the body."""
         ...
 
+    async def list_keys(
+        self, prefix: str, *, page_size: int = 1000
+    ) -> AsyncIterator[str]:
+        """Yield object keys under ``prefix``. Pages internally.
+
+        Used by the audit reconciliation workflow to enumerate the S3 partition
+        for a given tenant/day window. Implementations must yield each key
+        exactly once across the full prefix.
+        """
+        ...
+
     async def presign_get_url(self, key: str, *, expires_in_seconds: int = 3600) -> str:
         """Return a signed URL for time-limited public access to the object."""
         ...

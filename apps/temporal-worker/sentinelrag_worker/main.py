@@ -23,11 +23,17 @@ from sentinelrag_shared.telemetry import configure_telemetry
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from sentinelrag_worker.activities.audit_reconciliation import (
+    ALL_ACTIVITIES as AUDIT_ACTIVITIES,
+)
 from sentinelrag_worker.activities.evaluation import (
     ALL_ACTIVITIES as EVALUATION_ACTIVITIES,
 )
 from sentinelrag_worker.activities.ingestion import (
     ALL_ACTIVITIES as INGESTION_ACTIVITIES,
+)
+from sentinelrag_worker.workflows.audit_reconciliation import (
+    AuditReconciliationWorkflow,
 )
 from sentinelrag_worker.workflows.evaluation import EvaluationRunWorkflow
 from sentinelrag_worker.workflows.ingestion import IngestionWorkflow
@@ -62,6 +68,7 @@ async def main() -> None:
     namespace = os.environ.get("TEMPORAL_NAMESPACE", "default")
     ingestion_queue = os.environ.get("TEMPORAL_TASK_QUEUE_INGESTION", "ingestion")
     evaluation_queue = os.environ.get("TEMPORAL_TASK_QUEUE_EVALUATION", "evaluation")
+    audit_queue = os.environ.get("TEMPORAL_TASK_QUEUE_AUDIT", "audit")
 
     log.info(
         "temporal_worker.starting",
@@ -69,6 +76,7 @@ async def main() -> None:
         namespace=namespace,
         ingestion_queue=ingestion_queue,
         evaluation_queue=evaluation_queue,
+        audit_queue=audit_queue,
     )
 
     client = await Client.connect(host, namespace=namespace)
@@ -91,9 +99,22 @@ async def main() -> None:
         max_concurrent_workflow_tasks=10,
     )
 
+    audit_worker = Worker(
+        client,
+        task_queue=audit_queue,
+        workflows=[AuditReconciliationWorkflow],
+        activities=AUDIT_ACTIVITIES,
+        max_concurrent_activities=4,
+        max_concurrent_workflow_tasks=2,  # one daily run; near-zero throughput
+    )
+
     log.info("temporal_worker.ready")
-    # Run both workers concurrently. ``Worker.run()`` blocks until cancelled.
-    await asyncio.gather(ingestion_worker.run(), evaluation_worker.run())
+    # Run all workers concurrently. ``Worker.run()`` blocks until cancelled.
+    await asyncio.gather(
+        ingestion_worker.run(),
+        evaluation_worker.run(),
+        audit_worker.run(),
+    )
 
 
 if __name__ == "__main__":

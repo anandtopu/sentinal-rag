@@ -128,6 +128,19 @@ class S3Storage(ObjectStorage):
             custom_metadata=response.get("Metadata", {}),
         )
 
+    async def list_keys(
+        self, prefix: str, *, page_size: int = 1000
+    ) -> AsyncIterator[str]:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:
+            paginator = s3.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(
+                Bucket=self.bucket,
+                Prefix=prefix,
+                PaginationConfig={"PageSize": page_size},
+            ):
+                for obj in page.get("Contents", []) or []:
+                    yield obj["Key"]
+
     async def presign_get_url(self, key: str, *, expires_in_seconds: int = 3600) -> str:
         async with self._session.client("s3", **self._client_kwargs()) as s3:
             return await s3.generate_presigned_url(

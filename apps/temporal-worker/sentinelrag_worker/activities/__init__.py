@@ -5,6 +5,6 @@ Temporal handles retries, deadlines, and durability. Each activity below
 is idempotent given its keys.
 """
 
-from sentinelrag_worker.activities import ingestion
+from sentinelrag_worker.activities import audit_reconciliation, ingestion
 
-__all__ = ["ingestion"]
+__all__ = ["audit_reconciliation", "ingestion"]

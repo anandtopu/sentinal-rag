@@ -9,8 +9,19 @@ Cross-service input/output models live in
 re-export.
 """
 
-from sentinelrag_shared.contracts import IngestionWorkflowInput
+from sentinelrag_shared.contracts import (
+    AuditReconciliationInput,
+    IngestionWorkflowInput,
+)
 
+from sentinelrag_worker.workflows.audit_reconciliation import (
+    AuditReconciliationWorkflow,
+)
 from sentinelrag_worker.workflows.ingestion import IngestionWorkflow
 
-__all__ = ["IngestionWorkflow", "IngestionWorkflowInput"]
+__all__ = [
+    "AuditReconciliationInput",
+    "AuditReconciliationWorkflow",
+    "IngestionWorkflow",
+    "IngestionWorkflowInput",
+]

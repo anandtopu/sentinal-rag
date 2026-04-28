@@ -57,6 +57,22 @@ def llm_cost_usd_total() -> metrics.Counter:
     )
 
 
+@lru_cache(maxsize=1)
+def audit_reconciliation_drift() -> metrics.Counter:
+    """Audit drift counts per reconciliation run.
+
+    Attributes: ``side`` (missing_in_s3|missing_in_pg|backfilled). Tenant_id is
+    intentionally NOT an attribute — drift is a cross-tenant alarm signal and
+    per-tenant cardinality on a counter that fires daily would explode at scale.
+    Per-tenant detail lives in the workflow result and the structured log line.
+    """
+    return _meter().create_counter(
+        "sentinelrag_audit_reconciliation_drift",
+        unit="1",
+        description="Audit events present in one store but not the other (Phase 6.5)",
+    )
+
+
 # Histograms ------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
@@ -105,3 +121,10 @@ def record_grounding(score: float) -> None:
     if score is None:  # type: ignore[truthy-bool]
         return
     grounding_score().record(score)
+
+
+def record_audit_drift(*, side: str, count: int) -> None:
+    """``side`` ∈ {missing_in_s3, missing_in_pg, backfilled}."""
+    if count <= 0:
+        return
+    audit_reconciliation_drift().add(count, {"side": side})
