@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sentinelrag_shared.errors.exceptions import ConflictError, TenantNotFoundError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Tenant
 from app.db.repositories import TenantRepository
 from app.schemas.tenants import TenantCreate, TenantUpdate
-from sentinelrag_shared.errors.exceptions import ConflictError, TenantNotFoundError
 
 
 class TenantService:

@@ -22,7 +22,6 @@ import respx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
-
 from sentinelrag_shared.auth import JWTVerifier, JWTVerifierError
 
 ISSUER = "http://kc.local/realms/sentinelrag"
@@ -163,8 +162,10 @@ class TestJWTVerifier:
         _stub_jwks(jwk)
         verifier = _verifier()
         token = _sign(base_claims, priv)
-        # Flip the last char of the signature.
-        tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+        # Replace 16 chars of the signature. A single-char flip can be a
+        # base64 no-op when padding is involved; 16 chars guarantees a
+        # different decoded signature.
+        tampered = token[:-16] + ("A" * 16)
         with pytest.raises(JWTVerifierError):
             await verifier.verify(tampered)
         await verifier.close()

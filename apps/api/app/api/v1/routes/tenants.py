@@ -11,13 +11,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
+from sentinelrag_shared.auth import AuthContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth, require_permission
 from app.db.session import get_admin_db, get_db
 from app.schemas.tenants import TenantCreate, TenantRead, TenantUpdate
 from app.services.tenant_service import TenantService
-from sentinelrag_shared.auth import AuthContext
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 

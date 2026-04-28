@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from sentinelrag_shared.auth import AuthContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth, require_permission
@@ -13,7 +14,6 @@ from app.db.session import get_db
 from app.schemas.common import Page
 from app.schemas.users import UserCreate, UserRead, UserRoleAssign, UserUpdate
 from app.services.user_service import UserService
-from sentinelrag_shared.auth import AuthContext
 
 router = APIRouter(prefix="/users", tags=["users"])
 

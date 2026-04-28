@@ -11,20 +11,28 @@ The verifier is constructed once at app startup (lifespan) and stored on
        so downstream sessions auto-bind RLS context.
 
 The same dependency is the ONLY place the runtime tenant context is set.
+
+Local-only dev bypass: when ``settings.environment == 'local'`` AND
+``settings.auth_allow_dev_token`` is true, an ``Authorization: Bearer <dev_token_value>``
+returns a synthesized AuthContext for the seeded demo tenant + admin user.
+The seeded user is provisioned by ``scripts/seed/seed_demo.py``.
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, Header, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.repositories import RoleRepository, UserRepository
-from app.db.session import current_tenant_id, current_user_id, get_admin_db
 from sentinelrag_shared.auth import AuthContext, JWTVerifier, JWTVerifierError
 from sentinelrag_shared.errors import AuthRequiredError
 from sentinelrag_shared.errors.exceptions import AuthInvalidError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.db.repositories import RoleRepository, UserRepository
+from app.db.session import current_tenant_id, current_user_id, get_admin_db
 
 
 def _get_verifier(request: Request) -> JWTVerifier:
@@ -35,39 +43,70 @@ def _get_verifier(request: Request) -> JWTVerifier:
     return verifier
 
 
+def _bind_request_context(ctx: AuthContext) -> None:
+    current_tenant_id.set(ctx.tenant_id)
+    current_user_id.set(ctx.user_id)
+
+
+async def _resolve_dev_auth_context(db: AsyncSession) -> AuthContext:
+    """Build an AuthContext for the seeded demo user.
+
+    The seeded user MUST exist in the DB (run ``make seed`` to create it).
+    Permissions come from the role assignment in the seed script.
+    """
+    settings = get_settings()
+    user_repo = UserRepository(db)
+    user = await user_repo.get(UUID(settings.dev_user_id))
+    if user is None:
+        msg = (
+            "Dev token used but the demo user is not seeded. "
+            "Run `make seed` to create it."
+        )
+        raise AuthInvalidError(msg)
+    role_repo = RoleRepository(db)
+    permissions = await role_repo.list_user_permission_codes(user.id)
+    return AuthContext(
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        email=user.email,
+        permissions=frozenset(permissions),
+    )
+
+
 async def require_auth(
     request: Request,
     authorization: Annotated[str | None, Header(alias="Authorization")] = None,
     db: Annotated[AsyncSession, Depends(get_admin_db)] = ...,  # type: ignore[assignment]
 ) -> AuthContext:
-    """Verify the bearer token and yield an AuthContext.
-
-    The DB dependency uses the admin (RLS-bypass) session because the very
-    first lookup — finding the user record — needs to happen before tenant
-    context is set. After that we set the contextvars so subsequent
-    ``Depends(get_db)`` calls within the same request bind RLS correctly.
-    """
+    """Verify the bearer token and yield an AuthContext."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise AuthRequiredError()
 
     token = authorization.split(" ", 1)[1].strip()
-    verifier = _get_verifier(request)
+    settings = get_settings()
 
+    # ---- Dev-token short-circuit (env-gated, defense-in-depth on TWO flags) ----
+    if (
+        settings.environment == "local"
+        and settings.auth_allow_dev_token
+        and token == settings.dev_token_value
+    ):
+        ctx = await _resolve_dev_auth_context(db)
+        _bind_request_context(ctx)
+        return ctx
+
+    # ---- Standard JWT path ----
+    verifier = _get_verifier(request)
     try:
         claims = await verifier.verify(token)
     except JWTVerifierError as exc:
         raise AuthInvalidError(str(exc)) from exc
 
-    # Load the user. Keycloak's ``sub`` is stored on our user as
-    # ``external_identity_id``. The user record is the application's
-    # authoritative identity (per ADR-0008).
     user_repo = UserRepository(db)
     user = await user_repo.get_by_external_id(str(claims.sub))
     if user is None:
-        # First-login provisioning — create the user lazily. Tenant must
-        # already exist (matched by claims.tenant_id).
-        from app.db.models import User
-        from app.db.repositories import TenantRepository
+        from app.db.models import User  # noqa: PLC0415 — break import cycle
+        from app.db.repositories import TenantRepository  # noqa: PLC0415
 
         tenant = await TenantRepository(db).get_by_id(claims.tenant_id)
         if tenant is None:
@@ -81,25 +120,19 @@ async def require_auth(
         db.add(user)
         await db.flush()
 
-    # Resolve permissions from our DB (Keycloak roles are ignored).
     role_repo = RoleRepository(db)
     permissions = await role_repo.list_user_permission_codes(user.id)
-
     ctx = AuthContext(
         user_id=user.id,
         tenant_id=user.tenant_id,
         email=user.email,
         permissions=frozenset(permissions),
     )
-
-    # Bind contextvars so the request's get_db() session sets RLS correctly.
-    current_tenant_id.set(ctx.tenant_id)
-    current_user_id.set(ctx.user_id)
-
+    _bind_request_context(ctx)
     return ctx
 
 
-def require_permission(code: str):
+def require_permission(code: str) -> Callable[..., Awaitable[AuthContext]]:
     """Dependency factory: ``require_permission('users:write')``."""
 
     async def _dependency(

@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.models import Tenant, User
+from app.db.models import Tenant
 from app.db.repositories import RoleRepository, UserRepository
 from app.schemas.roles import RoleCreate
 from app.schemas.users import UserCreate
 from app.services.role_service import RoleService
 from app.services.user_service import UserService
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.integration
@@ -19,7 +18,8 @@ class TestPhase1Services:
     async def _seed_tenant(self, admin_session: AsyncSession) -> Tenant:
         tenant = Tenant(name="Cybertron", slug="cybertron", plan="enterprise")
         admin_session.add(tenant)
-        await admin_session.flush()
+        await admin_session.commit()
+        await admin_session.refresh(tenant)
         return tenant
 
     async def test_create_user_then_assign_role_then_resolve_permissions(
@@ -50,7 +50,7 @@ class TestPhase1Services:
             user_svc = UserService(sess)
             user = await user_svc.create(
                 tenant_id=tenant.id,
-                payload=UserCreate(email="alice@cybertron.test", full_name="Alice"),
+                payload=UserCreate(email="alice@cybertron.example.com", full_name="Alice"),
             )
             user_id = user.id
 
@@ -81,7 +81,7 @@ class TestPhase1Services:
             svc = UserService(sess)
             await svc.create(
                 tenant_id=tenant.id,
-                payload=UserCreate(email="dup@cybertron.test"),
+                payload=UserCreate(email="dup@cybertron.example.com"),
             )
 
         async for sess in get_session():
@@ -89,7 +89,7 @@ class TestPhase1Services:
             with pytest.raises(Exception):  # noqa: B017,PT011
                 await svc.create(
                     tenant_id=tenant.id,
-                    payload=UserCreate(email="DUP@cybertron.test"),
+                    payload=UserCreate(email="DUP@cybertron.example.com"),
                 )
 
     async def test_user_repo_lookup_by_email_is_case_insensitive_via_service(
@@ -105,11 +105,11 @@ class TestPhase1Services:
             svc = UserService(sess)
             await svc.create(
                 tenant_id=tenant.id,
-                payload=UserCreate(email="MixedCase@cybertron.test"),
+                payload=UserCreate(email="MixedCase@cybertron.example.com"),
             )
 
         async for sess in get_session():
             user_repo = UserRepository(sess)
-            user = await user_repo.get_by_email("mixedcase@cybertron.test")
+            user = await user_repo.get_by_email("mixedcase@cybertron.example.com")
             assert user is not None
-            assert user.email == "mixedcase@cybertron.test"
+            assert user.email == "mixedcase@cybertron.example.com"

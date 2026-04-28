@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sentinelrag_shared.errors.exceptions import (
+    ConflictError,
+    RoleNotFoundError,
+    ValidationFailedError,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Role
 from app.db.repositories import PermissionRepository, RoleRepository
 from app.schemas.roles import RoleCreate, RoleUpdate
-from sentinelrag_shared.errors.exceptions import ConflictError, RoleNotFoundError, ValidationFailedError
 
 
 class RoleService:

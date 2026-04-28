@@ -52,7 +52,7 @@ class RoleRepository(BaseRepository[Role]):
         return list(result.scalars().all())
 
     async def list_user_permission_codes(self, user_id: UUID) -> set[str]:
-        from app.db.models import UserRole
+        from app.db.models import UserRole  # noqa: PLC0415 — break import cycle
 
         stmt = (
             select(Permission.code)

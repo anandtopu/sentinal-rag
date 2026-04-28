@@ -28,7 +28,7 @@ def _resolve_db_url() -> str:
         return sync_url
     async_url = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinelrag",
+        "postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag",
     )
     return async_url.replace("+asyncpg", "+psycopg").replace(
         "postgresql://", "postgresql+psycopg://", 1

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # --- Database ---
     database_url: str = Field(
-        default="postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinelrag",
+        default="postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag",
         description="Async DSN; must use asyncpg driver.",
     )
 
@@ -50,12 +50,44 @@ class Settings(BaseSettings):
     )
     jwt_algorithm: str = "RS256"
 
+    # --- Dev-only auth bypass (NEVER set true outside `local`) ---
+    # When this is true AND environment == 'local', a request with header
+    # ``Authorization: Bearer <dev_token_value>`` short-circuits Keycloak and
+    # returns a synthesized AuthContext for the seeded demo tenant. Used by
+    # local smoke tests and the ingestion integration tests.
+    auth_allow_dev_token: bool = False
+    dev_token_value: str = "dev"  # noqa: S105 — local-only sentinel, gated by environment check
+    dev_tenant_id: str = "00000000-0000-0000-0000-000000000001"
+    dev_user_id: str = "00000000-0000-0000-0000-000000000010"
+    dev_user_email: str = "demo-admin@sentinelrag.example.com"
+
     # --- Observability ---
     otel_exporter_otlp_endpoint: str = "http://localhost:4318"
 
     # --- Temporal ---
     temporal_host: str = "localhost:7233"
     temporal_namespace: str = "default"
+    temporal_task_queue_ingestion: str = "ingestion"
+    temporal_task_queue_evaluation: str = "evaluation"
+
+    # --- Object storage ---
+    object_storage_provider: str = "minio"
+    object_storage_endpoint: str = "http://localhost:9100"
+    object_storage_access_key: str = "minioadmin"
+    object_storage_secret_key: str = "minioadmin"  # noqa: S105 — MinIO local-dev default
+    object_storage_bucket_documents: str = "sentinelrag-documents"
+    object_storage_bucket_audit: str = "sentinelrag-audit"
+    object_storage_region: str = "us-east-1"
+
+    # --- LLM defaults ---
+    default_embedding_model: str = "ollama/nomic-embed-text"
+    default_generation_model: str = "ollama/llama3.1:8b"
+    default_reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    # When True, the API process loads the bge-reranker model at startup.
+    # Loading takes ~3-10s; for local smoke tests + CI we keep it OFF and the
+    # orchestrator falls back to NoOpReranker. Set true for end-to-end demos.
+    enable_reranker: bool = False
+    ollama_base_url: str = "http://localhost:11434"
 
     # --- Feature flags ---
     unleash_url: str = "http://localhost:4242/api/"

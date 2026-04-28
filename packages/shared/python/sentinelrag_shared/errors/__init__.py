@@ -15,6 +15,7 @@ The error response shape matches Enterprise_RAG_Database_Design.md §24:
 from sentinelrag_shared.errors.codes import ErrorCode
 from sentinelrag_shared.errors.exceptions import (
     AuthRequiredError,
+    BudgetExceededError,
     DomainError,
     NotFoundError,
     RBACDeniedError,
@@ -23,6 +24,7 @@ from sentinelrag_shared.errors.exceptions import (
 
 __all__ = [
     "AuthRequiredError",
+    "BudgetExceededError",
     "DomainError",
     "ErrorCode",
     "NotFoundError",

@@ -19,10 +19,10 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-
-from app.db.session import current_request_id
 from sentinelrag_shared.errors import DomainError, ErrorCode
 from sentinelrag_shared.logging import get_logger
+
+from app.db.session import current_request_id
 
 log = get_logger(__name__)
 

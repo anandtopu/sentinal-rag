@@ -18,6 +18,10 @@ x-logging: &default-logging
 
 services:
   # ---- Postgres + pgvector ----
+  # Host port 15432 (container port stays 5432) to avoid being shadowed by
+  # native PostgreSQL services on Windows. 15432 is a common Docker-Postgres
+  # convention and unlikely to conflict. Inside the Docker network, services
+  # still talk to ``postgres:5432``.
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
@@ -26,7 +30,7 @@ services:
       POSTGRES_PASSWORD: sentinel
       POSTGRES_DB: sentinelrag
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/db/init:/docker-entrypoint-initdb.d:ro
@@ -74,6 +78,9 @@ services:
     logging: *default-logging
 
   # ---- MinIO (S3-compatible local) ----
+  # Host ports 9100/9101 (container ports stay 9000/9001) to avoid conflicts
+  # with native MinIO / Portainer / PHP-FPM commonly listening on 9000.
+  # Inside the Docker network, services still talk to ``minio:9000``.
   minio:
     image: minio/minio:latest
     restart: unless-stopped
@@ -82,8 +89,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # console UI
+      - "9100:9000"   # S3 API
+      - "9101:9001"   # console UI
     volumes:
       - minio_data:/data
     healthcheck:
@@ -154,6 +161,11 @@ services:
       DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
     ports:
       - "7233:7233"
+    volumes:
+      # The auto-setup image expects DYNAMIC_CONFIG_FILE_PATH to resolve under
+      # /etc/temporal/. Mount our committed file there so the server starts
+      # cleanly across host platforms.
+      - ./scripts/local/temporal/development-sql.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -268,6 +280,8 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./scripts/local/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./scripts/local/observability/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
       - jaeger

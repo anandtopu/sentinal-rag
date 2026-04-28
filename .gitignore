@@ -47,6 +47,9 @@ dist/
 .DS_Store
 Thumbs.db
 
+# --- Claude Code local settings ---
+.claude/
+
 # --- Env / secrets ---
 .env
 .env.local

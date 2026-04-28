@@ -79,3 +79,11 @@ class ConflictError(DomainError):
     code = ErrorCode.CONFLICT
     http_status = 409
     default_message = "Resource state conflict."
+
+
+class BudgetExceededError(DomainError):
+    """Hard cap reached — request rejected (ADR-0022)."""
+
+    code = ErrorCode.BUDGET_EXCEEDED
+    http_status = 402
+    default_message = "Tenant budget exceeded for the active period."

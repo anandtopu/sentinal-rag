@@ -1,0 +1,23 @@
+# Temporal dynamic config for local dev (mounted at
+# /etc/temporal/config/dynamicconfig/development-sql.yaml in the container).
+#
+# Reference: https://github.com/temporalio/temporal/blob/main/config/dynamicconfig/development-sql.yaml
+# Keep this minimal — production-size knobs land in the Helm chart's values
+# overrides in Phase 7.
+
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}
+
+frontend.enableUpdateWorkflowExecution:
+  - value: true
+    constraints: {}
+
+frontend.enableUpdateWorkflowExecutionAsyncAccepted:
+  - value: true
+    constraints: {}
+
+# Allow long-ish workflow names — eval runs name workflows after the run id.
+limit.maxIDLength:
+  - value: 255
+    constraints: {}

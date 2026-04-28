@@ -118,12 +118,11 @@ async def get_db() -> AsyncIterator[AsyncSession]:
             ...
     """
     factory = get_session_factory()
-    async with factory() as session:
-        # Open a transaction so SET LOCAL persists across queries within the
-        # request. Commit on success, rollback on exception.
-        async with session.begin():
-            await _bind_tenant_context(session)
-            yield session
+    # Open a transaction so SET LOCAL persists across queries within the
+    # request. Commit on success, rollback on exception.
+    async with factory() as session, session.begin():
+        await _bind_tenant_context(session)
+        yield session
 
 
 async def get_admin_db() -> AsyncIterator[AsyncSession]:
@@ -138,9 +137,8 @@ async def get_admin_db() -> AsyncIterator[AsyncSession]:
     the actor's ``platform-admin`` role.
     """
     factory = _get_admin_session_factory()
-    async with factory() as session:
-        async with session.begin():
-            yield session
+    async with factory() as session, session.begin():
+        yield session
 
 
 async def dispose_engines() -> None:

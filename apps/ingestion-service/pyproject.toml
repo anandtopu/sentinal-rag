@@ -15,6 +15,7 @@ dependencies = [
     "pgvector>=0.3.6",
     "unstructured[all-docs]>=0.16",
     "langchain-text-splitters>=0.3",
+    "tiktoken>=0.8",
     "structlog>=24.4",
     "temporalio>=1.8",
     "sentinelrag-shared",

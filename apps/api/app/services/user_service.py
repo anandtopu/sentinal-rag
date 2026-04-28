@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 from uuid import UUID
 
+from sentinelrag_shared.errors.exceptions import ConflictError, UserNotFoundError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
 from app.db.repositories import UserRepository
 from app.schemas.users import UserCreate, UserUpdate
-from sentinelrag_shared.errors.exceptions import ConflictError, UserNotFoundError
 
 
 class UserService:
@@ -63,17 +64,15 @@ class UserService:
         # Verify the user and role exist (RLS will hide other tenants' rows
         # automatically; cross-tenant assignment fails as a 404).
         await self.get(user_id)
-        from app.db.repositories import RoleRepository
+        from app.db.repositories import RoleRepository  # noqa: PLC0415
 
         role = await RoleRepository(self.db).get(role_id)
         if role is None:
-            from sentinelrag_shared.errors.exceptions import RoleNotFoundError
+            from sentinelrag_shared.errors.exceptions import RoleNotFoundError  # noqa: PLC0415
 
             raise RoleNotFoundError()
-        try:
+        # IntegrityError → already assigned, swallow for idempotency.
+        with contextlib.suppress(IntegrityError):
             await self.repo.assign_role(
                 user_id=user_id, role_id=role_id, granted_by=granted_by
             )
-        except IntegrityError:
-            # Already assigned — idempotent.
-            pass

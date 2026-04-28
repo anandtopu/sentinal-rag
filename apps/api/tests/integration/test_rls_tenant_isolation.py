@@ -7,11 +7,10 @@ with the migrations applied, our tenant-isolation guarantee is real.
 from __future__ import annotations
 
 import pytest
+from app.db.models import Tenant, User
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.models import Tenant, User
 
 
 @pytest.mark.integration
@@ -29,7 +28,9 @@ class TestRowLevelSecurity:
         user_a = User(tenant_id=tenant_a.id, email="alice@acme.test", full_name="Alice")
         user_b = User(tenant_id=tenant_b.id, email="bob@beacon.test", full_name="Bob")
         admin_session.add_all([user_a, user_b])
-        await admin_session.flush()
+        await admin_session.commit()
+        for obj in (tenant_a, tenant_b, user_a, user_b):
+            await admin_session.refresh(obj)
         return tenant_a, tenant_b, user_a, user_b
 
     async def test_tenant_a_session_only_sees_tenant_a_users(

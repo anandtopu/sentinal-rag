@@ -28,7 +28,7 @@ class AuthContext:
         return code in self.permissions
 
     def require_permission(self, code: str) -> None:
-        from sentinelrag_shared.errors import RBACDeniedError
+        from sentinelrag_shared.errors import RBACDeniedError  # noqa: PLC0415
 
         if not self.has_permission(code):
             raise RBACDeniedError(

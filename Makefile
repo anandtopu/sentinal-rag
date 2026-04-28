@@ -21,9 +21,10 @@ up: ## Start the full local docker-compose stack
 	docker compose up -d
 	@echo ""
 	@echo "Stack starting. Wait ~30s for services to become healthy. Then:"
-	@echo "  Postgres:    localhost:5432  (sentinel/sentinel)"
-	@echo "  Redis:       localhost:6379"
-	@echo "  MinIO:       http://localhost:9001  (minioadmin/minioadmin)"
+	@echo "  Postgres:    localhost:15432 (sentinel/sentinel; container is :5432)"
+	@echo "  Redis:       localhost:6380  (host port; container is 6379)"
+	@echo "  MinIO API:   http://localhost:9100  (minioadmin/minioadmin)"
+	@echo "  MinIO UI:    http://localhost:9101  (minioadmin/minioadmin)"
 	@echo "  Keycloak:    http://localhost:8080  (admin/admin)"
 	@echo "  Temporal UI: http://localhost:8233"
 	@echo "  Ollama:      http://localhost:11434"
@@ -67,7 +68,7 @@ evaluation: ## Run apps/evaluation-service with hot reload
 	uv run --package sentinelrag-evaluation-service uvicorn app.main:app --reload --host 0.0.0.0 --port 8040
 
 worker: ## Run Temporal worker
-	uv run --package sentinelrag-temporal-worker python -m app.main
+	uv run --package sentinelrag-temporal-worker python -m sentinelrag_worker.main
 
 frontend: ## Run apps/frontend Next.js dev server
 	cd apps/frontend && pnpm dev
