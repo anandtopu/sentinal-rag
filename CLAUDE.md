@@ -10,7 +10,13 @@ The PRD/Architecture/Database/Deployment docs are **authoritative for product be
 
 ## Phase status
 
-This is a multi-session build. The current phase + the up-to-date phase plan live in `docs/architecture/PHASE_PLAN.md`. Always read that file at the start of a session before doing planning or implementation.
+All 10 phases (0 → 9) are **code-side complete**; the only outstanding work
+is the first deploy against a real cloud account and the live-traffic
+artifacts that produces (drill-recorded RTOs, real eval/cost numbers,
+5-min demo video). One-page summary at [`PROGRESS.md`](PROGRESS.md); the
+live ledger is [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md).
+Always read both at the start of a session before doing planning or
+implementation.
 
 ## Locked stack
 
@@ -35,7 +41,7 @@ This is a multi-session build. The current phase + the up-to-date phase plan liv
 | Hallucination detection | Layered: token-overlap → NLI (deberta) → LLM-as-judge sample | ADR-0010 |
 | Audit log | Postgres + S3 with Object Lock (dual-write) | ADR-0016 |
 | Feature flags | Unleash self-hosted | ADR-0018 |
-| Eval framework | `ragas` + custom evaluators in `apps/evaluation-service` | ADR-0019 |
+| Eval framework | `ragas` + custom evaluators in `packages/shared/python/sentinelrag_shared/evaluation/` | ADR-0019 |
 | Observability | OpenTelemetry SDK → OTel Collector → Tempo (traces) + Prometheus (metrics) + Loki (logs) | — |
 | Logging | `structlog` JSON to stdout with trace correlation | — |
 | Container registry | GHCR | — |
@@ -64,11 +70,12 @@ The original design docs were drafted before architecture review. These override
 
 Monorepo per `Enterprise_RAG_Folder_Structure.md`, with these adjustments:
 
-- `apps/temporal-worker/` (new) — Temporal workflow + activity workers; replaces Celery files in the spec.
+- `apps/temporal-worker/` — Temporal workflow + activity workers; replaces Celery files in the spec.
 - `apps/api/app/workers/` removed (Celery is gone).
 - `infra/terraform/azure/` does NOT exist as code — only `docs/architecture/adr/0011-multi-cloud-strategy.md` describes the Azure mapping.
-- `infra/terraform/aws/modules/opensearch/` is **deferred to Phase 8** — do not create yet.
-- `apps/api/` and other backend services share code via `packages/shared/python/` (logging, telemetry, auth, errors, contracts).
+- `infra/terraform/aws/modules/opensearch/` exists (Phase 8 reintroduction per ADR-0026), but is intentionally **not wired into `environments/dev/main.tf`** — operators opt in via the steps in `docs/operations/runbooks/deployment-aws.md` if they want OpenSearch.
+- `infra/bootstrap/` (Phase 7 Slice 3) — pinned values overlays + ArgoCD `Application` manifests for the upstream Helm charts (cert-manager, ALB controller, ESO + ClusterSecretStore, Temporal, ArgoCD, optional Chaos Mesh) the SentinelRAG chart depends on. Not bundled into the SentinelRAG chart per ADR-0030.
+- `apps/api/` and other backend services share code via `packages/shared/python/` (logging, telemetry, auth, errors, contracts, retrieval, evaluation, audit, object_storage).
 
 ## Architecture pillars (do not violate)
 
@@ -91,6 +98,8 @@ These are enforced design rules. Violating them in a PR is a blocker:
 - **Migrations:** every schema change is a hand-written Alembic revision. `make db-revision msg="..."`. Never `alembic revision --autogenerate`.
 - **Sensitive defaults:** `text-embedding-3-small` produces 1536-dim vectors; `nomic-embed-text` produces 768-dim. The `chunk_embeddings` table has `embedding_model TEXT` + per-model rows precisely so we can run both. **Do not change the column to a fixed dim.**
 - **Multi-cloud parity:** Helm chart is the single deployment artifact. Terraform differs per cloud, but the K8s manifests must be identical AWS↔GCP. If you find yourself writing cloud-specific K8s, it belongs in a Helm value override, not a fork.
+- **Deployment is documented end-to-end.** When a session involves "deploy to AWS / GCP" follow `docs/operations/runbooks/deployment-{aws,gcp}.md` and the shared `cluster-bootstrap.md`. Do not re-derive the procedure from scratch.
+- **Feature testing has its own runbook.** When verifying that a code change preserves a documented feature (RBAC at retrieval time, audit immutability, cost gate, etc.), use `docs/operations/runbooks/testing-guide.md` as the canonical matrix.
 
 ## Local dev: skipping Keycloak
 
@@ -98,30 +107,39 @@ For local smoke tests + integration tests we ship a **dev-token bypass** in `app
 
 This is the path used by integration tests and the local upload smoke test. **Never enable in dev/staging/prod** — Pydantic settings + the `environment != local` guard make this hard to do by accident, but the rule is tested in `tests/unit/test_dev_token_disabled_in_prod.py`.
 
-## Common commands (will exist after Phase 0)
+## Common commands
 
 ```bash
 make up           # docker-compose up -d (full local stack)
 make down         # docker-compose down -v
 make seed         # populate demo tenant + sample documents
 make api          # run apps/api locally with hot reload
-make test         # run all Python tests
+make worker       # run Temporal worker (apps/temporal-worker)
+make frontend     # run apps/frontend Next.js dev server
+make test         # run all Python tests (alias for test-unit)
+make test-unit    # run unit tests only
 make test-int     # integration tests with testcontainers
 make lint         # ruff + pyright across the workspace
 make fmt          # ruff format
 make db-revision msg="..."   # new alembic revision
 make db-upgrade   # apply migrations
-make eval         # run a sample evaluation locally
 ```
+
+Per-feature smoke and verification commands live in
+`docs/operations/runbooks/testing-guide.md`. Deployment commands are in
+`docs/operations/runbooks/deployment-{aws,gcp}.md`. When this list and a
+runbook disagree, the runbook is canonical.
 
 ## Things NOT to do (recurring footguns)
 
 - Don't mock the DB in tests that exercise RLS, tenancy, or RBAC retrieval — the bug surface is in the real Postgres behavior.
 - Don't store raw document text or large extracted text in Postgres — push to object storage, keep `storage_uri`.
 - Don't write Celery code. Temporal workflows + activities only.
-- Don't use OpenSearch in Phase 1–7. The interface is there; the implementation is Phase 8.
+- Don't enable OpenSearch by default. The `KeywordSearch` adapter exists (ADR-0026) but Postgres FTS is the always-on default; OpenSearch is feature-flagged via Unleash and gated by an opt-in step in the AWS deployment runbook. Don't make queries fan out to both backends — pick one per request via the flag.
 - Don't put inline prompt strings in service code outside of seeded defaults — go through `prompt_service`.
 - Don't add cloud-specific code to the K8s manifests. Use Helm values overrides.
-- Don't create `*.md` documentation outside `docs/` and `*ADR*.md` files unless the user asks.
+- Don't bundle bootstrap charts (cert-manager, ESO, Temporal, ArgoCD) into the SentinelRAG chart. They live at `infra/bootstrap/` per ADR-0030 — different lifecycle, different artifact.
+- Don't create `*.md` documentation outside `docs/`, `infra/`, and `*ADR*.md` files unless the user asks. Top-level `PROGRESS.md` and `README.md` are intentional exceptions.
 - Don't add backwards-compat shims, removed-code comments, or rename-unused-vars sweeps. Just delete.
 - Don't trust an embedding `vector` column's hardcoded dimension when introducing new models — write a migration that adds a per-model row, don't ALTER the column.
+- Don't write static eval / cost numbers into the report markdowns. The harnesses at `tests/performance/evals/compare.py` + `scripts/cost/render_report.py` overwrite those files on every run; numbers committed by hand will get clobbered and risk being read as real when they aren't (ADR-0029).

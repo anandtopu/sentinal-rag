@@ -4,11 +4,11 @@
 > Production-shaped: Postgres + pgvector retrieval, layered hallucination
 > detection, immutable audit, per-tenant cost budgets, multi-cloud
 > Terraform, Helm + ArgoCD, k6 + Chaos Mesh resilience tests, daily
-> backup verifiers, and 28 ADRs explaining every non-obvious choice.
+> backup verifiers, and 30 ADRs explaining every non-obvious choice.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Stack](https://img.shields.io/badge/stack-Python%203.12%20%7C%20FastAPI%20%7C%20Next.js%2015%20%7C%20Postgres%2016-1f425f)](docs/architecture/c4/L2-container.md)
-[![Phase](https://img.shields.io/badge/phase-9%20%E2%80%94%20portfolio%20polish-blueviolet)](docs/architecture/PHASE_PLAN.md)
+[![Status](https://img.shields.io/badge/status-all%2010%20phases%20code--side%20complete-success)](PROGRESS.md)
 
 ## What this is
 
@@ -83,12 +83,14 @@ Detailed diagrams (rendered natively on GitHub):
 - **[ADR catalog](docs/architecture/adr/README.md)** — 30 accepted ADRs.
   Each is one decision, short, with trade-offs spelled out and
   alternatives recorded.
-- **[Phase plan](docs/architecture/PHASE_PLAN.md)** — what's shipped,
-  what's next, what was deferred and why.
+- **[Progress snapshot](PROGRESS.md)** — one-page status of every phase + what's left.
+- **[Phase plan](docs/architecture/PHASE_PLAN.md)** — full live ledger of what's shipped, what's next, what was deferred and why.
 - **Operations runbooks** in [`docs/operations/runbooks/`](docs/operations/runbooks/):
-  - [Deploy on AWS](docs/operations/runbooks/deployment-aws.md) — fresh account → live URL
-  - [Deploy on GCP](docs/operations/runbooks/deployment-gcp.md) — fresh project → live URL
+  - [Deploy on AWS](docs/operations/runbooks/deployment-aws.md) — fresh account → live URL (~90 min)
+  - [Deploy on GCP](docs/operations/runbooks/deployment-gcp.md) — fresh project → live URL (~75 min)
   - [Cluster bootstrap](docs/operations/runbooks/cluster-bootstrap.md) — shared in-cluster pieces (cert-manager, ESO, Temporal, ArgoCD)
+  - [Local development](docs/operations/runbooks/local-development.md) — beyond-quick-start workflow + troubleshooting
+  - [Feature testing guide](docs/operations/runbooks/testing-guide.md) — per-feature manual + automated test matrix
   - [Disaster recovery](docs/operations/runbooks/disaster-recovery.md) — RPO/RTO matrix, 8 failure scenarios with step-by-step recovery
 - Original PRD + design docs (kept for historical context, **superseded
   by ADRs where they conflict** — see CLAUDE.md "Decision overrides"):
