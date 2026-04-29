@@ -1,0 +1,13 @@
+{{- if .Values.temporalWorker.enabled -}}
+{{- $ctx := merge (dict "workload" "temporal-worker" "workloadKey" "temporalWorker") . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}-config
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.temporalWorker.envFromConfigMap }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+{{- end -}}

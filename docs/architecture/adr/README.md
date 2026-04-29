@@ -36,3 +36,11 @@ This directory holds the architectural decisions for SentinelRAG. We use the [MA
 | [0020](0020-multi-dim-embeddings.md) | Multi-dimension embeddings via per-dimension columns | Accepted |
 | [0021](0021-retrieval-embedded-v1.md) | Retrieval embedded in-process for v1; extract in Phase 7 | Accepted |
 | [0022](0022-cost-budgets-soft-hard-caps.md) | Per-tenant cost budgets with soft / hard caps | Accepted |
+| [0023](0023-helm-chart-shape.md) | Helm chart shape: single chart, in-template workload blocks, cloud switch | Accepted |
+| [0024](0024-terraform-layout.md) | Terraform layout: env-per-dir + shared modules, no Terragrunt | Accepted |
+| [0025](0025-gcp-parity.md) | GCP parity: function-named modules, identical Helm chart, per-cloud values overlay | Accepted |
+| [0026](0026-opensearch-reintroduction.md) | OpenSearch reintroduction: parallel adapter behind KeywordSearch protocol; Postgres-resolved RBAC | Accepted |
+| [0027](0027-load-and-chaos-testing.md) | Load + chaos testing: k6 with SLO-bound thresholds; Chaos Mesh game-day workflow | Accepted |
+| [0028](0028-disaster-recovery.md) | DR: tiered RPO/RTO commitments, active-passive cross-cloud, daily automated backup verification | Accepted |
+| [0029](0029-portfolio-polish.md) | Portfolio polish: Mermaid C4, harness-with-placeholder reports, README as the front door | Accepted |
+| [0030](0030-cluster-bootstrap.md) | Cluster bootstrap: values overlays + ArgoCD Application manifests, not bundled into the SentinelRAG chart | Accepted |

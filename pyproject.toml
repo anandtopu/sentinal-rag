@@ -101,6 +101,12 @@ ignore = [
     "S",     # tests do unsafe things on purpose
     "ANN",   # annotation strictness relaxed in tests
     "PLR2004", # magic numbers in tests
+    "T20",   # CLI test harnesses print to stderr
+]
+"scripts/**/*.py" = [
+    "T20",   # CLI scripts print results
+    "S311",  # synthetic-data generators use stdlib random by design
+    "ANN",
 ]
 "**/migrations/**/*.py" = ["ALL"]
 

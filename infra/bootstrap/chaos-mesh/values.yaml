@@ -1,0 +1,48 @@
+# Chaos Mesh — runs in `chaos-mesh` namespace and creates the CRDs that
+# `infra/chaos/experiments/*.yaml` and `infra/chaos/workflows/game-day.yaml`
+# target.
+#
+# Optional in the bootstrap order — install only when you intend to run
+# the Phase 8 chaos experiments. Production clusters should NOT have
+# Chaos Mesh installed unless a game-day is scheduled.
+
+controllerManager:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+chaosDaemon:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  # The daemon needs privileged access to inject network rules / kill processes.
+  # This is intrinsic to chaos engineering — accept the privilege but limit
+  # blast radius via NetworkPolicy in the SentinelRAG namespace.
+  runtime: containerd
+  socketPath: /run/containerd/containerd.sock
+
+dashboard:
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internal   # internal-only; no public access to chaos UI
+      alb.ingress.kubernetes.io/target-type: ip
+    hosts:
+      - host: chaos.dev.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+
+# Don't auto-create test pods in every namespace. We target SentinelRAG
+# explicitly via labelSelectors in the experiment manifests.
+clusterScoped: true

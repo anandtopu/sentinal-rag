@@ -1,0 +1,39 @@
+# Experiment 02 — 200 ms network latency on traffic from api → Postgres.
+#
+# Hypothesis:
+#   At 200 ms RTT to Postgres, retrieval-heavy queries (BM25 + vector +
+#   AccessFilter CTE) get noticeably slower but stay below the 8 s p99.
+#   Connection pool (asyncpg) does NOT exhaust — pool size > expected
+#   in-flight queries during the experiment window.
+#
+# Steady-state metric:
+#   p99 query latency stays under 8 s. No `pool_exhausted` errors in api logs.
+#   No request fails with HTTP 5xx because of timeouts.
+#
+# Direction `to` matches the chaos-mesh semantics: traffic FROM the api
+# pods TO the Postgres endpoint gets the latency injected.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: api-postgres-delay
+  namespace: sentinelrag-chaos
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - sentinelrag
+    labelSelectors:
+      app.kubernetes.io/component: api
+      app.kubernetes.io/part-of: sentinelrag
+  delay:
+    latency: "200ms"
+    correlation: "50"
+    jitter: "20ms"
+  direction: to
+  externalTargets:
+    # Replace with the resolved RDS endpoint (cluster DNS or RDS hostname).
+    # Terraform output `rds_endpoint` from environments/dev provides this.
+    - "REPLACE_ME_RDS_ENDPOINT.rds.amazonaws.com"
+  duration: "10m"

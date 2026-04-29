@@ -103,7 +103,7 @@ async def seed() -> None:
         )
 
     await engine.dispose()
-    print(  # noqa: T201
+    print(
         f"Seeded:\n"
         f"  tenant_id     = {DEMO_TENANT_ID}\n"
         f"  user_id       = {DEMO_USER_ID}\n"
@@ -118,6 +118,6 @@ async def seed() -> None:
 if __name__ == "__main__":
     try:
         asyncio.run(seed())
-    except Exception as exc:  # noqa: BLE001
-        print(f"Seed failed: {exc}", file=sys.stderr)  # noqa: T201
+    except Exception as exc:
+        print(f"Seed failed: {exc}", file=sys.stderr)
         sys.exit(1)

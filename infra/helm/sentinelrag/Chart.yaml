@@ -1,0 +1,59 @@
+apiVersion: v2
+name: sentinelrag
+description: |
+  SentinelRAG — multi-tenant, RBAC-aware, evaluation-driven enterprise RAG platform.
+  Single Helm chart packaging the API, Temporal worker, and Next.js frontend, plus
+  optional in-cluster dev dependencies (Temporal, Keycloak, Unleash, observability).
+  Production deployments wire the data plane (Postgres, Redis, object storage) to
+  managed cloud services; this chart only pulls in dev dependencies when their
+  *.enabled flag is set.
+type: application
+# Chart version is decoupled from app image tag (.Values.image.tag).
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+icon: https://raw.githubusercontent.com/anandtopu/sentinelrag/main/docs/assets/logo.png
+home: https://github.com/anandtopu/sentinelrag
+sources:
+  - https://github.com/anandtopu/sentinelrag
+maintainers:
+  - name: anandtopu
+    email: anand.goud.2020@gmail.com
+keywords:
+  - rag
+  - retrieval
+  - llm
+  - multi-tenant
+  - rbac
+# Dependencies are declared but disabled by default. Enable per-environment in
+# values-*.yaml. Pinned to known-good chart versions; refresh deliberately.
+dependencies:
+  - name: postgresql
+    version: "16.3.5"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    tags:
+      - dev-data-plane
+  - name: redis
+    version: "20.6.2"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+    tags:
+      - dev-data-plane
+  - name: minio
+    version: "14.10.5"
+    repository: https://charts.bitnami.com/bitnami
+    condition: minio.enabled
+    tags:
+      - dev-data-plane
+  - name: keycloak
+    version: "24.4.10"
+    repository: https://charts.bitnami.com/bitnami
+    condition: keycloak.enabled
+  - name: unleash
+    version: "5.6.7"
+    repository: https://docs.getunleash.io/helm-charts
+    condition: unleash.enabled
+  # Temporal's official chart is pulled deliberately on cluster bootstrap rather
+  # than as a Helm dependency — its sub-chart graph (cassandra/elasticsearch)
+  # makes our chart unbearably slow to template. Documented in ADR-0023.

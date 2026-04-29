@@ -1,0 +1,28 @@
+{{- if and .Values.temporalWorker.enabled .Values.networkPolicy.enabled -}}
+{{- $ctx := merge (dict "workload" "temporal-worker" "workloadKey" "temporalWorker") . -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 6 }}
+  policyTypes:
+    # Worker only initiates outbound connections (Temporal frontend, Postgres,
+    # object storage, LLM gateways). It exposes no port.
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to: []
+{{- end -}}

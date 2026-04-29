@@ -1,0 +1,67 @@
+# ArgoCD Application — SentinelRAG dev on AWS.
+#
+# Apply once after ArgoCD is up:
+#   kubectl apply -f infra/bootstrap/argocd/applications/sentinelrag-dev.yaml
+#
+# ArgoCD then takes over: every push to main that touches the chart or
+# values-dev.yaml triggers a sync within 3 minutes (auto-sync + self-heal).
+#
+# The image tag is bumped out-of-band by ArgoCD Image Updater on each
+# tagged release matching `^v[0-9]+\.[0-9]+\.[0-9]+$`. The values overlay
+# leaves `image.tag` at a baseline; the Updater overrides it.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sentinelrag-dev
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: |
+      api=ghcr.io/anandtopu/sentinelrag-api,
+      worker=ghcr.io/anandtopu/sentinelrag-temporal-worker,
+      frontend=ghcr.io/anandtopu/sentinelrag-frontend
+    argocd-image-updater.argoproj.io/api.update-strategy: semver
+    argocd-image-updater.argoproj.io/api.allow-tags: regexp:^v\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/worker.update-strategy: semver
+    argocd-image-updater.argoproj.io/worker.allow-tags: regexp:^v\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/frontend.update-strategy: semver
+    argocd-image-updater.argoproj.io/frontend.allow-tags: regexp:^v\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/anandtopu/sentinelrag.git
+    targetRevision: main
+    path: infra/helm/sentinelrag
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-dev.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sentinelrag
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
+  ignoreDifferences:
+    # The pre-upgrade migration Job carries a timestamped name from Helm;
+    # ArgoCD shouldn't try to "reconcile" the old one back.
+    - group: batch
+      kind: Job
+      jsonPointers:
+        - /spec/template/metadata/labels
+        - /spec/template/spec/containers/0/env

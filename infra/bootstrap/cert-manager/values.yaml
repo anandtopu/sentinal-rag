@@ -1,0 +1,38 @@
+# cert-manager — issues TLS certs (Let's Encrypt via ACME) for any Ingress
+# that asks. Same values for AWS + GCP; the ClusterIssuer config is what
+# differs per cloud (see *-cluster-issuer.yaml in this directory if added).
+
+installCRDs: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Don't run on the control-plane node group — keeps cert-manager pods
+# scheduled on the general workload pool.
+nodeSelector:
+  kubernetes.io/os: linux
+
+webhook:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+cainjector:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Lower-priority pods than SentinelRAG workloads but still cluster-critical.
+# We don't define our own PriorityClasses; cert-manager defaults are fine.
+
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: false  # we scrape via the cluster's central Prometheus, not its own ServiceMonitor controller

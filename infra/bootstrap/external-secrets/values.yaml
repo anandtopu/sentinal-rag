@@ -1,0 +1,44 @@
+# External Secrets Operator — materializes secrets from AWS Secrets Manager
+# / GCP Secret Manager into K8s Secrets. The SentinelRAG chart's
+# `externalsecret.yaml` per-workload manifests reference these via
+# `secretStoreRef.name: sentinelrag-aws-secrets` (or the GCP equivalent).
+#
+# Auth model: ESO pod uses IRSA (AWS) or Workload Identity (GCP). The
+# Terraform IAM modules already provisioned the role / GSA — just stamp the
+# right annotation here before `helm install`.
+
+installCRDs: true
+
+# IRSA on AWS / WI on GCP — pick the right line for your cloud and remove the other.
+serviceAccount:
+  create: true
+  name: external-secrets
+  annotations:
+    # AWS:  eks.amazonaws.com/role-arn: arn:aws:iam::REPLACE:role/sentinelrag-dev-eso
+    # GCP:  iam.gke.io/gcp-service-account: sentinelrag-dev-eso@REPLACE-PROJECT.iam.gserviceaccount.com
+    eks.amazonaws.com/role-arn: arn:aws:iam::REPLACE_ACCOUNT_ID:role/sentinelrag-dev-eso
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+webhook:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+certController:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Don't ship metrics through their ServiceMonitor — central Prometheus
+# scrapes the controller via plain Service annotation.
+serviceMonitor:
+  enabled: false

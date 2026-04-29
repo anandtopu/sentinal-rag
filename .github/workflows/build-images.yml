@@ -1,0 +1,140 @@
+name: build-images
+
+# Builds the three SentinelRAG container images and pushes to GHCR.
+#
+# Trigger semantics (per ADR-0012 + ADR-0030):
+#   - Push to main → tag :sha-<short>  (ArgoCD Image Updater ignores; this is for ad-hoc testing)
+#   - Tag v*.*.*    → tag :v<major>.<minor>.<patch>  (Image Updater picks this up; production trigger)
+#   - workflow_dispatch → manual one-off
+#
+# All images are built with provenance attestation + SBOM via the docker
+# build-push-action so trivy / cosign / sigstore can verify supply-chain.
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*.*.*']
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/build-images.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Override tag (defaults to sha-<short> on main, the git tag on tag pushes)"
+        required: false
+
+permissions:
+  contents: read
+  packages: write   # GHCR push
+  id-token: write   # Sigstore keyless
+  attestations: write
+
+concurrency:
+  group: build-images-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a tagged release build mid-push
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build:
+    name: ${{ matrix.image.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: "api",             dockerfile: "apps/api/Dockerfile",             context: "." }
+          - { name: "temporal-worker", dockerfile: "apps/temporal-worker/Dockerfile", context: "." }
+          - { name: "frontend",        dockerfile: "apps/frontend/Dockerfile",        context: "apps/frontend" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags + labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/sentinelrag-${{ matrix.image.name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
+          labels: |
+            org.opencontainers.image.title=sentinelrag-${{ matrix.image.name }}
+            org.opencontainers.image.description=SentinelRAG ${{ matrix.image.name }} container
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build + push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          # linux/amd64 only for now — arm64 build doubles CI minutes and we
+          # don't have arm64 nodes in either dev cluster yet. Add arm64 when
+          # Graviton / T2A nodes are introduced.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/sentinelrag-${{ matrix.image.name }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Trivy scan (HIGH/CRITICAL only)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/sentinelrag-${{ matrix.image.name }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy-${{ matrix.image.name }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 0   # don't fail the build on findings; security.yml already gates separately
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image.name }}.sarif
+          category: trivy-build-${{ matrix.image.name }}
+
+  summary:
+    name: Build summary
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+      - name: Report
+        run: |
+          if [ "${{ needs.build.result }}" = "success" ]; then
+            echo "::notice title=Build OK::All three SentinelRAG images pushed to GHCR."
+          else
+            echo "::error title=Build failed::At least one image build failed; see matrix logs."
+            exit 1
+          fi

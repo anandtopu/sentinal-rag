@@ -1,0 +1,127 @@
+# Chaos Workflow — sequential game-day exercise.
+#
+# Runs the six experiments in series. Each task waits for the previous
+# experiment to finish (`durationXm`) plus a 1-minute "recovery" gap so
+# Grafana panels show a clean "before / during / after" shape. Total
+# wall-clock: ~35 minutes; budget for a 1-hour game-day with the k6 baseline
+# scenario running concurrently.
+#
+# The workflow is idempotent — applying a second time creates a fresh run;
+# old runs stay around for inspection (Chaos Mesh GC handles cleanup
+# according to the global retention policy).
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: game-day-001
+  namespace: sentinelrag-chaos
+spec:
+  entry: entry
+  templates:
+    - name: entry
+      templateType: Serial
+      deadline: "60m"
+      children:
+        - api-pod-kill
+        - postgres-delay
+        - redis-partition
+        - temporal-partition
+        - keycloak-dns
+        - worker-cpu-stress
+
+    - name: api-pod-kill
+      templateType: PodChaos
+      deadline: "5m"
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces:
+            - sentinelrag
+          labelSelectors:
+            app.kubernetes.io/component: api
+            app.kubernetes.io/part-of: sentinelrag
+
+    - name: postgres-delay
+      templateType: NetworkChaos
+      deadline: "10m"
+      networkChaos:
+        action: delay
+        mode: all
+        selector:
+          namespaces:
+            - sentinelrag
+          labelSelectors:
+            app.kubernetes.io/component: api
+        delay:
+          latency: "200ms"
+          jitter: "20ms"
+
+    - name: redis-partition
+      templateType: NetworkChaos
+      deadline: "2m"
+      networkChaos:
+        action: partition
+        mode: all
+        selector:
+          namespaces:
+            - sentinelrag
+          labelSelectors:
+            app.kubernetes.io/component: api
+        direction: to
+        target:
+          mode: all
+          selector:
+            namespaces:
+              - sentinelrag
+            labelSelectors:
+              app.kubernetes.io/name: redis
+
+    - name: temporal-partition
+      templateType: NetworkChaos
+      deadline: "3m"
+      networkChaos:
+        action: partition
+        mode: all
+        selector:
+          namespaces:
+            - sentinelrag
+          labelSelectors:
+            app.kubernetes.io/component: api
+        direction: to
+        target:
+          mode: all
+          selector:
+            namespaces:
+              - temporal
+            labelSelectors:
+              app.kubernetes.io/component: frontend
+
+    - name: keycloak-dns
+      templateType: DNSChaos
+      deadline: "5m"
+      dnsChaos:
+        action: error
+        mode: all
+        selector:
+          namespaces:
+            - sentinelrag
+          labelSelectors:
+            app.kubernetes.io/component: api
+        patterns:
+          - "auth.dev.sentinelrag.example.com"
+
+    - name: worker-cpu-stress
+      templateType: StressChaos
+      deadline: "10m"
+      stressChaos:
+        mode: all
+        selector:
+          namespaces:
+            - sentinelrag
+          labelSelectors:
+            app.kubernetes.io/component: temporal-worker
+        stressors:
+          cpu:
+            workers: 2
+            load: 80

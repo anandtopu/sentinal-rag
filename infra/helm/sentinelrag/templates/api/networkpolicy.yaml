@@ -1,0 +1,37 @@
+{{- if and .Values.api.enabled .Values.networkPolicy.enabled -}}
+{{- $ctx := merge (dict "workload" "api" "workloadKey" "api") . -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Ingress from anywhere on container port — Ingress controller / mesh
+    # routes to us. Tighten with namespace selectors once we know the
+    # ingress controller's namespace per cloud.
+    - from: []
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.containerPort }}
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow all egress to ClusterIP services and the wider cluster — tightening
+    # this would require allow-listing every external dep (RDS, Bedrock,
+    # Anthropic, OpenAI, Ollama). Deferred to a Phase 8 hardening pass.
+    - to: []
+{{- end -}}

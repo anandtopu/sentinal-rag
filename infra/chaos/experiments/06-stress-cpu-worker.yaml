@@ -1,0 +1,32 @@
+# Experiment 06 — CPU stress on the temporal-worker pods.
+#
+# Hypothesis:
+#   The worker's HPA + resource requests/limits keep ingestion + evaluation
+#   workflows progressing under CPU pressure. Saturating CPU should:
+#     - Slow activity throughput proportionally.
+#     - NOT cause workflow failures (Temporal retries activities that exceed
+#       the heartbeat timeout, but the activity never crashes the worker).
+#
+# Steady-state metric:
+#   Ingestion workflow `IngestionWorkflow.run` succeeds end-to-end during
+#   the experiment, even if individual activities take 5x longer.
+#   No worker pod restarts (CrashLoopBackOff) during the stress window.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: worker-cpu-stress
+  namespace: sentinelrag-chaos
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - sentinelrag
+    labelSelectors:
+      app.kubernetes.io/component: temporal-worker
+      app.kubernetes.io/part-of: sentinelrag
+  stressors:
+    cpu:
+      workers: 2
+      load: 80
+  duration: "10m"

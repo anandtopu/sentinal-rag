@@ -1,0 +1,43 @@
+# Experiment 03 — Block all traffic from api pods to Redis for 2 minutes.
+#
+# Hypothesis:
+#   Redis is a soft dependency for the api (cache-aside for prompt
+#   templates, JWKS, rate limit counters). Losing it should degrade —
+#   not break — the /query path; the cache-aside layer must fall through
+#   to the source-of-truth (Postgres for prompts, Keycloak JWKS endpoint).
+#
+# Steady-state metric:
+#   /query continues serving (HTTP 2xx). p99 latency is allowed to climb
+#   up to 1.5× during the partition window (cold prompt fetches, JWKS
+#   re-fetch). Recovery within 1 minute of the partition lifting.
+#
+# Discovery target:
+#   `cache.<region>.amazonaws.com` for ElastiCache OR the Memorystore
+#   private IP. This file uses the cluster-local Service name so it
+#   works against the local docker-compose stack and an in-cluster Redis;
+#   for managed Redis, set `externalTargets` to the endpoint instead and
+#   leave `target` blank.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: api-redis-partition
+  namespace: sentinelrag-chaos
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - sentinelrag
+    labelSelectors:
+      app.kubernetes.io/component: api
+      app.kubernetes.io/part-of: sentinelrag
+  direction: to
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - sentinelrag
+      labelSelectors:
+        app.kubernetes.io/name: redis
+  duration: "2m"

@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored.
+
+region              = "us-east-1"
+name_prefix         = "sentinelrag-dev"
+
+# These are seed values; rotate in Secrets Manager / RDS console after the
+# first apply. Generate with: openssl rand -base64 32
+rds_master_password = "REPLACE_ME_GENERATE_RANDOM"
+redis_auth_token    = "REPLACE_ME_GENERATE_RANDOM"

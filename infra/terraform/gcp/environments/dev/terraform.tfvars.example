@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored.
+
+project_id  = "sentinelrag-dev-PLACEHOLDER"
+region      = "us-central1"
+name_prefix = "sentinelrag-dev"
+
+# Generate with: openssl rand -base64 32
+cloudsql_master_password = "REPLACE_ME_GENERATE_RANDOM"

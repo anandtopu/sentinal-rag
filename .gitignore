@@ -77,6 +77,15 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# --- Synthetic data artifacts (regenerable) ---
+scripts/cost/synthetic-month.csv
+
+# --- Helm dependency artifacts ---
+# Chart.lock pins versions and IS committed; the extracted dep dirs and
+# tarballs are fetched fresh by `helm dependency build` (run in CI).
+infra/helm/*/charts/*/
+infra/helm/*/charts/*.tgz
+
 # --- Docker ---
 .docker/
 

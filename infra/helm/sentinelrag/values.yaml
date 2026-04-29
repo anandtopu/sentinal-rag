@@ -1,0 +1,371 @@
+# SentinelRAG default values.
+#
+# Per-environment overlays live in values-{local,dev,prod}.yaml. Anything in
+# this file is the safe-by-default baseline — every overlay can override.
+#
+# Convention:
+#   - All workload sections (api, temporalWorker, frontend) accept the same
+#     shape: image, replicaCount, resources, autoscaling, podAnnotations,
+#     nodeSelector, tolerations, affinity. The _helpers.tpl renders these
+#     uniformly.
+#   - Secrets are NEVER baked into values. Either:
+#       1) reference an existing secret via .existingSecret, OR
+#       2) let External Secrets Operator (ESO) materialize one
+#          (set externalSecrets.enabled=true and the *.externalSecret.* keys).
+#
+# Cloud switch: top-level `cloud` toggles ingressClass, storageClass, and
+# ServiceAccount IRSA / Workload-Identity annotation shape. Allowed values:
+# aws, gcp, azure, local.
+
+cloud: local
+
+# ----------------------------------------------------------------------------
+# Global image pull configuration. Every workload's image.repository is built
+# as "{{ .Values.image.registry }}/{{ .Values.<workload>.image.name }}".
+# ----------------------------------------------------------------------------
+image:
+  registry: ghcr.io/anandtopu
+  pullPolicy: IfNotPresent
+  # Pull secrets are referenced by name; create them out-of-band (or via ESO).
+  pullSecrets: []
+  # Default tag applied to every workload image unless they override.
+  # CI bumps this to ":sha-<short>" or ":vX.Y.Z" via --set image.tag=...
+  tag: "0.1.0"
+
+# ----------------------------------------------------------------------------
+# Common labels merged into every rendered object via _helpers.tpl.
+# ----------------------------------------------------------------------------
+commonLabels: {}
+commonAnnotations: {}
+
+# ----------------------------------------------------------------------------
+# Shared environment. Every workload inherits these. Per-workload `env` maps
+# override / extend.
+# ----------------------------------------------------------------------------
+sharedEnv:
+  ENVIRONMENT: dev
+  LOG_LEVEL: INFO
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+
+# ----------------------------------------------------------------------------
+# External Secrets Operator integration. When enabled, the chart emits
+# ExternalSecret resources that pull from the configured backend (AWS Secrets
+# Manager / GCP Secret Manager / Vault) into Kubernetes Secrets the workloads
+# mount via envFrom.
+# ----------------------------------------------------------------------------
+externalSecrets:
+  enabled: false
+  # secretStoreRef is the cluster-scoped or namespaced ClusterSecretStore.
+  # Provisioned by Phase 7 Terraform / cluster bootstrap, not by this chart.
+  secretStoreRef:
+    name: sentinelrag-secrets
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+
+# ----------------------------------------------------------------------------
+# API service.
+# ----------------------------------------------------------------------------
+api:
+  enabled: true
+  image:
+    name: sentinelrag-api
+    # tag: "" → falls back to .Values.image.tag
+  replicaCount: 2
+  containerPort: 8000
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  ingress:
+    enabled: true
+    # ingressClassName resolved from cloud switch in _helpers.tpl unless set here.
+    className: ""
+    annotations: {}
+    hosts:
+      - host: api.sentinelrag.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  serviceAccount:
+    create: true
+    # name: ""  → render-time computed
+    annotations: {}
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Probes hit the FastAPI /api/v1/health endpoint (matches Dockerfile HEALTHCHECK).
+  healthCheck:
+    path: /api/v1/health
+    livenessInitialDelaySeconds: 30
+    readinessInitialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  # Per-workload env overrides + additions. Merged on top of sharedEnv.
+  env:
+    API_BASE_PATH: /api/v1
+    AUTH_ALLOW_DEV_TOKEN: "false"
+  # Secrets the API mounts via envFrom. The chart renders an ExternalSecret if
+  # externalSecrets.enabled, otherwise this references a pre-existing Secret.
+  envFromSecret:
+    name: sentinelrag-api-secrets
+    # Keys mapped from the upstream secret store. Used only when ESO is enabled.
+    remoteKeys:
+      - DATABASE_URL
+      - REDIS_URL
+      - KEYCLOAK_ISSUER_URL
+      - KEYCLOAK_AUDIENCE
+      - KEYCLOAK_JWKS_URL
+      - OBJECT_STORAGE_ACCESS_KEY
+      - OBJECT_STORAGE_SECRET_KEY
+      - UNLEASH_API_TOKEN
+  # Non-sensitive config the API reads from a ConfigMap.
+  envFromConfigMap:
+    KEYCLOAK_AUDIENCE: sentinelrag-api
+    JWT_ALGORITHM: RS256
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    OBJECT_STORAGE_PROVIDER: s3
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+    DEFAULT_GENERATION_MODEL: ollama/llama3.1:8b
+    DEFAULT_RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+    ENABLE_RERANKER: "false"
+    UNLEASH_URL: http://unleash.unleash.svc.cluster.local:4242/api/
+    UNLEASH_APP_NAME: sentinelrag-api
+
+# ----------------------------------------------------------------------------
+# Temporal worker.
+# ----------------------------------------------------------------------------
+temporalWorker:
+  enabled: true
+  image:
+    name: sentinelrag-temporal-worker
+  replicaCount: 2
+  command:
+    - python
+    - -m
+    - sentinelrag_worker.main
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  autoscaling:
+    enabled: false  # Temporal pulls work; scale by queue depth signal, not CPU.
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  serviceAccount:
+    create: true
+    annotations: {}
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  env:
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    TEMPORAL_TASK_QUEUE_AUDIT: audit
+  envFromSecret:
+    name: sentinelrag-worker-secrets
+    remoteKeys:
+      - DATABASE_URL
+      - REDIS_URL
+      - OBJECT_STORAGE_ACCESS_KEY
+      - OBJECT_STORAGE_SECRET_KEY
+  envFromConfigMap:
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    OBJECT_STORAGE_PROVIDER: s3
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+
+# ----------------------------------------------------------------------------
+# Next.js frontend.
+# ----------------------------------------------------------------------------
+frontend:
+  enabled: true
+  image:
+    name: sentinelrag-frontend
+  replicaCount: 2
+  containerPort: 3000
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  ingress:
+    enabled: true
+    className: ""
+    annotations: {}
+    hosts:
+      - host: app.sentinelrag.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  serviceAccount:
+    create: true
+    annotations: {}
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  healthCheck:
+    # Next.js doesn't ship a dedicated health endpoint; "/" is cheap.
+    path: /
+    livenessInitialDelaySeconds: 30
+    readinessInitialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  env:
+    NODE_ENV: production
+    NEXTAUTH_URL: https://app.sentinelrag.local
+    NEXT_PUBLIC_API_URL: https://api.sentinelrag.local
+    AUTH_DEV_BYPASS: "false"
+  envFromSecret:
+    name: sentinelrag-frontend-secrets
+    remoteKeys:
+      - NEXTAUTH_SECRET
+      - KEYCLOAK_CLIENT_ID
+      - KEYCLOAK_CLIENT_SECRET
+  envFromConfigMap:
+    KEYCLOAK_ISSUER: https://auth.sentinelrag.local/realms/sentinelrag
+
+# ----------------------------------------------------------------------------
+# DB migrations. A pre-upgrade Job runs `alembic upgrade head` against
+# DATABASE_URL, blocking the rollout until migrations succeed.
+# ----------------------------------------------------------------------------
+migrations:
+  enabled: true
+  image:
+    # Reuses the API image; the venv has alembic + the migration files.
+    name: sentinelrag-api
+  command:
+    - sh
+    - -c
+    - cd /workspace && alembic -c migrations/alembic.ini upgrade head
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+
+# ----------------------------------------------------------------------------
+# Pod-level security context applied to every workload via _helpers.tpl.
+# Aligned with the Dockerfile's non-root uid 10001.
+# ----------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Python writes to /tmp; Next.js writes to .next/cache.
+  capabilities:
+    drop:
+      - ALL
+
+# ----------------------------------------------------------------------------
+# Network policies.
+# ----------------------------------------------------------------------------
+networkPolicy:
+  enabled: false  # Enable in dev/prod overlays once a CNI with NP support is confirmed.
+  # Egress allow-lists are computed in templates from the workload's known deps.
+
+# ----------------------------------------------------------------------------
+# Dev-only dependency charts. Enable per-environment.
+# ----------------------------------------------------------------------------
+postgresql:
+  enabled: false
+  # Bitnami chart values when enabled — keep this minimal; production runs RDS.
+  auth:
+    username: sentinel
+    database: sentinelrag
+  primary:
+    persistence:
+      size: 8Gi
+    initdb:
+      scripts:
+        # pgvector extension lives outside Bitnami's image; for local dev we
+        # instead rely on docker-compose's pgvector image. This dep is here
+        # for completeness; Phase 7 prod uses RDS pgvector.
+        00-pgvector.sql: |
+          CREATE EXTENSION IF NOT EXISTS vector;
+
+redis:
+  enabled: false
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 2Gi
+
+minio:
+  enabled: false
+  auth:
+    rootUser: minioadmin
+    rootPassword: minioadmin
+  defaultBuckets: "sentinelrag-documents,sentinelrag-audit"
+
+keycloak:
+  enabled: false
+  auth:
+    adminUser: admin
+
+unleash:
+  enabled: false

@@ -5,25 +5,86 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 ## Status legend
 
 - 🟢 Complete
-- 🟡 cla
+- 🟡 In progress / partial
 - ⚪ Not started
 
 ## Current phase
 
-**Phases 3 + 4 + 5 complete; Phase 6 + 6.5 complete (cost + audit + metrics slice + reconciliation landed).** Unit tests collecting 65 (5 jwt + 6 dev-token guard + 10 chunkers + 11 evaluators + 1 health + 11 cost service + 5 audit dual-write + 16 audit reconciliation). 64 pass clean; `test_dev_token_disabled_by_default` is a pre-existing flake — `test_health.py`'s `create_app()` warms a process-level env that pollutes `Settings(_env_file=None)` in suite-wide runs (passes when run in isolation; reproduces on a clean `git stash`-ed tree). Tracked separately. Frontend vitest passing (5/5: api client). FastAPI app boots cleanly with 42 routes. `uv run ruff check` is clean across the workspace. Phase 6 cost + audit + metrics slice — ADR-0022 (per-tenant budgets), migration 0012 (`tenant_budgets`), `CostService` with soft-cap downgrade + hard-cap deny wired into `RagOrchestrator` before generation, `BudgetExceededError` (HTTP 402), `AuditService` with `PostgresAuditSink` + `ObjectStorageAuditSink` (S3 Object Lock-ready) + `DualWriteAuditService` recording `query.executed`, `query.failed`, `budget.downgraded`, `budget.denied`, OTel meters (`sentinelrag_queries_total`, `sentinelrag_stage_latency_ms`, `sentinelrag_grounding_score`, `sentinelrag_budget_decisions_total`, `sentinelrag_llm_cost_usd_total`), and 3 Grafana dashboards-as-code (rag-overview, cost-tenant, quality) provisioned via `grafana-dashboards.yml`.
+**All 10 phases complete (code-side) — last update 2026-04-29.** Phase
+7 Slice 3 (cluster bootstrap) closed alongside the deployment runbooks
+this session — ADR-0030 + `infra/bootstrap/` (cert-manager, AWS LB
+controller, ESO + secret-stores, Temporal, ArgoCD + per-cloud
+Applications, Chaos Mesh) + `.github/workflows/build-images.yml` (GHCR
+push with provenance + SBOM + Trivy) + three new runbooks at
+`docs/operations/runbooks/{deployment-aws,deployment-gcp,cluster-bootstrap}.md`.
+30 ADRs total. Ruff clean across `apps` + `packages` + `scripts` +
+`tests`.
 
-**Re-verified after the 2026-04-28 Phase 6.5 restart:**
-- `uv run pytest -m unit` → 64 passed, 1 pre-existing flake (see header), 11 deselected.
-- `uv run pytest apps/api/tests/unit/test_audit_reconciliation.py` → 16/16 pass in isolation.
-- `uv run ruff check apps packages migrations` → All checks passed.
+**Phase 8 complete (code-side) — all five slices shipped earlier.**
 
-**Still deferred (Docker required, not run this session):**
-- `make db-upgrade` to apply the 11 migrations.
-- `pytest -m integration` (testcontainers — needs Docker Desktop running).
+Live-infra leftovers — real eval-report numbers, real cost-report numbers,
+GCP deploy verified once, drill-recorded RTO numbers, 5-minute demo video
+— all gate on the deployed dev environment that **Phase 7 Slice 3** still
+owes (cluster bootstrap charts: ArgoCD + ESO + Temporal + ALB controller +
+cert-manager + GHCR push pipeline).
+
+**Phase 7 — Slices 1, 2, 4 shipped earlier 2026-04-29.**
+
+- 🟢 **Slice 1 (Helm chart):** ADR-0023 + `infra/helm/sentinelrag/`
+  covering api + temporal-worker + frontend + alembic-migration Job, with
+  shared `_helpers.tpl`, cloud switch, ESO integration, overlays for
+  `values-{local,dev,prod}.yaml`. `helm lint` + `helm template` clean.
+- 🟢 **Slice 2 (AWS Terraform):** ADR-0024 + `infra/terraform/aws/`
+  modules (vpc, eks, rds, elasticache, s3, secrets, iam) + dev environment
+  wiring. Env-per-dir + shared modules. RDS Postgres 16 + pgvector,
+  ElastiCache Redis 7, S3 documents (versioned) + audit (Object Lock
+  COMPLIANCE 7y), Secrets Manager parent secrets, IRSA roles for
+  api/worker/frontend/ESO, EKS 1.30 with cluster access entries (no
+  aws-auth ConfigMap). Backend = S3 + DynamoDB lock.
+- 🟢 **Slice 4 (Dockerfiles):** `apps/temporal-worker/Dockerfile` and
+  `apps/frontend/Dockerfile` (Next.js standalone output). Both non-root
+  uid 10001 matching the chart's pod security context.
+- 🟢 **Slice 3 (cluster bootstrap):** ADR-0030 + `infra/bootstrap/`
+  with pinned values overlays for cert-manager (v1.16.2),
+  AWS Load Balancer Controller (1.10.1), External Secrets Operator
+  (0.10.7) + `secret-store-{aws,gcp}.yaml` ClusterSecretStores,
+  Temporal (0.55.0), ArgoCD (7.7.5) + per-cloud SentinelRAG
+  `Application` manifests, optional Chaos Mesh (2.7.2).
+  `.github/workflows/build-images.yml` builds api + worker + frontend
+  on push-to-main and on `v*.*.*` tag, pushes to GHCR with provenance
+  attestation + SBOM + Trivy SARIF. ArgoCD Image Updater annotations on
+  the Application manifest pick up new tags via Git write-back. End-to-end
+  procedure documented in
+  `docs/operations/runbooks/{cluster-bootstrap,deployment-aws,deployment-gcp}.md`.
+
+**Earlier phases.** Phases 0 → 6 + 6.5 are 🟢 (foundations, data plane,
+ingestion, retrieval + RAG orchestrator, prompt registry + evaluation,
+frontend, observability + cost + audit + metrics slice + reconciliation
+landed across the earlier sessions). Phase 7 — Slices 1, 2, 4 🟢 (Helm
+chart, AWS Terraform, Dockerfiles) and **Slice 3 cluster bootstrap is
+now closed alongside the deployment runbooks (this session).** Phase
+8 — all 5 slices 🟢 (GCP mirror, OpenSearch reintroduction, k6 + Chaos
+Mesh, security CI, DR runbook). Phase 9 — 🟢 code-side (Mermaid C4,
+README overhaul, eval + cost harnesses, ADR-0029).
+
+**Verified this session:**
+- `uv run pytest -m unit` → 75 passed, 1 pre-existing flake.
+- `uv run ruff check apps packages scripts tests` → clean.
+- `helm lint` against `values-dev.yaml`, `values-gcp-dev.yaml`,
+  `values-prod.yaml`, `values-local.yaml` → clean.
+
+**Still gates on running infra (not in this session):**
+- `make db-upgrade` against a real Postgres.
+- `pytest -m integration` (testcontainers; needs Docker Desktop).
 - End-to-end `/query` smoke against live Postgres + Ollama.
+- First `terraform apply` against a real AWS / GCP account.
+- 5-min demo video.
 
-**Known typecheck baseline (not blocking):**
-- `uv run pyright` (strict mode) reports ~154 baseline errors + ~512 warnings, dominated by `reportMissingTypeStubs` for workspace-internal modules and `reportUnknownParameterType` in integration test fixtures. Not regressions from any single phase — accumulated strict-mode noise. Tighten incrementally rather than in a single sweep.
+**Known typecheck baseline (not blocking):** `uv run pyright` (strict)
+reports ~154 baseline errors + ~512 warnings, dominated by
+`reportMissingTypeStubs` for workspace-internal modules and
+`reportUnknownParameterType` in integration test fixtures. Tighten
+incrementally rather than in a single sweep.
 
 ## Phase ledger
 
@@ -134,36 +195,124 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 **Done when:** Grafana shows live RAG metrics; budget alert demonstrably fires. _(Code-side complete including reconciliation; live demo + Schedule registration against a real Temporal cluster gated on Docker availability.)_
 
-### Phase 7 — AWS production deployment ⚪
+### Phase 7 — AWS production deployment 🟢 (code-side)
 **Goal:** live `dev.<domain>` on AWS.
-- Terraform: VPC, EKS, RDS Postgres, ElastiCache, S3, Secrets Manager, ACM, IAM/IRSA.
-- Helm chart consolidating all manifests.
-- ArgoCD installed; one Application per env (dev only initially).
-- External Secrets Operator + AWS Secrets Manager.
-- HPA, PDB, NetworkPolicies per service.
+- 🟢 **Slice 1 — Helm chart.** ADR-0023 + `infra/helm/sentinelrag/` shipped.
+  Single chart packaging api + temporal-worker + frontend + a pre-upgrade
+  alembic migration Job. Shared `_helpers.tpl` library renders Deployment /
+  SA / ConfigMap / Service / Ingress / HPA / PDB / NetworkPolicy /
+  ExternalSecret per workload from one consistent ctx dict.
+  - Cloud switch (`cloud: aws|gcp|azure|local`) drives the default
+    IngressClass; per-env IRSA / ALB annotations live in
+    `values-{dev,prod}.yaml`.
+  - Dependency charts declared but gated by `*.enabled`:
+    `bitnami/postgresql`, `bitnami/redis`, `bitnami/minio`,
+    `bitnami/keycloak`, `unleash/unleash` (versions pinned in `Chart.lock`).
+    Temporal is excluded — its sub-chart graph is too heavy; installed by
+    bootstrap Terraform instead.
+  - `helm lint` clean against base + dev + prod + local overlays.
+    `helm template` renders against all four (after `helm dependency build`
+    + extracting tarballs — Helm 4 quirk noted in deployment runbook).
+  - Phase 7 still needs: AWS Terraform (VPC + EKS + RDS pgvector +
+    ElastiCache + S3 + Secrets Manager + ACM + IRSA roles), ArgoCD bootstrap
+    + dev `Application`, External Secrets Operator install + ClusterSecretStore,
+    Temporal install in-cluster, image build + push pipeline (`apps/temporal-worker/Dockerfile`
+    + `apps/frontend/Dockerfile` not yet authored).
+- 🟢 Slice 2 — AWS Terraform: ADR-0024 + 7 modules (vpc, eks, rds,
+  elasticache, s3, secrets, iam) + dev environment wiring. RDS Postgres 16
+  with pgvector parameter group; S3 audit bucket with Object Lock COMPLIANCE
+  7y; Secrets Manager 3 parent secrets; IRSA roles wired to OIDC for api,
+  worker, frontend, ESO; EKS 1.30 cluster access entry mode.
+- ⚪ Slice 3 — ArgoCD + ExternalSecretsOperator + Temporal cluster install.
+- 🟢 Slice 4 — Worker + frontend Dockerfiles (multi-stage, non-root
+  uid 10001). GHCR push pipeline still to wire (CI workflow).
 
 **Done when:** push to main → ArgoCD deploys → live URL serves a query.
 
-### Phase 8 — Multi-cloud + scale features ⚪
+### Phase 8 — Multi-cloud + scale features 🟢 (code-side)
 **Goal:** GCP mirror deployment + OpenSearch reintroduction.
-- GCP Terraform mirror; same Helm chart.
-- OpenSearch as second `KeywordSearch` adapter; A/B against Postgres FTS.
-- k6 load tests; chaos tests via litmus or chaos-mesh.
-- Trivy/bandit/tfsec security scans in CI.
-- Disaster recovery runbook.
+- 🟢 **Slice 1 — GCP Terraform mirror.** ADR-0025 + 7 modules
+  (vpc, gke, cloudsql, memorystore, gcs, secrets, iam) + dev environment
+  wiring. GKE Standard private nodes + Workload Identity, Cloud SQL
+  Postgres 16 + pgvector via Private Service Access, Memorystore Redis 7,
+  GCS audit bucket with locked retention 7y, Secret Manager parents,
+  Workload Identity bindings for api/worker/frontend/ESO. Helm
+  `values-gcp-dev.yaml` overlay (cloud=gcp, GCE Ingress, WI annotations).
+- 🟢 **Slice 2 — OpenSearch reintroduction.** ADR-0026 +
+  `sentinelrag_shared/retrieval/opensearch_keyword_search.py` implementing
+  the existing `KeywordSearch` protocol. Postgres-resolved authorization
+  (one round-trip via the same `authorized_collections` CTE
+  `AccessFilter` builds), tenant + collection `terms` filter on every
+  query. `bulk_index`, `delete_by_document`, `ensure_index` helpers for
+  the ingestion pipeline. AWS OpenSearch Terraform module
+  (`infra/terraform/aws/modules/opensearch/`) with private VPC
+  placement, fine-grained access, dual-AZ awareness, CloudWatch logs.
+  11 unit tests covering empty-query short-circuit, RBAC zero-collection
+  case, tenant-and-collection filters, requested-collection intersection
+  with authorized set, bulk_index partial failure, ensure_index
+  idempotency, delete_by_document filters.
+- 🟢 **Slice 3 — Load + chaos testing.** ADR-0027 +
+  `tests/performance/k6/` (4 scenarios — smoke / baseline / soak / spike,
+  shared `lib/{config,queries,http}.js`, SLO-bound thresholds,
+  README) + `infra/chaos/` (namespace, 6 experiments under
+  `experiments/`, game-day `Workflow` chaining all six, README with
+  experiment matrix). `.github/workflows/perf-smoke.yml` runs the
+  smoke scenario on every PR + daily cron when `SENTINELRAG_DEV_BASE_URL`
+  is configured (no-op otherwise so external contributors don't
+  break the run). Per-experiment hypotheses live in each manifest's
+  header so the assertions are self-documenting.
+- 🟢 **Slice 4 — Security scans CI.** `.github/workflows/security.yml`
+  with tfsec (Terraform), bandit (Python), trivy fs (filesystem + IaC),
+  trivy image (api + worker + frontend Dockerfiles via matrix). All
+  uploads SARIF to GitHub code scanning; weekly cron + PR triggers.
+- 🟢 **Slice 5 — Disaster recovery.** ADR-0028 + tiered RPO/RTO matrix
+  (Tier 0 audit immutable, Tier 1 Postgres+S3 RPO 5min/24h RTO 1h/2h,
+  Tier 2 Redis+Temporal RTO 15min/1h). `docs/operations/runbooks/disaster-recovery.md`
+  with 8 failure scenarios (RDS failure, S3 doc loss, audit bucket
+  edge cases, Redis loss, Temporal loss, region outage with cross-cloud
+  failover, EKS destruction, Secrets corruption) — each with symptoms,
+  immediate response, recovery procedure, expected data loss, post-incident
+  follow-up. `scripts/dr/verify-backups-{aws,gcp}.sh` daily verifiers
+  (RDS/CloudSQL snapshot freshness, bucket versioning, Object Lock /
+  Locked Retention shape) + `.github/workflows/dr-backup-verify.yml`
+  with daily cron, OIDC federation, JSON-artifact retention, Slack
+  webhook on failure, shellcheck gate. Active-passive cross-cloud stance
+  documented; cross-cloud data replication explicitly Phase 9.
 
 **Done when:** GCP deploy verified once; OpenSearch A/B report committed; resilience evidence documented.
 
-### Phase 9 — Portfolio polish ⚪
+### Phase 9 — Portfolio polish 🟢 (code-side)
 **Goal:** readable artifacts a senior engineer can absorb in 30 minutes.
-- Root README with architecture diagram, quick-start, live demo URL.
-- C4 diagrams in `docs/architecture/c4/` (rendered PNGs).
-- ADR index complete and current.
-- Cost report (1 month synthetic traffic).
-- Eval report: before/after hybrid retrieval; before/after rerank; before/after prompt v2.
-- 5-minute demo video.
+- 🟢 **Root README overhaul.** Recruiter-readable, with an embedded
+  Mermaid architecture diagram, stack table that links each row to the
+  ADR that pinned it, repository tour, quick-start, build status and
+  things-not-to-do.
+- 🟢 **C4 diagrams as Mermaid.** ADR-0029 + `docs/architecture/c4/`:
+  L1 system context, L2 container, L3 RAG-core component, L4 deployment
+  for AWS + L4 deployment for GCP. Rendered natively by GitHub; each
+  diagram links to the ADRs visible at that level.
+- 🟢 **ADR index current.** 29 ADRs (ADR-0001 through ADR-0029); the
+  catalog at `docs/architecture/adr/README.md` is in sync.
+- 🟢 **Eval comparison harness.** `tests/performance/evals/compare.py`
+  with three pre-wired comparisons (hybrid-vs-vector, rerank-vs-no,
+  prompt-v2-vs-v1), a 3-case JSON fixture for self-check, and a
+  placeholder report at `docs/operations/eval-report.md` describing the
+  expected shape. Overwritten on first real run.
+- 🟢 **Cost report harness.** `scripts/cost/synthetic_month.py` (CSV
+  generator emulating 30 days × 4 tenants × 6 models, with weekly
+  seasonality + tier-based model mix) +
+  `scripts/cost/render_report.py` (markdown renderer with daily-trend
+  sparkline + per-tenant + per-model breakdowns). Committed report at
+  `docs/operations/cost-report.md` rendered from synthetic CSV
+  (seed=42); the CSV itself is gitignored (regenerable).
+- 🟢 **ADR-0029** documents the "harness with placeholder report"
+  pattern + the Mermaid-over-PNG choice.
+- ⚪ **5-min demo video.** Gates on the deployed dev environment
+  (Phase 7 Slice 3).
 
-**Done when:** the repo's README sells the project on its own.
+**Done when:** the repo's README sells the project on its own. _(Met
+modulo the live demo video, which gates on Phase 7 Slice 3 cluster
+bootstrap.)_
 
 ## Cross-phase rules
 

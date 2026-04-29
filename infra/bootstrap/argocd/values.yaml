@@ -1,0 +1,75 @@
+# ArgoCD — installed last in the bootstrap order. Once running, ArgoCD
+# manages the SentinelRAG chart's lifecycle (and could manage every chart
+# in this directory too — see ADR-0030 for the trade-off and why we don't
+# do that in v1).
+#
+# We expose the ArgoCD UI via Ingress through the same ALB / GCE LB as
+# SentinelRAG; auth is via Keycloak SSO (see argocd configuration below).
+
+global:
+  domain: argocd.dev.sentinelrag.example.com
+
+# OIDC SSO via Keycloak — the same realm SentinelRAG uses, with a separate
+# client ID. The client secret comes from a manually-created K8s Secret
+# (`argocd-secret`) — ArgoCD's Helm chart does not let you reference an
+# ExternalSecret cleanly, so this stays a manual ops step (documented in
+# the cluster-bootstrap runbook).
+configs:
+  cm:
+    url: https://argocd.dev.sentinelrag.example.com
+    oidc.config: |
+      name: Keycloak
+      issuer: https://auth.dev.sentinelrag.example.com/realms/sentinelrag
+      clientID: argocd
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+      requestedIDTokenClaims:
+        groups:
+          essential: true
+  rbac:
+    policy.csv: |
+      g, sentinelrag-admin, role:admin
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: alb     # AWS — set to `gce` for GCP overlay
+    annotations:
+      # AWS ALB:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    hosts:
+      - argocd.dev.sentinelrag.example.com
+    tls:
+      - hosts:
+          - argocd.dev.sentinelrag.example.com
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+applicationSet:
+  enabled: true   # we use ApplicationSets to fan out per-environment
+
+# Image Updater — watches GHCR for new SentinelRAG image tags matching
+# `^v[0-9]+\.[0-9]+\.[0-9]+$` and bumps the chart values. Per ADR-0012.
+notifications:
+  enabled: false
+
+# Don't ship the bundled Redis — share the cluster-wide one if needed,
+# or accept the small bundled one for dev.
+redis-ha:
+  enabled: false

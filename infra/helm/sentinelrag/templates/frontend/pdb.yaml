@@ -1,0 +1,14 @@
+{{- if and .Values.frontend.enabled .Values.frontend.pdb.enabled -}}
+{{- $ctx := merge (dict "workload" "frontend" "workloadKey" "frontend") . -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.frontend.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 6 }}
+{{- end -}}

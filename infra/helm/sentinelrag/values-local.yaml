@@ -1,0 +1,90 @@
+# Overlay for local kind/minikube clusters.
+#
+# Pulls in dev dependency charts (Postgres, Redis, MinIO, Keycloak, Unleash)
+# inside the cluster so you can `helm install` and have a self-contained
+# environment without docker-compose. Slower than `make up` but useful for
+# verifying chart correctness end-to-end.
+
+cloud: local
+
+sharedEnv:
+  ENVIRONMENT: local
+  LOG_LEVEL: DEBUG
+
+externalSecrets:
+  enabled: false  # Local clusters don't have ESO; we use plain Secrets.
+
+api:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: api.sentinelrag.local
+        paths:
+          - path: /
+            pathType: Prefix
+  env:
+    API_BASE_PATH: /api/v1
+    AUTH_ALLOW_DEV_TOKEN: "true"  # local-only convenience; gated also by ENVIRONMENT=local
+  envFromConfigMap:
+    KEYCLOAK_AUDIENCE: sentinelrag-api
+    JWT_ALGORITHM: RS256
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    OBJECT_STORAGE_PROVIDER: minio
+    OBJECT_STORAGE_ENDPOINT: http://sentinelrag-minio.default.svc.cluster.local:9000
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+    DEFAULT_GENERATION_MODEL: ollama/llama3.1:8b
+    ENABLE_RERANKER: "false"
+    UNLEASH_URL: http://sentinelrag-unleash.default.svc.cluster.local:4242/api/
+
+temporalWorker:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+
+frontend:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: app.sentinelrag.local
+        paths:
+          - path: /
+            pathType: Prefix
+  env:
+    NODE_ENV: production
+    NEXTAUTH_URL: http://app.sentinelrag.local
+    NEXT_PUBLIC_API_URL: http://api.sentinelrag.local
+    AUTH_DEV_BYPASS: "true"
+
+migrations:
+  enabled: true
+
+postgresql:
+  enabled: true
+redis:
+  enabled: true
+minio:
+  enabled: true
+keycloak:
+  enabled: true
+unleash:
+  enabled: true

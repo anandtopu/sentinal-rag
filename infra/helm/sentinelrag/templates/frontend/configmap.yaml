@@ -1,0 +1,13 @@
+{{- if .Values.frontend.enabled -}}
+{{- $ctx := merge (dict "workload" "frontend" "workloadKey" "frontend") . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}-config
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.frontend.envFromConfigMap }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+{{- end -}}

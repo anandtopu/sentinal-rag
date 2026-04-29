@@ -1,0 +1,32 @@
+# Experiment 01 — Random pod kill on the api Deployment.
+#
+# Hypothesis:
+#   The api is stateless and replica-redundant (HPA min=2, PDB minAvailable=1).
+#   Killing one pod every 5 minutes should not cause user-visible errors;
+#   in-flight requests should drain via the 30s terminationGracePeriodSeconds
+#   and the Service should route around the dying endpoint within ~1s.
+#
+# Steady-state metric:
+#   p95 latency of /query stays under 4 s. Error rate stays under 1 %.
+#
+# Run during a `tests/performance/k6/baseline.js` invocation against the
+# same cluster — the k6 thresholds will fail the run if the hypothesis
+# breaks.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: api-pod-kill
+  namespace: sentinelrag-chaos
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - sentinelrag
+    labelSelectors:
+      app.kubernetes.io/component: api
+      app.kubernetes.io/part-of: sentinelrag
+  scheduler:
+    cron: "@every 5m"
+  duration: "30s"

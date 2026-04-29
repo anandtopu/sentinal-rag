@@ -1,0 +1,18 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 16.3.5
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 20.6.2
+- name: minio
+  repository: https://charts.bitnami.com/bitnami
+  version: 14.10.5
+- name: keycloak
+  repository: https://charts.bitnami.com/bitnami
+  version: 24.4.10
+- name: unleash
+  repository: https://docs.getunleash.io/helm-charts
+  version: 5.6.7
+digest: sha256:ca611048a3e03416740ae04410be7af20d7280d15019ea993d4addd16746431b
+generated: "2026-04-28T23:57:36.4938015-05:00"

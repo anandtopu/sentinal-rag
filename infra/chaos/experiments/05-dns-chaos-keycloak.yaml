@@ -1,0 +1,34 @@
+# Experiment 05 — DNS chaos: api can't resolve the Keycloak hostname.
+#
+# Hypothesis:
+#   The api caches the JWKS for a configurable TTL (default 10 min). If
+#   Keycloak DNS resolution fails partway through that TTL, requests
+#   continue to verify against the cached keys. New requests after TTL
+#   expiry return 5xx with a clear "JWKS unavailable" error rather than
+#   hanging on DNS.
+#
+# Steady-state metric:
+#   - Within the JWKS cache TTL: no impact on /query.
+#   - After TTL expires: requests fail fast with HTTP 503 "auth.jwks.unavailable",
+#     not a 30-second client-side timeout.
+#
+# `patterns` matches the Keycloak hostname as configured in the api's
+# KEYCLOAK_ISSUER_URL. Replace per environment.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: api-keycloak-dns
+  namespace: sentinelrag-chaos
+spec:
+  action: error
+  mode: all
+  selector:
+    namespaces:
+      - sentinelrag
+    labelSelectors:
+      app.kubernetes.io/component: api
+      app.kubernetes.io/part-of: sentinelrag
+  patterns:
+    - "auth.dev.sentinelrag.example.com"
+  duration: "5m"

@@ -1,0 +1,138 @@
+# Overlay for the AWS dev environment (live `dev.sentinelrag.example.com`).
+#
+# Data plane runs on managed services (RDS Postgres + pgvector, ElastiCache,
+# S3); this overlay disables the Bitnami dev-data-plane sub-charts and points
+# the workloads at in-cluster Temporal/Keycloak/Unleash plus those managed
+# external endpoints via External Secrets Operator.
+
+cloud: aws
+
+sharedEnv:
+  ENVIRONMENT: dev
+  LOG_LEVEL: INFO
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: sentinelrag-aws-secrets
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+
+image:
+  registry: ghcr.io/anandtopu
+  pullPolicy: IfNotPresent
+  # Overridden by ArgoCD Image Updater on each tagged release.
+  tag: "0.1.0"
+
+api:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/healthcheck-path: /api/v1/health
+    hosts:
+      - host: api.dev.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - api.dev.sentinelrag.example.com
+  serviceAccount:
+    create: true
+    annotations:
+      # IRSA — Terraform creates the role; chart only references it.
+      eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/sentinelrag-dev-api
+  env:
+    API_BASE_PATH: /api/v1
+    AUTH_ALLOW_DEV_TOKEN: "false"
+  envFromConfigMap:
+    KEYCLOAK_AUDIENCE: sentinelrag-api
+    JWT_ALGORITHM: RS256
+    KEYCLOAK_ISSUER_URL: https://auth.dev.sentinelrag.example.com/realms/sentinelrag
+    KEYCLOAK_JWKS_URL: https://auth.dev.sentinelrag.example.com/realms/sentinelrag/protocol/openid-connect/certs
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    OBJECT_STORAGE_PROVIDER: s3
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-dev-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-dev-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: text-embedding-3-small
+    DEFAULT_GENERATION_MODEL: anthropic/claude-haiku-4-5-20251001
+    ENABLE_RERANKER: "true"
+    UNLEASH_URL: http://unleash.unleash.svc.cluster.local:4242/api/
+    UNLEASH_APP_NAME: sentinelrag-api
+
+temporalWorker:
+  replicaCount: 2
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/sentinelrag-dev-worker
+  envFromConfigMap:
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    OBJECT_STORAGE_PROVIDER: s3
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-dev-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-dev-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: text-embedding-3-small
+
+frontend:
+  replicaCount: 2
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+    hosts:
+      - host: app.dev.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - app.dev.sentinelrag.example.com
+  env:
+    NODE_ENV: production
+    NEXTAUTH_URL: https://app.dev.sentinelrag.example.com
+    NEXT_PUBLIC_API_URL: https://api.dev.sentinelrag.example.com
+    AUTH_DEV_BYPASS: "false"
+  envFromConfigMap:
+    KEYCLOAK_ISSUER: https://auth.dev.sentinelrag.example.com/realms/sentinelrag
+
+migrations:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+# Dev cluster runs RDS / ElastiCache / S3 — no in-cluster data plane.
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+minio:
+  enabled: false
+# Identity + flags still in-cluster on dev.
+keycloak:
+  enabled: true
+unleash:
+  enabled: true

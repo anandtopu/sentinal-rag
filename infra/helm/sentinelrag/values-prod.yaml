@@ -1,0 +1,150 @@
+# Overlay for the AWS prod environment.
+#
+# Phase 7 ships dev only; this file exists so the Helm chart contract is
+# end-to-end consistent and so prod ramp-up later is a values diff, not a
+# template diff.
+
+cloud: aws
+
+sharedEnv:
+  ENVIRONMENT: prod
+  LOG_LEVEL: INFO
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: sentinelrag-aws-secrets
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+
+image:
+  registry: ghcr.io/anandtopu
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+api:
+  replicaCount: 4
+  autoscaling:
+    enabled: true
+    minReplicas: 4
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 65
+  pdb:
+    enabled: true
+    minAvailable: 2
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/healthcheck-path: /api/v1/health
+      alb.ingress.kubernetes.io/wafv2-acl-arn: ""  # set in Terraform-managed values
+    hosts:
+      - host: api.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - api.sentinelrag.example.com
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/sentinelrag-prod-api
+  env:
+    API_BASE_PATH: /api/v1
+    AUTH_ALLOW_DEV_TOKEN: "false"
+  envFromConfigMap:
+    KEYCLOAK_AUDIENCE: sentinelrag-api
+    JWT_ALGORITHM: RS256
+    KEYCLOAK_ISSUER_URL: https://auth.sentinelrag.example.com/realms/sentinelrag
+    KEYCLOAK_JWKS_URL: https://auth.sentinelrag.example.com/realms/sentinelrag/protocol/openid-connect/certs
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    OBJECT_STORAGE_PROVIDER: s3
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-prod-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-prod-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: text-embedding-3-small
+    DEFAULT_GENERATION_MODEL: anthropic/claude-sonnet-4-6
+    ENABLE_RERANKER: "true"
+    UNLEASH_URL: http://unleash.unleash.svc.cluster.local:4242/api/
+    UNLEASH_APP_NAME: sentinelrag-api
+
+temporalWorker:
+  replicaCount: 4
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/sentinelrag-prod-worker
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+  envFromConfigMap:
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    OBJECT_STORAGE_PROVIDER: s3
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-prod-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-prod-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: text-embedding-3-small
+
+frontend:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 12
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+    hosts:
+      - host: app.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - app.sentinelrag.example.com
+  env:
+    NODE_ENV: production
+    NEXTAUTH_URL: https://app.sentinelrag.example.com
+    NEXT_PUBLIC_API_URL: https://api.sentinelrag.example.com
+    AUTH_DEV_BYPASS: "false"
+  envFromConfigMap:
+    KEYCLOAK_ISSUER: https://auth.sentinelrag.example.com/realms/sentinelrag
+
+migrations:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+# All data plane on managed services in prod.
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+minio:
+  enabled: false
+keycloak:
+  enabled: true
+unleash:
+  enabled: true

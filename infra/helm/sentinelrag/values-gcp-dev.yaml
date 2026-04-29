@@ -1,0 +1,131 @@
+# Overlay for the GCP dev environment (mirror of values-dev.yaml on AWS).
+#
+# Same chart, same templates — only ServiceAccount annotations and Ingress
+# class differ. The cloud switch in _helpers.tpl makes ingressClassName
+# default to `gce` when cloud=gcp.
+
+cloud: gcp
+
+sharedEnv:
+  ENVIRONMENT: dev
+  LOG_LEVEL: INFO
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: sentinelrag-gcp-secrets
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+
+image:
+  registry: ghcr.io/anandtopu
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+api:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+  ingress:
+    enabled: true
+    # GCE Ingress -> external HTTPS Load Balancer
+    className: gce
+    annotations:
+      kubernetes.io/ingress.global-static-ip-name: sentinelrag-dev-api
+      networking.gke.io/managed-certificates: sentinelrag-dev-api-cert
+      kubernetes.io/ingress.allow-http: "false"
+    hosts:
+      - host: api.dev.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+  serviceAccount:
+    create: true
+    annotations:
+      # Workload Identity binding — Terraform provisions the GSA and the
+      # roles/iam.workloadIdentityUser binding; chart only stamps the
+      # annotation onto the KSA.
+      iam.gke.io/gcp-service-account: sentinelrag-dev-api@PLACEHOLDER-PROJECT.iam.gserviceaccount.com
+  env:
+    API_BASE_PATH: /api/v1
+    AUTH_ALLOW_DEV_TOKEN: "false"
+  envFromConfigMap:
+    KEYCLOAK_AUDIENCE: sentinelrag-api
+    JWT_ALGORITHM: RS256
+    KEYCLOAK_ISSUER_URL: https://auth.dev.sentinelrag.example.com/realms/sentinelrag
+    KEYCLOAK_JWKS_URL: https://auth.dev.sentinelrag.example.com/realms/sentinelrag/protocol/openid-connect/certs
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    OBJECT_STORAGE_PROVIDER: gcs
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-dev-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-dev-audit
+    OBJECT_STORAGE_REGION: us-central1
+    DEFAULT_EMBEDDING_MODEL: text-embedding-3-small
+    DEFAULT_GENERATION_MODEL: anthropic/claude-haiku-4-5-20251001
+    ENABLE_RERANKER: "true"
+    UNLEASH_URL: http://unleash.unleash.svc.cluster.local:4242/api/
+    UNLEASH_APP_NAME: sentinelrag-api
+
+temporalWorker:
+  replicaCount: 2
+  serviceAccount:
+    create: true
+    annotations:
+      iam.gke.io/gcp-service-account: sentinelrag-dev-worker@PLACEHOLDER-PROJECT.iam.gserviceaccount.com
+  envFromConfigMap:
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    OBJECT_STORAGE_PROVIDER: gcs
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-dev-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-dev-audit
+    OBJECT_STORAGE_REGION: us-central1
+    DEFAULT_EMBEDDING_MODEL: text-embedding-3-small
+
+frontend:
+  replicaCount: 2
+  ingress:
+    enabled: true
+    className: gce
+    annotations:
+      kubernetes.io/ingress.global-static-ip-name: sentinelrag-dev-app
+      networking.gke.io/managed-certificates: sentinelrag-dev-app-cert
+      kubernetes.io/ingress.allow-http: "false"
+    hosts:
+      - host: app.dev.sentinelrag.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+  serviceAccount:
+    create: true
+    annotations:
+      iam.gke.io/gcp-service-account: sentinelrag-dev-frontend@PLACEHOLDER-PROJECT.iam.gserviceaccount.com
+  env:
+    NODE_ENV: production
+    NEXTAUTH_URL: https://app.dev.sentinelrag.example.com
+    NEXT_PUBLIC_API_URL: https://api.dev.sentinelrag.example.com
+    AUTH_DEV_BYPASS: "false"
+  envFromConfigMap:
+    KEYCLOAK_ISSUER: https://auth.dev.sentinelrag.example.com/realms/sentinelrag
+
+migrations:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+# All data plane on managed GCP services.
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+minio:
+  enabled: false
+keycloak:
+  enabled: true
+unleash:
+  enabled: true

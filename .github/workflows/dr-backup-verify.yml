@@ -1,0 +1,137 @@
+name: dr-backup-verify
+
+# Daily backup-health gate.
+#
+# Runs scripts/dr/verify-backups-aws.sh and verify-backups-gcp.sh against
+# whichever clouds have credentials configured (gated by repo variables so
+# external contributors and unconfigured forks no-op cleanly). Emits the
+# JSON status doc as a workflow artifact for trend tracking and posts to
+# Slack on failure when SLACK_WEBHOOK is set.
+
+on:
+  schedule:
+    - cron: "37 6 * * *"  # daily 06:37 UTC — after the 03:00 RDS backup window
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'scripts/dr/**'
+      - '.github/workflows/dr-backup-verify.yml'
+
+permissions:
+  contents: read
+  id-token: write   # AWS / GCP OIDC federation
+
+concurrency:
+  group: dr-backup-verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  aws:
+    name: AWS backup verify
+    runs-on: ubuntu-latest
+    if: ${{ vars.SENTINELRAG_AWS_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DR_VERIFY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Run verifier
+        id: verify
+        env:
+          SENTINELRAG_ENV:    ${{ vars.SENTINELRAG_ENV    || 'dev' }}
+          SENTINELRAG_PREFIX: ${{ vars.SENTINELRAG_PREFIX || 'sentinelrag-dev' }}
+        run: |
+          set +e
+          scripts/dr/verify-backups-aws.sh > backup-aws.json 2> backup-aws.stderr
+          rc=$?
+          set -e
+          cat backup-aws.json
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-aws-${{ github.run_id }}
+          path: |
+            backup-aws.json
+            backup-aws.stderr
+          retention-days: 90
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_WEBHOOK != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          payload=$(jq -n \
+            --arg env  "${{ vars.SENTINELRAG_ENV || 'dev' }}" \
+            --arg run  "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{text: ("AWS backup verification FAILED for env=" + $env + " — " + $run)}')
+          curl -fsS -X POST -H 'Content-type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK"
+
+  gcp:
+    name: GCP backup verify
+    runs-on: ubuntu-latest
+    if: ${{ vars.SENTINELRAG_GCP_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth to GCP (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account:            ${{ secrets.GCP_DR_VERIFY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run verifier
+        env:
+          SENTINELRAG_GCP_PROJECT: ${{ vars.SENTINELRAG_GCP_PROJECT }}
+          SENTINELRAG_ENV:         ${{ vars.SENTINELRAG_ENV    || 'dev' }}
+          SENTINELRAG_PREFIX:      ${{ vars.SENTINELRAG_PREFIX || 'sentinelrag-dev' }}
+        run: |
+          set +e
+          scripts/dr/verify-backups-gcp.sh > backup-gcp.json 2> backup-gcp.stderr
+          rc=$?
+          set -e
+          cat backup-gcp.json
+          exit $rc
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-gcp-${{ github.run_id }}
+          path: |
+            backup-gcp.json
+            backup-gcp.stderr
+          retention-days: 90
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_WEBHOOK != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          payload=$(jq -n \
+            --arg env "${{ vars.SENTINELRAG_ENV || 'dev' }}" \
+            --arg run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{text: ("GCP backup verification FAILED for env=" + $env + " — " + $run)}')
+          curl -fsS -X POST -H 'Content-type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK"
+
+  shell-lint:
+    name: shellcheck (always)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: scripts/dr

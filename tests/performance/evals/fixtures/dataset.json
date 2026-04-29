@@ -1,0 +1,31 @@
+{
+  "_comment": "Tiny synthetic dataset for the comparison harness's smoke run. Real eval data lives in Postgres (eval_datasets / eval_cases) and is loaded via --dataset-id at run time. This file is only a fallback so the harness can do a self-check end-to-end without a live DB.",
+  "name": "smoke-fixture",
+  "cases": [
+    {
+      "case_id": "11111111-1111-1111-1111-111111111111",
+      "input_query": "How does RBAC work in this system?",
+      "expected_answer": "RBAC is enforced at retrieval time. Every Postgres query carries the tenant_id via SET LOCAL app.current_tenant_id, and the hybrid retriever injects an authorized-collections CTE before candidates are fetched.",
+      "expected_citation_chunk_ids": [
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01",
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02"
+      ]
+    },
+    {
+      "case_id": "22222222-2222-2222-2222-222222222222",
+      "input_query": "What does HNSW give us over IVFFlat?",
+      "expected_answer": "HNSW supports per-query ef_search tuning, has better recall at small k, and avoids the IVFFlat training step. We picked it in ADR-0003.",
+      "expected_citation_chunk_ids": [
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa03"
+      ]
+    },
+    {
+      "case_id": "33333333-3333-3333-3333-333333333333",
+      "input_query": "When does the cost gate downgrade a request?",
+      "expected_answer": "The cost gate runs after retrieval/rerank, before generation. If the soft-cap is crossed it rebinds the LiteLLM generator to a cheaper model in the per-tenant downgrade ladder; if the hard-cap is crossed it raises BudgetExceededError (HTTP 402).",
+      "expected_citation_chunk_ids": [
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa04"
+      ]
+    }
+  ]
+}

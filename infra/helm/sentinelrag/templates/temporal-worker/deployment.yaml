@@ -1,0 +1,65 @@
+{{- if .Values.temporalWorker.enabled -}}
+{{- $ctx := merge (dict "workload" "temporal-worker" "workloadKey" "temporalWorker") . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+spec:
+  {{- if not .Values.temporalWorker.autoscaling.enabled }}
+  replicas: {{ .Values.temporalWorker.replicaCount }}
+  {{- end }}
+  strategy:
+    # Workers pull from a queue. Surge-only rollout drops nothing in-flight
+    # if old pods finish their current activities before exiting.
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/temporal-worker/configmap.yaml") . | sha256sum }}
+        {{- with .Values.temporalWorker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "sentinelrag.workload.serviceAccountName" $ctx }}
+      {{- include "sentinelrag.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- include "sentinelrag.podSecurityContext" . | nindent 8 }}
+      # Long graceful termination so the worker can finish in-flight activities.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: temporal-worker
+          image: {{ include "sentinelrag.workload.image" $ctx }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.temporalWorker.command | nindent 12 }}
+          env:
+            {{- include "sentinelrag.workload.env" $ctx | nindent 12 }}
+          envFrom:
+            {{- include "sentinelrag.workload.envFrom" $ctx | nindent 12 }}
+          resources:
+            {{- toYaml .Values.temporalWorker.resources | nindent 12 }}
+          securityContext:
+            {{- include "sentinelrag.containerSecurityContext" . | nindent 12 }}
+      {{- with .Values.temporalWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.temporalWorker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.temporalWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end -}}

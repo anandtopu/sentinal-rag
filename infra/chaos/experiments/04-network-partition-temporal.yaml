@@ -1,0 +1,43 @@
+# Experiment 04 — Partition api ↔ Temporal frontend for 3 minutes.
+#
+# Hypothesis:
+#   The /query path does NOT depend on Temporal — query orchestration runs
+#   in-process. Only ingestion (POST /documents) and evaluation
+#   (POST /eval/runs) talk to Temporal. So:
+#     - /query continues at full p95/p99.
+#     - POST /documents fails fast with a clear error (no client hang).
+#     - POST /eval/runs fails fast with a clear error.
+#
+# Steady-state metric:
+#   No /query 5xx during the partition. Document upload + eval run
+#   endpoints surface errors within 5 s of the partition starting (not
+#   timing out at 30 s).
+#
+# Note:
+#   The temporal-worker pulls work from Temporal — when partitioned, it
+#   simply has no work to claim. We expect zero impact on the worker's
+#   liveness probes (it doesn't need Temporal to be alive).
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: api-temporal-partition
+  namespace: sentinelrag-chaos
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - sentinelrag
+    labelSelectors:
+      app.kubernetes.io/component: api
+      app.kubernetes.io/part-of: sentinelrag
+  direction: to
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - temporal
+      labelSelectors:
+        app.kubernetes.io/component: frontend
+  duration: "3m"

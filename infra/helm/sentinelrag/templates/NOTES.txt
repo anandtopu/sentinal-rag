@@ -1,0 +1,52 @@
+SentinelRAG {{ .Chart.AppVersion }} installed as release {{ .Release.Name }}
+in namespace {{ .Release.Namespace }} on cloud target: {{ .Values.cloud }}.
+
+Workloads:
+{{- if .Values.api.enabled }}
+  - api              (replicas={{ .Values.api.replicaCount }}, autoscaling={{ .Values.api.autoscaling.enabled }})
+{{- end }}
+{{- if .Values.temporalWorker.enabled }}
+  - temporal-worker  (replicas={{ .Values.temporalWorker.replicaCount }}, autoscaling={{ .Values.temporalWorker.autoscaling.enabled }})
+{{- end }}
+{{- if .Values.frontend.enabled }}
+  - frontend         (replicas={{ .Values.frontend.replicaCount }}, autoscaling={{ .Values.frontend.autoscaling.enabled }})
+{{- end }}
+
+Verify:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get ingress -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if .Values.api.ingress.enabled }}
+
+API ingress hosts:
+{{- range .Values.api.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.frontend.ingress.enabled }}
+
+Frontend ingress hosts:
+{{- range .Values.frontend.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+
+External Secrets Operator is enabled. ExternalSecret resources will sync
+from store {{ .Values.externalSecrets.secretStoreRef.kind }}/{{ .Values.externalSecrets.secretStoreRef.name }}
+within {{ .Values.externalSecrets.refreshInterval }}.
+{{- else }}
+
+External Secrets Operator is OFF. Create the following Secrets out-of-band:
+{{- if .Values.api.enabled }}
+  - {{ .Values.api.envFromSecret.name }}
+{{- end }}
+{{- if .Values.temporalWorker.enabled }}
+  - {{ .Values.temporalWorker.envFromSecret.name }}
+{{- end }}
+{{- if .Values.frontend.enabled }}
+  - {{ .Values.frontend.envFromSecret.name }}
+{{- end }}
+{{- end }}

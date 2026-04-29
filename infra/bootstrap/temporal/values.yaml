@@ -1,0 +1,86 @@
+# Temporal cluster — installed in its own `temporal` namespace.
+# The SentinelRAG chart's values-{cloud}-dev.yaml points api + worker at
+# `temporal-frontend.temporal.svc.cluster.local:7233` (matches the upstream
+# chart's default Service name).
+#
+# Persistence: we run Temporal against a *separate* Postgres database from
+# the SentinelRAG `sentinelrag` DB. In dev we let the chart bring up its
+# own bundled Postgres; in prod, point Temporal at a dedicated RDS instance
+# (`server.config.persistence.default.sql.host` etc.).
+
+server:
+  replicaCount: 1   # dev — bump for prod
+
+  config:
+    persistence:
+      default:
+        driver: sql
+        sql:
+          driver: postgres12
+          # In dev: use the bundled Postgres sub-chart (set persistence.default.sql.host="").
+          # In prod: point at a dedicated RDS / Cloud SQL instance.
+          host: ""
+          port: 5432
+          database: temporal
+          user: temporal
+          existingSecret: temporal-default-store
+          maxConns: 20
+          maxIdleConns: 20
+          maxConnLifetime: 1h
+      visibility:
+        driver: sql
+        sql:
+          driver: postgres12
+          host: ""
+          port: 5432
+          database: temporal_visibility
+          user: temporal
+          existingSecret: temporal-visibility-store
+          maxConns: 10
+          maxIdleConns: 10
+          maxConnLifetime: 1h
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Bundled Postgres sub-chart — dev only. Set `persistence.driver=cassandra`
+# or point at external RDS for prod.
+postgresql:
+  enabled: true
+  auth:
+    database: temporal
+    username: temporal
+    existingSecret: temporal-default-store
+
+# Disable the bundled Cassandra + Elasticsearch — we don't use them.
+cassandra:
+  enabled: false
+elasticsearch:
+  enabled: false
+
+# Schema setup runs once at install. Idempotent.
+schema:
+  setup:
+    enabled: true
+  update:
+    enabled: true
+
+# Temporal Web UI (separate Helm value).
+web:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  service:
+    type: ClusterIP
+
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: false

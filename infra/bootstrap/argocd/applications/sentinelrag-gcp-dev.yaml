@@ -1,0 +1,55 @@
+# ArgoCD Application — SentinelRAG dev on GCP (mirror of sentinelrag-dev.yaml).
+# Same chart; the values overlay differs (cloud=gcp, GCE Ingress, Workload
+# Identity SA annotations).
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sentinelrag-gcp-dev
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: |
+      api=ghcr.io/anandtopu/sentinelrag-api,
+      worker=ghcr.io/anandtopu/sentinelrag-temporal-worker,
+      frontend=ghcr.io/anandtopu/sentinelrag-frontend
+    argocd-image-updater.argoproj.io/api.update-strategy: semver
+    argocd-image-updater.argoproj.io/api.allow-tags: regexp:^v\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/worker.update-strategy: semver
+    argocd-image-updater.argoproj.io/worker.allow-tags: regexp:^v\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/frontend.update-strategy: semver
+    argocd-image-updater.argoproj.io/frontend.allow-tags: regexp:^v\d+\.\d+\.\d+$
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/anandtopu/sentinelrag.git
+    targetRevision: main
+    path: infra/helm/sentinelrag
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-gcp-dev.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sentinelrag
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
+  ignoreDifferences:
+    - group: batch
+      kind: Job
+      jsonPointers:
+        - /spec/template/metadata/labels
+        - /spec/template/spec/containers/0/env

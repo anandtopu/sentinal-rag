@@ -1,0 +1,11 @@
+# Dedicated namespace so chaos experiments are easy to grant/revoke RBAC on
+# and easy to filter in dashboards. Chaos Mesh's controllers live in their
+# own `chaos-mesh` namespace; this namespace is for the EXPERIMENT objects
+# (CRDs that target our SentinelRAG workloads).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sentinelrag-chaos
+  labels:
+    app.kubernetes.io/part-of: sentinelrag
+    app.kubernetes.io/component: chaos-experiments

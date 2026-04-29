@@ -1,0 +1,57 @@
+name: perf-smoke
+
+# Smoke load test: 30 s, 0.5 rps, ~15 requests against a deployed dev API.
+# Runs on PR + push but only when k6 scripts change, plus a weekly schedule.
+# Live API + auth token are GitHub Actions secrets; the workflow is a no-op
+# (skipped) when they aren't configured, so external contributors don't
+# break the run.
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'tests/performance/k6/**'
+      - '.github/workflows/perf-smoke.yml'
+  push:
+    branches: [main, master]
+    paths:
+      - 'tests/performance/k6/**'
+      - '.github/workflows/perf-smoke.yml'
+  schedule:
+    - cron: "13 5 * * *"  # daily 05:13 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: k6 smoke
+    runs-on: ubuntu-latest
+    if: ${{ vars.SENTINELRAG_DEV_BASE_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Run smoke
+        env:
+          SENTINELRAG_BASE_URL:       ${{ vars.SENTINELRAG_DEV_BASE_URL }}
+          SENTINELRAG_AUTH_TOKEN:     ${{ secrets.SENTINELRAG_DEV_AUTH_TOKEN }}
+          SENTINELRAG_COLLECTION_IDS: ${{ vars.SENTINELRAG_DEV_COLLECTION_IDS }}
+        run: |
+          k6 run \
+            --summary-export=k6-summary.json \
+            tests/performance/k6/smoke.js
+
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-smoke-summary
+          path: k6-summary.json
+          retention-days: 30
