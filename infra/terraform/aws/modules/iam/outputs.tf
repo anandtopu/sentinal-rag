@@ -17,3 +17,8 @@ output "eso_role_arn" {
   value       = aws_iam_role.eso.arn
   description = "IRSA role ARN for ESO."
 }
+
+output "alb_controller_role_arn" {
+  value       = aws_iam_role.alb_controller.arn
+  description = "IRSA role ARN for the AWS Load Balancer Controller."
+}

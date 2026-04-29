@@ -153,9 +153,14 @@ module "iam" {
   workload_identity_pool = module.gke.workload_identity_pool
   namespace              = var.k8s_namespace
 
-  api_sa_name      = "${var.name_prefix}-sentinelrag-api"
-  worker_sa_name   = "${var.name_prefix}-sentinelrag-temporal-worker"
-  frontend_sa_name = "${var.name_prefix}-sentinelrag-frontend"
+  # Helm's `sentinelrag.fullname` collapses the release name when it
+  # contains the chart name, so the rendered SA names are
+  # `<release>-<workload>` — NOT `<release>-sentinelrag-<workload>`.
+  # The Workload Identity bindings below MUST match the K8s SAs the
+  # chart produces, or WI auth will fail.
+  api_sa_name      = "${var.name_prefix}-api"
+  worker_sa_name   = "${var.name_prefix}-temporal-worker"
+  frontend_sa_name = "${var.name_prefix}-frontend"
 
   documents_bucket_name = module.gcs.documents_bucket_name
   audit_bucket_name     = module.gcs.audit_bucket_name

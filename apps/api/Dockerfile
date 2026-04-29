@@ -31,6 +31,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY packages/shared/python/sentinelrag_shared packages/shared/python/sentinelrag_shared
 COPY apps/api/app apps/api/app
 
+# Migrations live at the repo root and are needed at runtime (the Helm
+# chart's pre-upgrade Job runs `alembic upgrade head` against this image).
+COPY migrations migrations
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package sentinelrag-api || \
     uv sync --package sentinelrag-api

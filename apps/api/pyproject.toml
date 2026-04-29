@@ -12,6 +12,10 @@ dependencies = [
     "pydantic-settings>=2.5",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",
+    # psycopg is the SYNCHRONOUS driver alembic uses (env.py rewrites the
+    # asyncpg URL to psycopg). The runtime API uses asyncpg; the
+    # pre-upgrade migration Job in the Helm chart uses psycopg.
+    "psycopg[binary]>=3.2",
     "alembic>=1.14",
     "redis>=5.2",
     "httpx>=0.27",

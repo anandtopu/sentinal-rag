@@ -12,8 +12,32 @@ output "cloudsql_private_ip" {
   sensitive = true
 }
 
+output "cloudsql_database_name" {
+  value = module.cloudsql.database_name
+}
+
+output "cloudsql_username" {
+  value = module.cloudsql.username
+}
+
+output "cloudsql_master_password" {
+  value     = var.cloudsql_master_password
+  sensitive = true
+}
+
 output "redis_host" {
   value     = module.redis.host
+  sensitive = true
+}
+
+output "redis_port" {
+  value = module.redis.port
+}
+
+# Memorystore generates the AUTH string server-side — it's not a tfvar.
+# Surface it so the runbook's Secret Manager seed step can read it.
+output "redis_auth_string" {
+  value     = module.redis.auth_string
   sensitive = true
 }
 

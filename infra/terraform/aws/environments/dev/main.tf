@@ -124,9 +124,14 @@ module "iam" {
   oidc_provider_arn = module.eks.oidc_provider_arn
 
   namespace         = var.k8s_namespace
-  api_sa_name       = "${var.name_prefix}-sentinelrag-api"
-  worker_sa_name    = "${var.name_prefix}-sentinelrag-temporal-worker"
-  frontend_sa_name  = "${var.name_prefix}-sentinelrag-frontend"
+  # Helm's `sentinelrag.fullname` collapses the release name when it
+  # contains the chart name, so the rendered SA names are
+  # `<release>-<workload>` — NOT `<release>-sentinelrag-<workload>`.
+  # The trust policies below MUST match the K8s SA the chart produces,
+  # or AssumeRoleWithWebIdentity (IRSA) will fail.
+  api_sa_name       = "${var.name_prefix}-api"
+  worker_sa_name    = "${var.name_prefix}-temporal-worker"
+  frontend_sa_name  = "${var.name_prefix}-frontend"
 
   documents_bucket_arn = module.s3.documents_bucket_arn
   audit_bucket_arn     = module.s3.audit_bucket_arn

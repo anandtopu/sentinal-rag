@@ -46,6 +46,18 @@ variable "eso_sa_name" {
   default     = "external-secrets"
 }
 
+variable "alb_namespace" {
+  description = "Namespace where the AWS Load Balancer Controller runs."
+  type        = string
+  default     = "kube-system"
+}
+
+variable "alb_sa_name" {
+  description = "AWS Load Balancer Controller ServiceAccount name (matches the upstream Helm chart's default)."
+  type        = string
+  default     = "aws-load-balancer-controller"
+}
+
 variable "documents_bucket_arn" {
   description = "ARN of the documents bucket."
   type        = string

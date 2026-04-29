@@ -10,15 +10,62 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 ## Current phase
 
-**All 10 phases complete (code-side) — last update 2026-04-29.** Phase
-7 Slice 3 (cluster bootstrap) closed alongside the deployment runbooks
-this session — ADR-0030 + `infra/bootstrap/` (cert-manager, AWS LB
-controller, ESO + secret-stores, Temporal, ArgoCD + per-cloud
-Applications, Chaos Mesh) + `.github/workflows/build-images.yml` (GHCR
-push with provenance + SBOM + Trivy) + three new runbooks at
-`docs/operations/runbooks/{deployment-aws,deployment-gcp,cluster-bootstrap}.md`.
-30 ADRs total. Ruff clean across `apps` + `packages` + `scripts` +
-`tests`.
+**All 10 phases complete (code-side) — last update 2026-04-29 (deploy
+audit pass).** This session ran a full code review against the deploy
+path and fixed **6 deploy-blockers** that would have broken any first
+`terraform apply`+`helm install`:
+
+1. API Dockerfile didn't `COPY migrations/` → pre-upgrade alembic Job
+   would fail at FileNotFoundError. **Fixed.**
+2. `psycopg` (sync driver alembic uses) wasn't a direct dep of
+   `sentinelrag-api` → migration Job would fail at `ModuleNotFoundError`.
+   **Added `psycopg[binary]>=3.2` to `apps/api/pyproject.toml`.**
+3. Terraform IAM trust policies expected SA names like
+   `sentinelrag-dev-sentinelrag-api`, but Helm renders
+   `sentinelrag-dev-api` (chart-name collapse) → IRSA / WI auth would
+   fail. **Fixed in both `aws/environments/dev/main.tf` and
+   `gcp/environments/dev/main.tf`.**
+4. AWS env outputs.tf missing `rds_username`, `rds_database_name`,
+   `rds_master_password`, `redis_port`, `redis_auth_token` referenced
+   by the deployment-aws runbook. **Added.**
+5. GCP env outputs.tf missing `cloudsql_username`,
+   `cloudsql_database_name`, `cloudsql_master_password`, `redis_port`,
+   `redis_auth_string` (Memorystore generates server-side). **Added;
+   `deployment-gcp.md` runbook updated to use them.**
+6. AWS `iam` module never created an IAM role for the AWS Load Balancer
+   Controller, but `infra/bootstrap/aws-load-balancer-controller/values.yaml`
+   referenced one → controller would crash-loop. **Added trust policy
+   + AWS-published policy + role + output.**
+
+Also fixed the previously-flaky `test_dev_token_disabled_by_default`
+test (root cause: `python-dotenv` writes `.env` values into
+`os.environ` as a side effect of pydantic-settings loading; subsequent
+tests with `_env_file=None` still saw the polluted env). The test now
+uses a `monkeypatch.delenv` fixture and is deterministic across all
+suite-wide invocation orders.
+
+**Verified after the fix:**
+- `uv run pytest -m unit` → **76 passed, 0 failures, 0 flakes** (was
+  75 + 1 pre-existing flake; +1 from fixing the flake).
+- `uv run ruff check apps packages scripts tests` → clean.
+- `helm lint` against all 5 values overlays → clean.
+- `helm template` against all 5 overlays → clean (9,950 LOC of
+  rendered YAML).
+- All 10 critical Python modules import cleanly (api, worker, shared
+  retrieval / evaluation / audit, OpenSearch adapter).
+- All 5 GitHub Actions workflows YAML-parse.
+- All 18 bootstrap + chaos manifests YAML-parse.
+- All Terraform `module "X" { source = ... }` references resolve to
+  populated module directories.
+- Alembic finds all 12 migration revisions inside the
+  package-isolated venv that the API Dockerfile creates.
+- All in-repo markdown cross-references resolve (the only "broken"
+  links are in the upstream Bitnami Redis chart inside
+  `charts/redis/` — gitignored, not ours).
+
+30 ADRs total. The repo is now actually deploy-ready (modulo the
+first `terraform apply` against a real cloud account, which still
+needs operator action).
 
 **Phase 8 complete (code-side) — all five slices shipped earlier.**
 

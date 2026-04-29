@@ -11,13 +11,37 @@ import pytest
 from app.core.config import Settings
 
 
+@pytest.fixture
+def clean_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Strip every SentinelRAG-relevant env var so a fresh ``Settings()``
+    only sees the class defaults.
+
+    Background: pydantic-settings loads ``.env`` via ``python-dotenv``,
+    which writes values into ``os.environ`` as a side effect. After
+    ``test_health.py`` runs ``create_app()`` (which instantiates Settings),
+    the process-level ``os.environ`` carries `.env` values forward — and
+    a subsequent ``Settings(_env_file=None)`` call reads them back, even
+    though the file is no longer in play. This fixture forces deterministic
+    defaults for the guardrail tests.
+    """
+    for key in (
+        "ENVIRONMENT",
+        "AUTH_ALLOW_DEV_TOKEN",
+        "DEV_TOKEN_VALUE",
+        "DEV_TENANT_ID",
+        "DEV_USER_ID",
+        "DEV_USER_EMAIL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
 @pytest.mark.unit
 class TestDevTokenGuardrail:
-    def test_dev_token_disabled_by_default(self) -> None:
+    def test_dev_token_disabled_by_default(self, clean_settings_env: None) -> None:
         s = Settings(_env_file=None)  # type: ignore[call-arg]
         assert s.auth_allow_dev_token is False
 
-    def test_environment_default_is_local(self) -> None:
+    def test_environment_default_is_local(self, clean_settings_env: None) -> None:
         # Local default is intentional: opt-OUT of safety, not opt-IN of risk.
         s = Settings(_env_file=None)  # type: ignore[call-arg]
         assert s.environment == "local"

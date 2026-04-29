@@ -4,7 +4,9 @@
 > [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md);
 > this file is the recruiter-readable cover sheet.
 
-**Last updated:** 2026-04-29 — all 10 phases code-side complete.
+**Last updated:** 2026-04-29 — all 10 phases code-side complete + deploy
+audit pass (6 deploy-blockers fixed; `pytest -m unit` is now 76/76 with
+the previously-known flake resolved).
 
 ## Status by phase
 
@@ -24,7 +26,7 @@
 ## Counts
 
 - **30 accepted ADRs** at `docs/architecture/adr/` (template + ADR-0001…ADR-0030).
-- **75 unit tests passing** (1 pre-existing flake tracked).
+- **76 unit tests passing, 0 flakes.**
 - **5 GitHub Actions workflows**: `ci.yml`, `security.yml`, `perf-smoke.yml`, `dr-backup-verify.yml`, `build-images.yml`.
 - **4 operations runbooks** at `docs/operations/runbooks/`: deployment-aws, deployment-gcp, cluster-bootstrap, disaster-recovery.
 - **5 Helm values overlays**: `values.yaml` (defaults), `values-{local,dev,prod,gcp-dev}.yaml`. All `helm lint` clean.
@@ -78,9 +80,28 @@ modulo the live-account hand-off step.
 - **Working with this repo:** [`CLAUDE.md`](CLAUDE.md) — locked stack, architectural pillars, footguns
 - **Repository tour, quick-start:** [`README.md`](README.md)
 
-## Verification this session
+## Verification (deploy-audit pass, 2026-04-29)
 
-- `uv run pytest -m unit` → 75 passed, 1 pre-existing flake
+- `uv run pytest -m unit` → **76 passed, 0 failures, 0 flakes**
 - `uv run ruff check apps packages scripts tests` → clean
 - `helm lint` against all 5 values overlays → clean
-- All cross-references between README ↔ runbooks ↔ ADRs ↔ Terraform modules ↔ Helm chart verified
+- `helm template` against all 5 overlays → clean (9,950 LOC of rendered YAML)
+- 10 critical Python modules import cleanly
+- All 5 GitHub Actions workflows YAML-parse
+- All 18 bootstrap + chaos manifests YAML-parse
+- All Terraform module references resolve to populated module dirs
+- Alembic finds all 12 migration revisions in the API package's venv
+- All repo markdown cross-references resolve
+
+### Deploy blockers fixed this session
+
+1. API Dockerfile didn't `COPY migrations/` → fixed
+2. `psycopg` (alembic sync driver) wasn't in api deps → added
+3. Helm SA names didn't match Terraform IRSA / WI trust policy → fixed
+4. AWS env outputs missing `rds_username`, `rds_master_password`, `rds_database_name`, `redis_port`, `redis_auth_token` → added
+5. GCP env outputs missing `cloudsql_username`, `cloudsql_database_name`, `cloudsql_master_password`, `redis_port`, `redis_auth_string` → added; runbook updated to use them
+6. AWS LB Controller IAM role missing → added trust policy + AWS-published policy + role + output
+
+### Test flake fixed
+
+The previously-tracked `test_dev_token_disabled_by_default` flake has been root-caused (python-dotenv writes `.env` values into `os.environ` as a side effect; subsequent tests with `_env_file=None` still saw the polluted env) and fixed via a `monkeypatch.delenv` fixture.

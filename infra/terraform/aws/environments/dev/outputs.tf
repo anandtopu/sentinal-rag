@@ -20,8 +20,36 @@ output "rds_endpoint" {
   sensitive = true
 }
 
+output "rds_port" {
+  value = module.rds.port
+}
+
+output "rds_database_name" {
+  value = module.rds.database_name
+}
+
+output "rds_username" {
+  value = module.rds.username
+}
+
+# Surfaces the password input back as an output for the deploy runbook's
+# DB_URL / Secrets Manager seed step. Stays sensitive.
+output "rds_master_password" {
+  value     = var.rds_master_password
+  sensitive = true
+}
+
 output "redis_endpoint" {
   value     = module.redis.primary_endpoint
+  sensitive = true
+}
+
+output "redis_port" {
+  value = module.redis.port
+}
+
+output "redis_auth_token" {
+  value     = var.redis_auth_token
   sensitive = true
 }
 
@@ -35,10 +63,11 @@ output "audit_bucket" {
 
 output "irsa_role_arns" {
   value = {
-    api      = module.iam.api_role_arn
-    worker   = module.iam.worker_role_arn
-    frontend = module.iam.frontend_role_arn
-    eso      = module.iam.eso_role_arn
+    api            = module.iam.api_role_arn
+    worker         = module.iam.worker_role_arn
+    frontend       = module.iam.frontend_role_arn
+    eso            = module.iam.eso_role_arn
+    alb_controller = module.iam.alb_controller_role_arn
   }
-  description = "IRSA role ARNs to drop into Helm values-dev.yaml's serviceAccount.annotations."
+  description = "IRSA role ARNs. api/worker/frontend → Helm values-dev.yaml. eso → infra/bootstrap/external-secrets/values.yaml. alb_controller → infra/bootstrap/aws-load-balancer-controller/values.yaml."
 }

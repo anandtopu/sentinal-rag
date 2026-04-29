@@ -208,8 +208,8 @@ Commit + push. ArgoCD picks it up within 3 minutes.
 ```bash
 cd infra/terraform/gcp/environments/dev
 
-DB_URL="postgresql+asyncpg://sentinel:$(terraform output -raw cloudsql_master_password)@$(terraform output -raw cloudsql_private_ip):5432/sentinelrag"
-REDIS_URL="rediss://default:$(terraform output -raw redis_auth_token 2>/dev/null || echo PLACEHOLDER)@$(terraform output -raw redis_host):6379/0"
+DB_URL="postgresql+asyncpg://$(terraform output -raw cloudsql_username):$(terraform output -raw cloudsql_master_password)@$(terraform output -raw cloudsql_private_ip):5432/$(terraform output -raw cloudsql_database_name)"
+REDIS_URL="rediss://default:$(terraform output -raw redis_auth_string)@$(terraform output -raw redis_host):$(terraform output -raw redis_port)/0"
 
 # Update each secret. Each Secret Manager secret holds a JSON KV blob.
 gcloud secrets versions add sentinelrag-dev-api --data-file=<(jq -n \
