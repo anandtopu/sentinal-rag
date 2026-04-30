@@ -109,5 +109,7 @@ models/
 .local/
 docker-volumes/
 
+#---- claude --
+CLAUDE.md
 # --- OpenAPI generated client ---
 packages/sentinelrag-sdk/typescript/src/generated/

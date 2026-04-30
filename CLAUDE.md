@@ -110,19 +110,33 @@ This is the path used by integration tests and the local upload smoke test. **Ne
 ## Common commands
 
 ```bash
+make install      # uv + pnpm install across the workspace (editable)
 make up           # docker-compose up -d (full local stack)
-make down         # docker-compose down -v
+make down         # docker-compose down (keep volumes)
+make clean        # down -v: destroys local volumes
+make restart      # down + up
 make seed         # populate demo tenant + sample documents
+make ollama-pull          # pre-pull Ollama models (first-time setup)
+make keycloak-bootstrap   # idempotently import the SentinelRAG realm
+
 make api          # run apps/api locally with hot reload
+make retrieval    # run apps/retrieval-service with hot reload
+make ingestion    # run apps/ingestion-service with hot reload
+make evaluation   # run apps/evaluation-service with hot reload
 make worker       # run Temporal worker (apps/temporal-worker)
 make frontend     # run apps/frontend Next.js dev server
+
 make test         # run all Python tests (alias for test-unit)
 make test-unit    # run unit tests only
 make test-int     # integration tests with testcontainers
+make test-cov     # run tests with coverage report
 make lint         # ruff + pyright across the workspace
+make typecheck    # pyright only (faster than full lint)
 make fmt          # ruff format
+
 make db-revision msg="..."   # new alembic revision
-make db-upgrade   # apply migrations
+make db-upgrade              # apply migrations
+make db-downgrade            # roll back one migration
 ```
 
 Per-feature smoke and verification commands live in

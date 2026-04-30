@@ -151,9 +151,6 @@ incrementally rather than in a single sweep.
 - 🟢 `make up` brings all containers online (after fixing Jaeger image tag and remapping Redis to host:6380 to avoid conflict with native Redis).
 - 🟢 `pytest -m unit` passes — health endpoint smoke test.
 
-**Deferred to a later step:**
-- `git init`, GitHub remote, first CI run. The repo has no `.git/` yet.
-
 ### Phase 1 — Core data plane + tenancy 🟢
 **Goal:** schema, RBAC, RLS, tenant context.
 - 🟢 Alembic setup + 10 hand-written migrations covering the full schema (HNSW index, no raw_text column, partitioned audit/usage, tsvector+GIN on chunks, RLS policies on every tenant-owned table).
@@ -260,19 +257,23 @@ incrementally rather than in a single sweep.
   - `helm lint` clean against base + dev + prod + local overlays.
     `helm template` renders against all four (after `helm dependency build`
     + extracting tarballs — Helm 4 quirk noted in deployment runbook).
-  - Phase 7 still needs: AWS Terraform (VPC + EKS + RDS pgvector +
-    ElastiCache + S3 + Secrets Manager + ACM + IRSA roles), ArgoCD bootstrap
-    + dev `Application`, External Secrets Operator install + ClusterSecretStore,
-    Temporal install in-cluster, image build + push pipeline (`apps/temporal-worker/Dockerfile`
-    + `apps/frontend/Dockerfile` not yet authored).
 - 🟢 Slice 2 — AWS Terraform: ADR-0024 + 7 modules (vpc, eks, rds,
   elasticache, s3, secrets, iam) + dev environment wiring. RDS Postgres 16
   with pgvector parameter group; S3 audit bucket with Object Lock COMPLIANCE
   7y; Secrets Manager 3 parent secrets; IRSA roles wired to OIDC for api,
   worker, frontend, ESO; EKS 1.30 cluster access entry mode.
-- ⚪ Slice 3 — ArgoCD + ExternalSecretsOperator + Temporal cluster install.
+- 🟢 Slice 3 — Cluster bootstrap: ADR-0030 + `infra/bootstrap/` with
+  pinned values overlays for cert-manager, AWS Load Balancer Controller,
+  External Secrets Operator + per-cloud `ClusterSecretStore`, Temporal,
+  ArgoCD + per-cloud SentinelRAG `Application` manifests, optional Chaos
+  Mesh. End-to-end procedure documented in
+  `docs/operations/runbooks/{cluster-bootstrap,deployment-aws,deployment-gcp}.md`.
 - 🟢 Slice 4 — Worker + frontend Dockerfiles (multi-stage, non-root
-  uid 10001). GHCR push pipeline still to wire (CI workflow).
+  uid 10001) + `.github/workflows/build-images.yml` building api +
+  worker + frontend on push-to-main and on `v*.*.*` tags, pushing to
+  GHCR with provenance attestation + SBOM + Trivy SARIF. ArgoCD Image
+  Updater annotations on the Application manifest pick up new tags via
+  Git write-back.
 
 **Done when:** push to main → ArgoCD deploys → live URL serves a query.
 
