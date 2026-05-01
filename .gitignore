@@ -99,7 +99,8 @@ temp/
 .cache/
 
 # --- ML model artifacts (downloaded at runtime, not committed) ---
-models/
+# Match only top-level models directory; ORM models in apps/api/app/db/models/ are committed
+/models/
 *.bin
 *.gguf
 *.safetensors
