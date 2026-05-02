@@ -67,6 +67,7 @@ class HybridRetriever:
         top_k_bm25: int = 20,
         top_k_vector: int = 20,
         top_k_hybrid: int = 30,
+        ef_search: int | None = None,
     ) -> HybridRetrievalResult:
         """Run both arms; merge; return up to ``top_k_hybrid`` candidates.
 
@@ -86,6 +87,7 @@ class HybridRetriever:
             auth=auth,
             collection_ids=collection_ids,
             top_k=top_k_vector,
+            ef_search=ef_search,
         )
 
         merged = self._rrf_merge(bm25, vector, top_k_hybrid)

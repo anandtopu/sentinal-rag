@@ -225,6 +225,7 @@ class RagOrchestrator:
                     auth=auth,
                     collection_ids=collection_ids,
                     top_k=retrieval.top_k_vector,
+                    ef_search=retrieval.ef_search,
                 )
                 hybrid_result = HybridRetrievalResult(
                     bm25_candidates=[],
@@ -241,6 +242,7 @@ class RagOrchestrator:
                     top_k_bm25=retrieval.top_k_bm25,
                     top_k_vector=retrieval.top_k_vector,
                     top_k_hybrid=retrieval.top_k_hybrid,
+                    ef_search=retrieval.ef_search,
                 )
             await self._persist_candidates(
                 query_session_id, auth.tenant_id, hybrid_result.bm25_candidates

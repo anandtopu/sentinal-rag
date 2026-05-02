@@ -7,7 +7,7 @@ to match the rest of the API; the field names match the spec's JSON example.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -16,11 +16,11 @@ from app.schemas.common import APIModel
 
 
 class RetrievalConfigIn(APIModel):
-    mode: str = Field(default="hybrid")
+    mode: Literal["hybrid", "bm25", "vector"] = Field(default="hybrid")
     top_k_bm25: int = Field(default=20, ge=1, le=200)
     top_k_vector: int = Field(default=20, ge=1, le=200)
     top_k_hybrid: int = Field(default=30, ge=1, le=200)
-    top_k_rerank: int = Field(default=8, ge=1, le=50)
+    top_k_rerank: int = Field(default=8, ge=0, le=50)
     ef_search: int | None = Field(default=None, ge=1, le=512)
 
 

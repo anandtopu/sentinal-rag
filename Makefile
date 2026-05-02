@@ -60,7 +60,7 @@ api: ## Run apps/api with hot reload
 	uv run --package sentinelrag-api uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 retrieval: ## Run apps/retrieval-service with hot reload
-	uv run --package sentinelrag-retrieval-service uvicorn app.main:app --reload --host 0.0.0.0 --port 8020
+	uv run --package sentinelrag-retrieval-service uvicorn sentinelrag_retrieval_service.main:app --reload --host 0.0.0.0 --port 8020
 
 ingestion: ## Run apps/ingestion-service with hot reload
 	uv run --package sentinelrag-ingestion-service uvicorn app.main:app --reload --host 0.0.0.0 --port 8030
