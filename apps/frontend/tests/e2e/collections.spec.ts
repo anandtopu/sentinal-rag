@@ -6,9 +6,11 @@ import { expect, test } from '@playwright/test';
  * via TanStack Query on mount).
  */
 
-async function backendIsUp(request: import('@playwright/test').APIRequestContext): Promise<boolean> {
+async function backendIsUp(
+  request: import('@playwright/test').APIRequestContext,
+): Promise<boolean> {
   try {
-    const res = await request.get('/api/v1/health', { timeout: 2_000 });
+    const res = await request.get('/api/health', { timeout: 2_000 });
     return res.ok();
   } catch {
     return false;
@@ -17,7 +19,7 @@ async function backendIsUp(request: import('@playwright/test').APIRequestContext
 
 test.describe('collections', () => {
   test.beforeEach(async ({ request }) => {
-    test.skip(!(await backendIsUp(request)), 'backend /api/v1/health unreachable');
+    test.skip(!(await backendIsUp(request)), 'backend /api/health unreachable');
   });
 
   test('renders the page header', async ({ page }) => {

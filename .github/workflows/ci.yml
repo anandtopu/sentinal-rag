@@ -107,6 +107,12 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E regression tests
+        run: npm run test:e2e
+
   python-integration:
     name: Python integration tests
     runs-on: ubuntu-latest

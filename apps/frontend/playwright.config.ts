@@ -3,10 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright configuration for SentinelRAG frontend e2e specs.
  *
- * The specs target a running Next.js dev server (default) plus the FastAPI
- * backend that next.config.mjs proxies under /api. Both must be reachable
- * locally before specs are useful — see `make up` and `make api`. CI in
- * Phase 7 will run these against a deployed `dev.<domain>`.
+ * Most regression specs mock the FastAPI boundary so they can run in CI
+ * without Docker/Ollama. Live-backend specs still probe /api/v1/health and
+ * skip when no backend is reachable.
  */
 
 const PORT = process.env.E2E_PORT ?? '3000';
@@ -32,7 +31,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // Don't auto-spawn the dev server here — these specs assume `make up` +
-  // `make api` + `make frontend` are running. Auto-spawn would couple
-  // playwright run-time to a heavy Postgres+Ollama+Keycloak boot.
+  webServer: {
+    command: `npx next dev --hostname 127.0.0.1 --port ${PORT}`,
+    url: BASE_URL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });

@@ -2,14 +2,16 @@ import { expect, test } from '@playwright/test';
 
 /**
  * Query playground — these depend on the API being reachable. Each spec
- * probes /api/v1/health and skips itself if the backend isn't up. This
+ * probes /api/health and skips itself if the backend isn't up. This
  * lets `playwright test` pass on a frontend-only CI job and run against
  * the real backend once Phase 7's deployed dev environment is live.
  */
 
-async function backendIsUp(request: import('@playwright/test').APIRequestContext): Promise<boolean> {
+async function backendIsUp(
+  request: import('@playwright/test').APIRequestContext,
+): Promise<boolean> {
   try {
-    const res = await request.get('/api/v1/health', { timeout: 2_000 });
+    const res = await request.get('/api/health', { timeout: 2_000 });
     return res.ok();
   } catch {
     return false;
@@ -18,7 +20,7 @@ async function backendIsUp(request: import('@playwright/test').APIRequestContext
 
 test.describe('query playground (live backend)', () => {
   test.beforeEach(async ({ request }) => {
-    test.skip(!(await backendIsUp(request)), 'backend /api/v1/health unreachable');
+    test.skip(!(await backendIsUp(request)), 'backend /api/health unreachable');
   });
 
   test('renders the form and the submit button is disabled with empty input', async ({ page }) => {

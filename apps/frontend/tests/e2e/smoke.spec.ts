@@ -6,7 +6,7 @@ import { expect, test } from '@playwright/test';
  * These run against a live `next dev` (default :3000). The backend at /api
  * doesn't need to be up for these specs; they only assert client-side
  * rendering and navigation. Specs that depend on the API live in their
- * own files and skip gracefully if /api/v1/health is unreachable.
+ * own files and skip gracefully if /api/health is unreachable.
  */
 
 test.describe('shell renders', () => {
@@ -23,7 +23,14 @@ test.describe('shell renders', () => {
 
   test('sidebar links the major sections', async ({ page }) => {
     await page.goto('/dashboard');
-    for (const label of ['Dashboard', 'Collections', 'Documents', 'Query', 'Evaluations', 'Prompts']) {
+    for (const label of [
+      'Dashboard',
+      'Collections',
+      'Documents',
+      'Query',
+      'Evaluations',
+      'Prompts',
+    ]) {
       // Sidebar uses anchor labels — be tolerant of "Query Playground" vs "Query".
       const link = page.getByRole('link', { name: new RegExp(label, 'i') }).first();
       await expect(link).toBeVisible();

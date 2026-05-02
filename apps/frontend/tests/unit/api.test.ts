@@ -51,14 +51,18 @@ afterEach(() => {
 
 describe('api client', () => {
   it('attaches Authorization bearer when token is provided', async () => {
-    globalThis.fetch = mockFetch({ body: { id: 'u', email: 'x@y.z', tenant_id: 't' } }) as typeof fetch;
+    globalThis.fetch = mockFetch({
+      body: { id: 'u', email: 'x@y.z', tenant_id: 't' },
+    }) as typeof fetch;
     await api.me('jwt-abc');
     const headers = (calls[0].init?.headers ?? {}) as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer jwt-abc');
   });
 
   it('serializes query params and skips undefined', async () => {
-    globalThis.fetch = mockFetch({ body: { items: [], total: 0, limit: 50, offset: 0 } }) as typeof fetch;
+    globalThis.fetch = mockFetch({
+      body: { items: [], total: 0, limit: 50, offset: 0 },
+    }) as typeof fetch;
     await api.listCollections({ token: 't', limit: 10 });
     expect(calls[0].url).toContain('limit=10');
     expect(calls[0].url).toContain('offset=0');
@@ -72,7 +76,9 @@ describe('api client', () => {
       },
     }) as typeof fetch;
 
-    await expect(api.executeQuery({ query: 'q', collection_ids: ['c'] }, 't')).rejects.toMatchObject({
+    await expect(
+      api.executeQuery({ query: 'q', collection_ids: ['c'] }, 't'),
+    ).rejects.toMatchObject({
       name: 'ApiError',
       status: 403,
       code: 'forbidden',
