@@ -13,10 +13,12 @@ dependencies = [
     "asyncpg>=0.30",
     "httpx>=0.27",
     "structlog>=24.4",
+    "sentinelrag-api",
     "sentinelrag-shared",
 ]
 
 [tool.uv.sources]
+sentinelrag-api = { workspace = true }
 sentinelrag-shared = { workspace = true }
 
 [build-system]

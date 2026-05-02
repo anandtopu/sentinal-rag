@@ -153,14 +153,9 @@ realm. Two options:
 
 1. **Skip Keycloak entirely (recommended for unit work).** Set
    `AUTH_ALLOW_DEV_TOKEN=true` and use `Authorization: Bearer dev`.
-2. **Import the realm.** `make keycloak-bootstrap` (currently a TODO
-   stub — Phase 9 polish item). Manual import:
-   ```bash
-   docker compose exec keycloak \
-     /opt/keycloak/bin/kc.sh import \
-     --file /opt/keycloak/data/import/sentinelrag-realm.json
-   ```
-   (The realm JSON ships at `scripts/local/keycloak/sentinelrag-realm.json`.)
+2. **Import the realm.** `make keycloak-bootstrap` restarts the Keycloak
+   container, which runs `start-dev --import-realm` against the mounted
+   `scripts/local/keycloak/realm-export.json` file.
 
 ### JWKS cache returns stale keys after Keycloak restart
 

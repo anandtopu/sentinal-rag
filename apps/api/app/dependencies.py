@@ -23,6 +23,14 @@ def get_object_storage(request: Request) -> ObjectStorage:
     return storage
 
 
+def get_audit_storage(request: Request) -> ObjectStorage:
+    storage = getattr(request.app.state, "audit_storage", None)
+    if storage is None:
+        msg = "Audit object storage not configured."
+        raise RuntimeError(msg)
+    return storage
+
+
 def get_temporal_client(request: Request) -> TemporalClient:
     client = getattr(request.app.state, "temporal_client", None)
     if client is None:
@@ -40,5 +48,6 @@ def get_reranker(request: Request) -> Reranker:
 
 
 ObjectStorageDep = Annotated[ObjectStorage, Depends(get_object_storage)]
+AuditStorageDep = Annotated[ObjectStorage, Depends(get_audit_storage)]
 TemporalClientDep = Annotated[TemporalClient, Depends(get_temporal_client)]
 RerankerDep = Annotated[Reranker, Depends(get_reranker)]

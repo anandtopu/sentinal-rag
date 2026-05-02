@@ -37,8 +37,9 @@ const API_BASE: string =
   typeof window === 'undefined'
     ? (process.env.API_BASE_URL ??
       process.env.NEXT_PUBLIC_API_BASE_URL ??
+      process.env.NEXT_PUBLIC_API_URL ??
       'http://localhost:8000/api/v1')
-    : '/api';
+    : (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '/api');
 
 const DEV_TOKEN: string | undefined = process.env.NEXT_PUBLIC_DEV_TOKEN;
 

@@ -71,26 +71,7 @@ from app.services.cost_service import (
     enforce_or_raise,
     estimate_completion_cost,
 )
-from app.services.prompt_service import PromptService
-
-# ---- Default prompt; replaced by prompt registry resolution in Phase 4. ----
-_DEFAULT_SYSTEM_PROMPT = (
-    "You are SentinelRAG, an enterprise assistant. Answer ONLY from the "
-    "provided context. If the context does not contain enough information, "
-    "say you do not have enough information rather than guessing. "
-    "Cite supporting passages inline using [1], [2], etc. corresponding to "
-    "the numbered Context entries."
-)
-
-
-_DEFAULT_USER_PROMPT_TEMPLATE = """\
-Question: {query}
-
-Context:
-{context}
-
-Answer using the context above. Include citation markers like [1], [2] for \
-each claim. If the context is insufficient, say so."""
+from app.services.prompt_service import DEFAULT_RAG_PROMPT_NAME, PromptService
 
 
 @dataclass(slots=True)
@@ -258,17 +239,12 @@ class RagOrchestrator:
             prompt_service = PromptService(self.session)
             resolved = await prompt_service.resolve_for_task(
                 tenant_id=auth.tenant_id,
-                task_type="rag_answer_generation",
+                task_type=DEFAULT_RAG_PROMPT_NAME,
                 explicit_version_id=options.prompt_version_id,
             )
-            if resolved is not None:
-                system_prompt_resolved = resolved.system_prompt
-                user_prompt_template_resolved = resolved.user_prompt_template
-                resolved_version_id = resolved.id
-            else:
-                system_prompt_resolved = _DEFAULT_SYSTEM_PROMPT
-                user_prompt_template_resolved = _DEFAULT_USER_PROMPT_TEMPLATE
-                resolved_version_id = None
+            system_prompt_resolved = resolved.system_prompt
+            user_prompt_template_resolved = resolved.user_prompt_template
+            resolved_version_id = resolved.id
 
             # 8. Generate.
             user_prompt = user_prompt_template_resolved.format(

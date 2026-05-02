@@ -7,7 +7,7 @@ is created lazily on first use (see ``app/db/session.py``).
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,7 +23,7 @@ from app.db.session import dispose_engines
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
 
     configure_logging(
@@ -69,6 +69,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         secret_key=settings.object_storage_secret_key,
         verify_ssl=settings.environment != "local",
     )
+    app.state.audit_storage = build_object_storage(
+        provider=settings.object_storage_provider,
+        bucket=settings.object_storage_bucket_audit,
+        region=settings.object_storage_region,
+        endpoint=settings.object_storage_endpoint,
+        access_key=settings.object_storage_access_key,
+        secret_key=settings.object_storage_secret_key,
+        verify_ssl=settings.environment != "local",
+    )
 
     # Reranker — load the heavy model only when explicitly enabled. Defaults
     # to NoOpReranker (preserves merged ordering) so tests + local smoke runs
@@ -77,7 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             app.state.reranker = BgeReranker(model_name=settings.default_reranker_model)
             # Trigger lazy load now so the first /query is fast.
-            app.state.reranker._ensure_model()
+            app.state.reranker._ensure_model()  # pyright: ignore[reportPrivateUsage]
             log.info("reranker.loaded", model=settings.default_reranker_model)
         except Exception as exc:
             log.warning("reranker.load_failed", error=str(exc))
@@ -114,4 +123,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.jwt_verifier.close()
         if getattr(app.state, "object_storage", None) is not None:
             await app.state.object_storage.close()
+        if getattr(app.state, "audit_storage", None) is not None:
+            await app.state.audit_storage.close()
         await dispose_engines()

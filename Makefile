@@ -52,7 +52,8 @@ ollama-pull: ## Pre-pull Ollama models used by the platform
 	docker compose exec ollama ollama pull nomic-embed-text
 
 keycloak-bootstrap: ## Import the SentinelRAG realm into Keycloak (idempotent)
-	@echo "TODO: Phase 1 — add realm import via /opt/keycloak/bin/kc.sh import"
+	docker compose restart keycloak
+	@echo "Keycloak imports scripts/local/keycloak/realm-export.json on startup via --import-realm."
 
 # --- App services (run locally with hot reload) ---
 api: ## Run apps/api with hot reload

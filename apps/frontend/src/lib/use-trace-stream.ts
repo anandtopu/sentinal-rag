@@ -115,31 +115,33 @@ export function useTraceStream(
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
           // SSE messages are separated by a blank line.
-          let sep: number;
-          while ((sep = buffer.indexOf('\n\n')) !== -1) {
+          let sep = buffer.indexOf('\n\n');
+          while (sep !== -1) {
             const frame = buffer.slice(0, sep);
             buffer = buffer.slice(sep + 2);
             const parsed = parseSseFrame(frame);
-            if (!parsed) continue;
-            receivedSseFrame = true;
-            // First successful frame — kill the polling fallback if it started.
-            stopPolling();
-            setTransport('sse');
-            if (parsed.event === 'trace' && parsed.data) {
-              try {
-                const trace = JSON.parse(parsed.data) as QueryTraceResponse;
-                setData(trace);
-                if (TERMINAL_STATUSES.has(trace.status)) {
-                  setIsStreaming(false);
-                  return;
+            if (parsed) {
+              receivedSseFrame = true;
+              // First successful frame — kill the polling fallback if it started.
+              stopPolling();
+              setTransport('sse');
+              if (parsed.event === 'trace' && parsed.data) {
+                try {
+                  const trace = JSON.parse(parsed.data) as QueryTraceResponse;
+                  setData(trace);
+                  if (TERMINAL_STATUSES.has(trace.status)) {
+                    setIsStreaming(false);
+                    return;
+                  }
+                } catch {
+                  // ignore malformed frame
                 }
-              } catch {
-                // ignore malformed frame
+              } else if (parsed.event === 'done' || parsed.event === 'timeout') {
+                setIsStreaming(false);
+                return;
               }
-            } else if (parsed.event === 'done' || parsed.event === 'timeout') {
-              setIsStreaming(false);
-              return;
             }
+            sep = buffer.indexOf('\n\n');
           }
         }
         setIsStreaming(false);

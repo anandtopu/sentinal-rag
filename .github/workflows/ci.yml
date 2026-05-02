@@ -76,6 +76,37 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
+  frontend-quality:
+    name: Frontend lint + typecheck + tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Biome lint
+        run: npm run lint
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+      - name: Production build
+        run: npm run build
+
   python-integration:
     name: Python integration tests
     runs-on: ubuntu-latest

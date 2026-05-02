@@ -10,7 +10,7 @@ answer + retrieved context, then writes a single ``evaluation_scores`` row.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
@@ -36,10 +36,10 @@ from temporalio import activity
 # DB engine cache (separate from ingestion's because process isolation is
 # nice but not strictly required).
 _engine: AsyncEngine | None = None
-_session_factory: async_sessionmaker | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
-def _get_session_factory() -> async_sessionmaker:
+def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     global _engine, _session_factory  # noqa: PLW0603
     if _session_factory is None:
         dsn = os.environ.get(
@@ -54,7 +54,7 @@ def _get_session_factory() -> async_sessionmaker:
 
 
 @asynccontextmanager
-async def _session_for_tenant(tenant_id: UUID) -> AsyncIterator[AsyncSession]:
+async def _session_for_tenant(tenant_id: UUID) -> AsyncGenerator[AsyncSession, None]:
     factory = _get_session_factory()
     async with factory() as session, session.begin():
         await session.execute(

@@ -25,7 +25,7 @@ class RetrievalConfigIn(APIModel):
 
 
 class GenerationConfigIn(APIModel):
-    model: str = Field(default="ollama/llama3.1:8b")
+    model: str | None = Field(default=None)
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     max_tokens: int = Field(default=800, ge=1, le=8192)
 

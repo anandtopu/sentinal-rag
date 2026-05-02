@@ -17,6 +17,7 @@ WORKDIR /workspace
 
 # Workspace manifests first for cache-friendly layering.
 COPY pyproject.toml uv.lock* ./
+COPY apps/api/pyproject.toml apps/api/
 COPY apps/temporal-worker/pyproject.toml apps/temporal-worker/
 COPY packages/shared/python/pyproject.toml packages/shared/python/
 
@@ -27,6 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Source code.
 COPY packages/shared/python/sentinelrag_shared packages/shared/python/sentinelrag_shared
+COPY apps/api/app apps/api/app
 COPY apps/temporal-worker/sentinelrag_worker apps/temporal-worker/sentinelrag_worker
 
 RUN --mount=type=cache,target=/root/.cache/uv \

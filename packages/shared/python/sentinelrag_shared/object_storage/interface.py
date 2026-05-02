@@ -56,7 +56,7 @@ class ObjectStorage(Protocol):
         """Read object bytes. Raises :class:`ObjectNotFoundError` if missing."""
         ...
 
-    async def get_stream(self, key: str) -> AsyncIterator[bytes]:
+    def get_stream(self, key: str) -> AsyncIterator[bytes]:
         """Stream object bytes in chunks. Used for large blobs."""
         ...
 
@@ -68,7 +68,7 @@ class ObjectStorage(Protocol):
         """Fetch object metadata without downloading the body."""
         ...
 
-    async def list_keys(
+    def list_keys(
         self, prefix: str, *, page_size: int = 1000
     ) -> AsyncIterator[str]:
         """Yield object keys under ``prefix``. Pages internally.

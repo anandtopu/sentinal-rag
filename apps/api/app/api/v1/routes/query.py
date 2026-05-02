@@ -10,6 +10,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sentinelrag_shared.audit import (
+    DualWriteAuditService,
+    ObjectStorageAuditSink,
+    PostgresAuditSink,
+)
 from sentinelrag_shared.auth import AuthContext
 from sentinelrag_shared.errors.exceptions import NotFoundError
 from sqlalchemy import text
@@ -18,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import require_permission
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.dependencies import RerankerDep
+from app.dependencies import AuditStorageDep, RerankerDep
 from app.schemas.query import (
     CitationRead,
     GeneratedAnswerSummary,
@@ -46,19 +51,33 @@ _SSE_POLL_INTERVAL_S = 1.0
 _SSE_MAX_TICKS = 60
 
 
+def requires_cloud_model_permission(model: str) -> bool:
+    """Return True when the model alias routes to a paid cloud provider."""
+    return not model.startswith("ollama/")
+
+
 @router.post("", response_model=QueryResponse)
 async def execute_query(
     payload: QueryRequest,
     ctx: Annotated[AuthContext, Depends(require_permission("queries:execute"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     reranker: RerankerDep,
+    audit_storage: AuditStorageDep,
 ) -> QueryResponse:
     settings = get_settings()
+    requested_model = payload.generation.model or settings.default_generation_model
+    if requires_cloud_model_permission(requested_model):
+        ctx.require_permission("llm:cloud_models")
+
     orchestrator = RagOrchestrator(
         session=db,
         embedding_model=settings.default_embedding_model,
         ollama_base_url=settings.ollama_base_url,
         reranker=reranker,
+        audit_service=DualWriteAuditService(
+            primary=PostgresAuditSink(db),
+            secondaries=[ObjectStorageAuditSink(audit_storage)],
+        ),
     )
     result = await orchestrator.run(
         query=payload.query,
@@ -73,7 +92,7 @@ async def execute_query(
             ef_search=payload.retrieval.ef_search,
         ),
         generation=GenerationConfig(
-            model=payload.generation.model,
+            model=requested_model,
             temperature=payload.generation.temperature,
             max_tokens=payload.generation.max_tokens,
         ),

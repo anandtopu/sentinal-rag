@@ -17,6 +17,7 @@ populated as part of Phase 8 (multi-cloud + scale).
 
 from __future__ import annotations
 
+from sentinelrag_shared.object_storage.gcs import GcsStorage
 from sentinelrag_shared.object_storage.interface import ObjectStorage
 from sentinelrag_shared.object_storage.s3 import S3Storage
 
@@ -30,6 +31,7 @@ def build_object_storage(
     access_key: str | None = None,
     secret_key: str | None = None,
     verify_ssl: bool = True,
+    gcp_project: str | None = None,
 ) -> ObjectStorage:
     """Construct the configured ObjectStorage adapter."""
     provider_lower = provider.lower()
@@ -45,8 +47,7 @@ def build_object_storage(
         )
 
     if provider_lower == "gcs":
-        msg = "GCS object-storage adapter is implemented in Phase 8."
-        raise NotImplementedError(msg)
+        return GcsStorage(bucket=bucket, project=gcp_project)
 
     if provider_lower == "azure":
         msg = "Azure Blob object-storage adapter is documented in ADR-0011 only."
