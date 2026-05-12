@@ -8,13 +8,10 @@ license = { text = "MIT" }
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    "pydantic>=2.9",
+    "pydantic[email]>=2.9",
     "pydantic-settings>=2.5",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",
-    # psycopg is the SYNCHRONOUS driver alembic uses (env.py rewrites the
-    # asyncpg URL to psycopg). The runtime API uses asyncpg; the
-    # pre-upgrade migration Job in the Helm chart uses psycopg.
     "psycopg[binary]>=3.2",
     "alembic>=1.14",
     "redis>=5.2",
@@ -23,6 +20,10 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "structlog>=24.4",
     "temporalio>=1.8",
+    "pgvector>=0.3",
+    "email-validator>=2.0",
+    "tiktoken>=0.8",
+    "tenacity>=9.0",
     "sentinelrag-shared",
 ]
 
