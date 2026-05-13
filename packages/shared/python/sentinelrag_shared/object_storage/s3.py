@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import aioboto3
 from botocore.config import Config
@@ -44,6 +44,7 @@ class S3Storage(ObjectStorage):
         if not self.bucket:
             raise ValueError("bucket or bucket_name is required")
 
+        self.bucket_name = self.bucket
         self._region = region
         self._endpoint_url = endpoint_url
         self._access_key_id = access_key_id
@@ -68,29 +69,45 @@ class S3Storage(ObjectStorage):
     async def put(
         self,
         key: str,
-        data: bytes,
+        body: bytes,
         *,
         content_type: str | None = None,
         custom_metadata: dict[str, str] | None = None,
     ) -> ObjectMetadata:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             extra: dict[str, Any] = {}
             if content_type:
                 extra["ContentType"] = content_type
             if custom_metadata:
                 extra["Metadata"] = custom_metadata
-            await s3.put_object(Bucket=self.bucket, Key=key, Body=data, **extra)
+            await s3.put_object(Bucket=self.bucket, Key=key, Body=body, **extra)
 
         return ObjectMetadata(
             key=key,
-            size_bytes=len(data),
+            size_bytes=len(body),
             content_type=content_type,
             last_modified=datetime.now(UTC),
             custom_metadata=custom_metadata or {},
         )
 
+    async def put_object(
+        self,
+        key: str,
+        body: bytes,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> None:
+        await self.put(
+            key,
+            body,
+            content_type=content_type,
+            custom_metadata=metadata,
+        )
+
     async def get(self, key: str) -> bytes:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             try:
                 response = await s3.get_object(Bucket=self.bucket, Key=key)
                 return await response["Body"].read()
@@ -100,8 +117,12 @@ class S3Storage(ObjectStorage):
                     raise ObjectNotFoundError(key) from exc
                 raise ObjectStorageError(str(exc)) from exc
 
+    async def get_object(self, key: str) -> bytes:
+        return await self.get(key)
+
     async def get_stream(self, key: str) -> AsyncIterator[bytes]:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             try:
                 response = await s3.get_object(Bucket=self.bucket, Key=key)
                 async for chunk in response["Body"].iter_chunks(64 * 1024):
@@ -113,7 +134,8 @@ class S3Storage(ObjectStorage):
                 raise ObjectStorageError(str(exc)) from exc
 
     async def exists(self, key: str) -> bool:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             try:
                 await s3.head_object(Bucket=self.bucket, Key=key)
                 return True
@@ -123,15 +145,9 @@ class S3Storage(ObjectStorage):
                     return False
                 raise ObjectStorageError(str(exc)) from exc
 
-    async def delete(self, key: str) -> None:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            try:
-                await s3.delete_object(Bucket=self.bucket, Key=key)
-            except ClientError as exc:
-                raise ObjectStorageError(str(exc)) from exc
-
-    async def head(self, key: str) -> ObjectMetadata:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+    async def stat(self, key: str) -> ObjectMetadata:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             try:
                 response = await s3.head_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
@@ -149,10 +165,28 @@ class S3Storage(ObjectStorage):
             custom_metadata=response.get("Metadata", {}),
         )
 
+    async def head(self, key: str) -> ObjectMetadata:
+        return await self.stat(key)
+
+    async def delete(self, key: str) -> None:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
+            try:
+                await s3.delete_object(Bucket=self.bucket, Key=key)
+            except ClientError as exc:
+                code = exc.response.get("Error", {}).get("Code")
+                if code in {"404", "NoSuchKey", "NotFound"}:
+                    raise ObjectNotFoundError(key) from exc
+                raise ObjectStorageError(str(exc)) from exc
+
+    async def delete_object(self, key: str) -> None:
+        await self.delete(key)
+
     async def list_keys(
-        self, prefix: str, *, page_size: int = 1000
+        self, prefix: str = "", *, page_size: int = 1000
     ) -> AsyncIterator[str]:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             paginator = s3.get_paginator("list_objects_v2")
             async for page in paginator.paginate(
                 Bucket=self.bucket,
@@ -162,8 +196,14 @@ class S3Storage(ObjectStorage):
                 for obj in page.get("Contents", []) or []:
                     yield obj["Key"]
 
-    async def presign_get_url(self, key: str, *, expires_in_seconds: int = 3600) -> str:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+    async def list_objects(self, prefix: str = "") -> list[str]:
+        return [key async for key in self.list_keys(prefix)]
+
+    async def presign_get_url(
+        self, key: str, *, expires_in_seconds: int = 3600
+    ) -> str:
+        async with self._session.client("s3", **self._client_kwargs()) as s3_client:
+            s3 = cast(Any, s3_client)
             return await s3.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.bucket, "Key": key},
