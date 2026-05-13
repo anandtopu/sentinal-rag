@@ -1,6 +1,20 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
+
 WORKDIR /app
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e .
-COPY . .
-CMD ["python", "-m", "worker.main"]
+
+# Install shared package (requires Python >=3.12)
+COPY packages/ packages/
+RUN pip install --no-cache-dir packages/shared/python
+
+# Copy worker app code
+COPY apps/temporal-worker/ .
+
+# Install worker-specific dependencies
+RUN pip install --no-cache-dir \
+    asyncpg \
+    httpx \
+    pydantic \
+    pydantic-settings \
+    temporalio
+
+CMD ["python", "-m", "sentinelrag_worker.main"]
