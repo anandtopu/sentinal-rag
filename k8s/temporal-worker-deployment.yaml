@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-worker
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-worker
+  template:
+    metadata:
+      labels:
+        app: temporal-worker
+    spec:
+      serviceAccountName: sentinal-rag-sa
+      containers:
+      - name: temporal-worker
+        image: gcr.io/sentinelrag/temporal-worker:latest
+        env:
+        - name: TEMPORAL_HOST
+          value: "temporal-frontend:7233"
+        - name: DATABASE_URL
+          value: "postgresql://localhost:5432/sentinalrag"
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+        args:
+        - "--structured-logs"
+        - "--port=5432"
+        - "sentinelrag:us-central1:sentinal-rag-db"
+        securityContext:
+          runAsNonRoot: true
