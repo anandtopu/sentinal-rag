@@ -15,7 +15,7 @@ Four scenarios that target the `POST /api/v1/query` endpoint:
 |---|---|---|
 | `SENTINELRAG_BASE_URL` | `http://localhost:8000` | API service URL |
 | `SENTINELRAG_API_BASE` | `/api/v1` | Path prefix |
-| `SENTINELRAG_AUTH_TOKEN` | `dev` | Bearer token. Use `dev` only when `AUTH_ALLOW_DEV_TOKEN=true` and `ENVIRONMENT=local` (CLAUDE.md dev-token bypass). For dev/prod, mint a real Keycloak access token. |
+| `SENTINELRAG_AUTH_TOKEN` | `dev` | Bearer token. Use `dev` only when `AUTH_ALLOW_DEV_TOKEN=true` and `ENVIRONMENT=local` (AGENTS.md dev-token bypass). For dev/prod, mint a real Keycloak access token. |
 | `SENTINELRAG_COLLECTION_IDS` | (empty — required) | Comma-separated collection UUIDs to query. After `make seed`, run `make show-demo-collection-ids`. |
 
 ## Running locally

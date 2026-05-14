@@ -4,9 +4,10 @@
 > [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md);
 > this file is the recruiter-readable cover sheet.
 
-**Last updated:** 2026-04-29 — all 10 phases code-side complete + deploy
-audit pass (6 deploy-blockers fixed; `pytest -m unit` is now 76/76 with
-the previously-known flake resolved).
+**Last updated:** 2026-05-13 — all 10 phases code-side complete. Latest
+session expanded shared LLM wrapper coverage and fixed retry failure
+wrapping. `pytest -m unit` is now green across **162 collected unit
+tests** with **70.80% Python coverage**.
 
 ## Status by phase
 
@@ -26,7 +27,8 @@ the previously-known flake resolved).
 ## Counts
 
 - **30 accepted ADRs** at `docs/architecture/adr/` (template + ADR-0001…ADR-0030).
-- **76 unit tests passing, 0 flakes.**
+- **162 collected unit tests passing, 0 flakes observed in the current
+  Python 3.12 environment.**
 - **5 GitHub Actions workflows**: `ci.yml`, `security.yml`, `perf-smoke.yml`, `dr-backup-verify.yml`, `build-images.yml`.
 - **4 operations runbooks** at `docs/operations/runbooks/`: deployment-aws, deployment-gcp, cluster-bootstrap, disaster-recovery.
 - **5 Helm values overlays**: `values.yaml` (defaults), `values-{local,dev,prod,gcp-dev}.yaml`. All `helm lint` clean.
@@ -36,6 +38,11 @@ the previously-known flake resolved).
 
 ✅ Multi-tenant data plane with RLS + RBAC at retrieval time
 ✅ Hybrid retrieval (BM25 + pgvector HNSW + RRF + bge-reranker)
+✅ Retrieval regression coverage for query response options, trace streaming,
+cloud-model gates, abstain behavior, AccessFilter, pgvector `ef_search`, RRF,
+OpenSearch/Postgres parity, and retrieval-service validation
+✅ Focused service-layer and Temporal worker unit coverage for document,
+prompt, evaluation, tenant/user/role, ingestion, and evaluation failure paths
 ✅ Layered hallucination detection (token-overlap → NLI → LLM-judge cascade)
 ✅ Per-tenant cost budgets (soft-cap downgrade, hard-cap deny, before generation)
 ✅ Audit dual-write — Postgres + Object Lock COMPLIANCE / locked retention 7y
@@ -71,13 +78,35 @@ These are the only remaining items, and they all depend on a real cloud account:
 Everything in code is ready. The repo is production-deployment-ready
 modulo the live-account hand-off step.
 
+## Latest session handoff (2026-05-12)
+
+- Python tooling repaired to repo-local `.venv` on **Python 3.12.13** via
+  `uv`; `uv.lock` is current after slimming the diagnostic
+  `sentinelrag-retrieval-service` dependencies.
+- Query/RAG route tests now cover response citation options, trace metadata
+  coercion, streaming timeout/session edge cases, cloud-model permission
+  gates, and `abstain_if_unsupported=False` orchestration.
+- Retrieval hardening tests now cover `AccessFilter`, pgvector vector
+  formatting and `ef_search`, RRF edge cases, and OpenSearch/Postgres
+  authorization-shape parity.
+- Service-layer and worker tests added for `DocumentService`, `PromptService`,
+  `EvaluationService`, tenant/user/role services, ingestion idempotency, and
+  evaluation workflow failure paths.
+- Retrieval-service review fixes landed: OpenSearch refresh params now use
+  the installed client API, RRF has a public `merge_with_rrf` helper, the
+  wrapper no longer calls a protected method, capabilities describe the
+  actual diagnostic endpoint, and wrapper coverage is 100%.
+- Full unit suite is green. Integration tests are still environment-blocked
+  on this Windows host by Docker named-pipe access denial
+  (`//./pipe/docker_engine`), not by Python tooling.
+
 ## Where to read in detail
 
 - **Build status (live ledger):** [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md)
 - **Why each decision was made:** [`docs/architecture/adr/`](docs/architecture/adr/) — 30 ADRs
 - **Architecture diagrams:** [`docs/architecture/c4/`](docs/architecture/c4/) — Mermaid, GitHub-rendered
 - **Deployment runbooks:** [`docs/operations/runbooks/`](docs/operations/runbooks/)
-- **Working with this repo:** [`CLAUDE.md`](CLAUDE.md) — locked stack, architectural pillars, footguns
+- **Working with this repo:** [`AGENTS.md`](AGENTS.md) — Codex session checklist, locked stack, architectural pillars, footguns
 - **Repository tour, quick-start:** [`README.md`](README.md)
 
 ## Verification (deploy-audit pass, 2026-04-29)

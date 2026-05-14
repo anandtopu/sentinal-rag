@@ -36,7 +36,7 @@ Two paths, one client:
 - **Local dev**: set `AUTH_DEV_BYPASS=true` to expose a `Credentials`
   provider that mints a session using `NEXT_PUBLIC_DEV_TOKEN`. Both halves
   must be aligned with the backend's `AUTH_ALLOW_DEV_TOKEN` /
-  `ENVIRONMENT=local` gate (see CLAUDE.md "Local dev: skipping Keycloak").
+  `ENVIRONMENT=local` gate (see AGENTS.md "Local dev: skipping Keycloak").
 
 If the user is anonymous (no session) and `NEXT_PUBLIC_DEV_TOKEN` is set,
 the API client falls back to that token for friction-free local smoke tests.

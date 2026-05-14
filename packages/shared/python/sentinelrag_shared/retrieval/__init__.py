@@ -14,7 +14,11 @@ fetched — unauthorized chunks never enter the rerank/generation path.
 
 from sentinelrag_shared.retrieval.access_filter import AccessFilter, AccessFilterPredicate
 from sentinelrag_shared.retrieval.candidate import Candidate, RetrievalStage
-from sentinelrag_shared.retrieval.hybrid import HybridRetrievalResult, HybridRetriever
+from sentinelrag_shared.retrieval.hybrid import (
+    HybridRetrievalResult,
+    HybridRetriever,
+    merge_with_rrf,
+)
 from sentinelrag_shared.retrieval.keyword_search import (
     KeywordSearch,
     PostgresFtsKeywordSearch,
@@ -35,4 +39,5 @@ __all__ = [
     "PostgresFtsKeywordSearch",
     "RetrievalStage",
     "VectorSearch",
+    "merge_with_rrf",
 ]

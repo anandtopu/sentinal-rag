@@ -21,7 +21,6 @@ from typing import Any, Protocol
 import litellm
 from tenacity import (
     AsyncRetrying,
-    RetryError,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -118,7 +117,7 @@ class LiteLLMGenerator:
                 # never reached because reraise=True; satisfy the type checker
                 msg = "litellm.acompletion returned no result."
                 raise GeneratorError(msg)
-        except RetryError as exc:
+        except Exception as exc:
             msg = f"Generator {self.model_name!r} failed after {self._max_retries} attempts."
             raise GeneratorError(msg) from exc
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -36,6 +36,7 @@ from app.schemas.query import (
 from app.services.rag_orchestrator import (
     GenerationConfig,
     QueryOptions,
+    QueryResult,
     RagOrchestrator,
     RetrievalConfig,
 )
@@ -102,13 +103,18 @@ async def execute_query(
         ),
     )
 
-    return QueryResponse(
-        query_session_id=result.query_session_id,
-        answer=result.answer,
-        confidence_score=result.confidence_score,
-        grounding_score=result.grounding_score,
-        hallucination_risk_score=result.hallucination_risk_score,
-        citations=[
+    return _to_query_response(
+        result,
+        include_citations=payload.options.include_citations,
+    )
+
+
+def _to_query_response(
+    result: QueryResult, *, include_citations: bool = True
+) -> QueryResponse:
+    citations: list[CitationRead] = []
+    if include_citations:
+        citations = [
             CitationRead(
                 citation_id=c.citation_id,
                 document_id=c.document_id,
@@ -120,7 +126,15 @@ async def execute_query(
                 relevance_score=c.relevance_score,
             )
             for c in result.citations
-        ],
+        ]
+
+    return QueryResponse(
+        query_session_id=result.query_session_id,
+        answer=result.answer,
+        confidence_score=result.confidence_score,
+        grounding_score=result.grounding_score,
+        hallucination_risk_score=result.hallucination_risk_score,
+        citations=citations,
         usage=QueryUsage(
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
@@ -185,7 +199,7 @@ async def _build_trace(
                 stage=r.retrieval_stage,
                 rank=r.rank,
                 score=float(r.score),
-                metadata=r.metadata if isinstance(r.metadata, dict) else {},
+                metadata=_coerce_metadata(r.metadata),
             )
             for r in retrieval_rows
         ],
@@ -204,6 +218,18 @@ async def _build_trace(
             else None
         ),
     )
+
+
+def _coerce_metadata(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 @router.get("/{query_session_id}/trace", response_model=QueryTraceResponse)

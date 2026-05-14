@@ -20,7 +20,6 @@ from typing import Protocol
 import litellm
 from tenacity import (
     AsyncRetrying,
-    RetryError,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -166,7 +165,7 @@ class LiteLLMEmbedder:
             ):
                 with attempt:
                     return await litellm.aembedding(**kwargs)
-        except RetryError as exc:
+        except Exception as exc:
             msg = f"Embedder {self.model_name!r} failed after {self._max_retries} attempts."
             raise EmbedderError(msg) from exc
         # Unreachable, but makes the type checker happy.

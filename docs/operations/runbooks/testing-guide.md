@@ -1,7 +1,7 @@
 # Feature testing guide
 
 How to verify every documented SentinelRAG feature works after a code
-change. This is the **canonical test matrix** — when CLAUDE.md or a
+change. This is the **canonical test matrix** — when AGENTS.md or a
 README quick-start disagrees with this file, this file wins.
 
 The guide is layered:
@@ -22,7 +22,7 @@ test should have caught a bug but didn't.
 ```bash
 # Unit tests — fast, no infra, run on every PR.
 uv run pytest -m unit
-# Expect: 75 passed, 1 pre-existing flake (test_dev_token_disabled_by_default).
+# Expect: 162 passed, 0 failures, 0 flakes.
 
 # Integration tests — testcontainers, needs Docker Desktop.
 uv run pytest -m integration
@@ -68,7 +68,7 @@ defense in depth.
 | Manual | `make up && make seed`. Mint two demo tenants. From tenant A, `POST /query` against a collection in tenant B's namespace → expect 404 (collection not visible), not 403 (which would imply post-mask). |
 
 **Fail signal:** if a unit test mocks `AsyncSession`, the RLS bug surface
-is hidden. CLAUDE.md forbids this — see ADR-0008 + Pillar #2.
+is hidden. AGENTS.md forbids this — see ADR-0008 + Pillar #2.
 
 ---
 
@@ -349,4 +349,4 @@ RTO, surprises, follow-ups. (Directory created on first drill.)
 - [`tests/performance/k6/README.md`](../../../tests/performance/k6/README.md) — k6 details
 - [`tests/performance/evals/README.md`](../../../tests/performance/evals/README.md) — eval comparison harness
 - [`infra/chaos/README.md`](../../../infra/chaos/README.md) — Chaos Mesh experiment matrix
-- [`CLAUDE.md`](../../../CLAUDE.md) — locked stack, architectural pillars, footguns
+- [`AGENTS.md`](../../../AGENTS.md) — Codex session checklist, locked stack, architectural pillars, footguns

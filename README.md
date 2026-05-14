@@ -78,8 +78,8 @@ Detailed diagrams (rendered natively on GitHub):
 
 ## Where to read the rationale
 
-- **[`CLAUDE.md`](CLAUDE.md)** — the locked stack, the architectural
-  pillars, the things-not-to-do list. Authoritative for build decisions.
+- **[`AGENTS.md`](AGENTS.md)** — the canonical Codex guide: locked
+  stack, session checklist, architectural pillars, and footguns.
 - **[ADR catalog](docs/architecture/adr/README.md)** — 30 accepted ADRs.
   Each is one decision, short, with trade-offs spelled out and
   alternatives recorded.
@@ -93,7 +93,7 @@ Detailed diagrams (rendered natively on GitHub):
   - [Feature testing guide](docs/operations/runbooks/testing-guide.md) — per-feature manual + automated test matrix
   - [Disaster recovery](docs/operations/runbooks/disaster-recovery.md) — RPO/RTO matrix, 8 failure scenarios with step-by-step recovery
 - Original PRD + design docs (kept for historical context, **superseded
-  by ADRs where they conflict** — see CLAUDE.md "Decision overrides"):
+  by ADRs where they conflict** — see AGENTS.md "Decision overrides"):
   [PRD](Enterprise_RAG_PRD.md), [Architecture](Enterprise_RAG_Architecture.md),
   [Database design](Enterprise_RAG_Database_Design.md), [Deployment](Enterprise_RAG_Deployment.md),
   [Folder structure](Enterprise_RAG_Folder_Structure.md).
@@ -141,7 +141,7 @@ Detailed diagrams (rendered natively on GitHub):
 ├── migrations/               # Alembic, hand-written, no autogenerate
 ├── infra/
 │   ├── helm/sentinelrag/     # Single chart deploys api + worker + frontend
-│   ├── terraform/aws/        # 7 modules + dev env (VPC, EKS, RDS, ElastiCache,
+│   ├── terraform/aws/        # 8 modules + dev env (VPC, EKS, RDS, ElastiCache,
 │   │                         #   S3, Secrets Manager, IAM IRSA, OpenSearch)
 │   ├── terraform/gcp/        # 7 modules + dev env (mirror; Workload Identity)
 │   ├── observability/        # Grafana dashboards-as-code, OTel collector config
@@ -159,10 +159,10 @@ Detailed diagrams (rendered natively on GitHub):
 ├── docs/
 │   ├── architecture/
 │   │   ├── PHASE_PLAN.md     # Live build status
-│   │   ├── adr/              # 28 ADRs
+│   │   ├── adr/              # 30 ADRs
 │   │   └── c4/               # L1-L4 Mermaid diagrams
 │   └── operations/
-│       └── runbooks/         # disaster-recovery.md
+│       └── runbooks/         # deployment, bootstrap, testing, DR, local dev
 └── .github/workflows/
     ├── ci.yml                # lint + typecheck + unit
     ├── security.yml          # tfsec + bandit + trivy fs/image
@@ -234,7 +234,7 @@ for the live shipping log.
 
 ## Things-not-to-do (recurring footguns)
 
-These rules are encoded in CLAUDE.md and tested where possible:
+These rules are encoded in AGENTS.md and tested where possible:
 
 - **Don't mock the DB in tests that exercise RLS, tenancy, or RBAC retrieval** — the bug surface is in real Postgres behavior. Integration tests use testcontainers.
 - **Don't store raw document text in Postgres** — push to object storage, keep `storage_uri` (ADR-0015).

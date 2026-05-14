@@ -111,46 +111,57 @@ class HybridRetriever:
         top_k: int,
     ) -> list[Candidate]:
         """Combine two ranked lists via Reciprocal Rank Fusion + dedupe."""
-        scored: dict[UUID, tuple[float, Candidate, int | None, int | None]] = {}
+        return merge_with_rrf(bm25=bm25, vector=vector, top_k=top_k, rrf_k=self.rrf_k)
 
-        for cand in bm25:
-            rrf = 1.0 / (self.rrf_k + cand.rank)
-            scored[cand.chunk_id] = (rrf, cand, cand.rank, None)
 
-        for cand in vector:
-            rrf = 1.0 / (self.rrf_k + cand.rank)
-            if cand.chunk_id in scored:
-                prev_score, prev_cand, prev_bm25_rank, _ = scored[cand.chunk_id]
-                # Prefer the BM25-fetched cand for content/metadata (FTS includes
-                # page_number etc. consistently); attach vector_rank.
-                scored[cand.chunk_id] = (
-                    prev_score + rrf,
-                    prev_cand,
-                    prev_bm25_rank,
-                    cand.rank,
-                )
-            else:
-                scored[cand.chunk_id] = (rrf, cand, None, cand.rank)
+def merge_with_rrf(
+    *,
+    bm25: list[Candidate],
+    vector: list[Candidate],
+    top_k: int,
+    rrf_k: int = 60,
+) -> list[Candidate]:
+    """Combine two ranked lists via Reciprocal Rank Fusion + dedupe."""
+    scored: dict[UUID, tuple[float, Candidate, int | None, int | None]] = {}
 
-        ranked = sorted(scored.values(), key=lambda x: x[0], reverse=True)
-        out: list[Candidate] = []
-        for new_rank, (rrf_score, cand, bm25_rank, vector_rank) in enumerate(
-            ranked[:top_k], start=1
-        ):
-            out.append(
-                Candidate(
-                    chunk_id=cand.chunk_id,
-                    document_id=cand.document_id,
-                    content=cand.content,
-                    score=rrf_score,
-                    rank=new_rank,
-                    stage=RetrievalStage.HYBRID_MERGE,
-                    page_number=cand.page_number,
-                    section_title=cand.section_title,
-                    metadata={
-                        "bm25_rank": bm25_rank,
-                        "vector_rank": vector_rank,
-                    },
-                )
+    for cand in bm25:
+        rrf = 1.0 / (rrf_k + cand.rank)
+        scored[cand.chunk_id] = (rrf, cand, cand.rank, None)
+
+    for cand in vector:
+        rrf = 1.0 / (rrf_k + cand.rank)
+        if cand.chunk_id in scored:
+            prev_score, prev_cand, prev_bm25_rank, _ = scored[cand.chunk_id]
+            # Prefer the BM25-fetched cand for content/metadata (FTS includes
+            # page_number etc. consistently); attach vector_rank.
+            scored[cand.chunk_id] = (
+                prev_score + rrf,
+                prev_cand,
+                prev_bm25_rank,
+                cand.rank,
             )
-        return out
+        else:
+            scored[cand.chunk_id] = (rrf, cand, None, cand.rank)
+
+    ranked = sorted(scored.values(), key=lambda x: x[0], reverse=True)
+    out: list[Candidate] = []
+    for new_rank, (rrf_score, cand, bm25_rank, vector_rank) in enumerate(
+        ranked[:top_k], start=1
+    ):
+        out.append(
+            Candidate(
+                chunk_id=cand.chunk_id,
+                document_id=cand.document_id,
+                content=cand.content,
+                score=rrf_score,
+                rank=new_rank,
+                stage=RetrievalStage.HYBRID_MERGE,
+                page_number=cand.page_number,
+                section_title=cand.section_title,
+                metadata={
+                    "bm25_rank": bm25_rank,
+                    "vector_rank": vector_rank,
+                },
+            )
+        )
+    return out

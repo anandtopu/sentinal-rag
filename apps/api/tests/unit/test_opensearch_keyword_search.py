@@ -225,6 +225,7 @@ class TestBulkIndex:
         assert n == 2
 
         body = client.bulk.await_args.kwargs["body"]
+        assert client.bulk.await_args.kwargs["params"] == {"refresh": "false"}
         # Two index ops + two source docs = 4 NDJSON lines (joined by \n
         # with a trailing \n, that's 4 newline characters total).
         assert body.count("\n") == 4
@@ -264,6 +265,22 @@ class TestBulkIndex:
         ]
         n = await adapter.bulk_index(chunks)
         assert n == 1
+
+    async def test_refresh_true_is_sent_as_client_params(self) -> None:
+        client = _make_client()
+        adapter = OpenSearchKeywordSearch(client=client, session=FakeSession())
+        chunk = IndexableChunk(
+            chunk_id=uuid4(),
+            document_id=uuid4(),
+            tenant_id=uuid4(),
+            collection_id=uuid4(),
+            content="read after write",
+        )
+
+        n = await adapter.bulk_index([chunk], refresh=True)
+
+        assert n == 1
+        assert client.bulk.await_args.kwargs["params"] == {"refresh": "true"}
 
 
 # --------------------------------------------------------------------------- #
@@ -315,6 +332,7 @@ class TestDeleteByDocument:
         assert n == 7
 
         body = client.delete_by_query.await_args.kwargs["body"]
+        assert client.delete_by_query.await_args.kwargs["params"] == {"refresh": "true"}
         filters = body["query"]["bool"]["filter"]
         assert {"term": {"tenant_id":   str(tenant_id)}} in filters
         assert {"term": {"document_id": str(doc_id)}} in filters

@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from sentinelrag_shared.retrieval import Candidate, HybridRetriever, RetrievalStage
+from sentinelrag_shared.retrieval import Candidate, RetrievalStage, merge_with_rrf
 
 
 class HealthResponse(BaseModel):
@@ -46,16 +46,6 @@ class RrfMergeResponse(BaseModel):
     candidates: list[CandidateOut]
 
 
-class _UnusedKeywordSearch:
-    async def search(self, **_kwargs: object) -> list[Candidate]:
-        return []
-
-
-class _UnusedVectorSearch:
-    async def search(self, **_kwargs: object) -> list[Candidate]:
-        return []
-
-
 app = FastAPI(
     title="SentinelRAG Retrieval Service",
     version="0.1.0",
@@ -71,24 +61,23 @@ async def health() -> HealthResponse:
 @app.get("/capabilities", response_model=dict[str, object])
 async def capabilities() -> dict[str, object]:
     return {
-        "modes": ["hybrid", "bm25", "vector"],
+        "service_role": "diagnostic-wrapper",
+        "modes": ["rrf_merge"],
         "stages": [stage.value for stage in RetrievalStage],
+        "endpoints": ["/rrf-merge"],
         "rrf": True,
-        "rbac_at_retrieval_time": True,
+        "retrieval_backends": [],
+        "rbac_at_retrieval_time": False,
     }
 
 
 @app.post("/rrf-merge", response_model=RrfMergeResponse)
 async def rrf_merge(payload: RrfMergeRequest) -> RrfMergeResponse:
-    retriever = HybridRetriever(
-        keyword_search=_UnusedKeywordSearch(),
-        vector_search=_UnusedVectorSearch(),
+    merged = merge_with_rrf(
+        bm25=[_to_candidate(c, RetrievalStage.BM25) for c in payload.bm25],
+        vector=[_to_candidate(c, RetrievalStage.VECTOR) for c in payload.vector],
+        top_k=payload.top_k,
         rrf_k=payload.rrf_k,
-    )
-    merged = retriever._rrf_merge(
-        [_to_candidate(c, RetrievalStage.BM25) for c in payload.bm25],
-        [_to_candidate(c, RetrievalStage.VECTOR) for c in payload.vector],
-        payload.top_k,
     )
     return RrfMergeResponse(candidates=[_to_out(c) for c in merged])
 

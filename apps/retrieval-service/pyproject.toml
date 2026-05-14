@@ -1,7 +1,7 @@
 [project]
 name = "sentinelrag-retrieval-service"
 version = "0.1.0"
-description = "Hybrid retrieval (BM25 + vector) + reranking service."
+description = "Diagnostic HTTP wrapper around shared retrieval primitives."
 requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }
 
@@ -9,15 +9,6 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
-    "pydantic-settings>=2.5",
-    "sqlalchemy[asyncio]>=2.0.36",
-    "asyncpg>=0.30",
-    "pgvector>=0.3.6",
-    "sentence-transformers>=3.3",
-    "FlagEmbedding>=1.3",
-    "torch>=2.5",
-    "transformers>=4.46",
-    "structlog>=24.4",
     "sentinelrag-shared",
 ]
 
