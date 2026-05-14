@@ -1,181 +1,177 @@
+"""Embedder protocol + LiteLLM-backed implementation.
+
+The :class:`Embedder` protocol abstracts over OpenAI, Ollama, Cohere, etc.
+The :class:`LiteLLMEmbedder` implementation routes via LiteLLM's
+``aembedding`` for unified provider handling, batching, and retries.
+
+Per ADR-0020, the platform supports embedding dimensions 768, 1024, and 1536.
+The :data:`EMBEDDER_DIMENSIONS` table is the canonical mapping from model
+alias (the string we persist in ``chunk_embeddings.embedding_model``) to
+dimension.
+"""
+
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Sequence
 from decimal import Decimal
-from time import perf_counter
-from typing import Any
+from typing import Protocol
 
 import litellm
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from sentinelrag_shared.llm.types import EmbeddingResult, UsageRecord
 
 
-class EmbedderError(RuntimeError):
-    """Base embedder error."""
+class EmbedderError(Exception):
+    """Raised when an embedding call cannot be completed after retries."""
 
 
-class Embedder:
-    async def embed(self, texts: Sequence[str]) -> EmbeddingResult:  # pragma: no cover
-        raise NotImplementedError
+# Canonical model -> dimension lookup. Adding a model means adding an entry
+# here AND ensuring the migration covers its dimension (ADR-0020 supports
+# 768/1024/1536 in v1).
+EMBEDDER_DIMENSIONS: dict[str, int] = {
+    "ollama/nomic-embed-text": 768,
+    "ollama/mxbai-embed-large": 1024,
+    "openai/text-embedding-3-small": 1536,
+    "openai/text-embedding-3-large": 1536,  # truncated; full is 3072 (unsupported)
+}
 
 
-def _infer_provider(model_name: str, provider: str | None) -> str | None:
-    if provider:
-        return provider
-    if "/" in model_name:
-        return model_name.split("/", 1)[0]
-    return None
+class Embedder(Protocol):
+    """Protocol for batch text -> dense vector embedding."""
 
+    model_name: str
+    dimension: int
 
-def _default_dimension(model_name: str) -> int:
-    lowered = model_name.lower()
-    if "nomic-embed-text" in lowered:
-        return 768
-    if "bge-m3" in lowered:
-        return 1024
-    return 768
-
-
-def _as_mapping(value: Any) -> Mapping[str, Any]:
-    if isinstance(value, Mapping):
-        return value
-    if hasattr(value, "model_dump"):
-        dumped = value.model_dump()
-        if isinstance(dumped, Mapping):
-            return dumped
-    if hasattr(value, "__dict__"):
-        data = vars(value)
-        if isinstance(data, Mapping):
-            return data
-    return {}
-
-
-def _as_decimal(value: Any) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int | str):
-        return Decimal(str(value))
-    if isinstance(value, float):
-        return Decimal(str(value))
-    return Decimal("0")
+    async def embed(self, texts: Sequence[str]) -> EmbeddingResult: ...
 
 
 class LiteLLMEmbedder:
+    """LiteLLM-routed embedder.
+
+    Args:
+        model_name: LiteLLM model alias, e.g. ``"ollama/nomic-embed-text"``.
+        api_base: Optional base URL override (set for Ollama running outside
+            localhost defaults).
+        api_key: Optional API key (read from env when None for cloud providers).
+        max_batch_size: LiteLLM client-side batches above this size into chunks.
+        request_timeout_seconds: Per-call timeout.
+    """
+
     def __init__(
         self,
-        model_name: str,
         *,
-        provider: str | None = None,
-        batch_size: int = 32,
-        max_batch_size: int | None = None,
-        **kwargs: Any,
+        model_name: str,
+        api_base: str | None = None,
+        api_key: str | None = None,
+        max_batch_size: int = 64,
+        request_timeout_seconds: float = 30.0,
+        max_retries: int = 3,
     ) -> None:
+        if model_name not in EMBEDDER_DIMENSIONS:
+            msg = (
+                f"Unknown embedding model {model_name!r}. Add it to "
+                "EMBEDDER_DIMENSIONS and ensure the migration covers its dim."
+            )
+            raise ValueError(msg)
         self.model_name = model_name
-        self.provider = _infer_provider(model_name, provider)
-        self.batch_size = max_batch_size or batch_size
-        self.kwargs: dict[str, Any] = dict(kwargs)
-        self.expected_dimension = _default_dimension(model_name)
-        retries = self.kwargs.pop("max_retries", None)
-        self.max_retries = int(retries) if isinstance(retries, int | float) else 1
+        self.dimension = EMBEDDER_DIMENSIONS[model_name]
+        self._api_base = api_base
+        self._api_key = api_key
+        self._max_batch = max_batch_size
+        self._timeout = request_timeout_seconds
+        self._max_retries = max_retries
 
     async def embed(self, texts: Sequence[str]) -> EmbeddingResult:
         if not texts:
             return EmbeddingResult(
                 vectors=[],
                 model_name=self.model_name,
-                dimension=self.expected_dimension,
-                provider=self.provider,
+                dimension=self.dimension,
                 usage=UsageRecord(
                     usage_type="embedding",
-                    provider=self.provider,
+                    provider=self._provider(),
                     model_name=self.model_name,
-                    input_tokens=0,
-                    output_tokens=0,
-                    total_tokens=0,
-                    total_cost_usd=Decimal("0"),
-                    latency_ms=0,
                 ),
             )
 
-        started = perf_counter()
-        vectors: list[list[float]] = []
+        all_vectors: list[list[float]] = []
         total_input_tokens = 0
-        total_tokens = 0
-        total_cost = Decimal("0")
-        resolved_model = self.model_name
+        total_cost = Decimal(0)
+        start = time.perf_counter()
 
-        for i in range(0, len(texts), self.batch_size):
-            chunk = list(texts[i : i + self.batch_size])
-            raw_response = None
-            last_exc: Exception | None = None
-            for _attempt in range(self.max_retries):
-                try:
-                    raw_response = await litellm.aembedding(
-                        model=self.model_name,
-                        input=chunk,
-                        max_retries=self.max_retries,
-                        **self.kwargs,
+        # Batch client-side; LiteLLM also batches but we control the chunk size
+        # to bound memory and concurrency.
+        for chunk_start in range(0, len(texts), self._max_batch):
+            chunk = list(texts[chunk_start : chunk_start + self._max_batch])
+            response = await self._call_with_retries(chunk)
+
+            for item in response["data"]:
+                vec = list(item["embedding"])
+                if len(vec) != self.dimension:
+                    msg = (
+                        f"Embedder returned dim={len(vec)} for {self.model_name!r}; "
+                        f"EMBEDDER_DIMENSIONS says {self.dimension}. "
+                        "Either the model alias is wrong or the table needs updating."
                     )
-                    break
-                except Exception as exc:
-                    last_exc = exc
-            if raw_response is None:
-                raise EmbedderError(
-                    f"failed after {self.max_retries} attempts: {last_exc}"
-                ) from last_exc
+                    raise EmbedderError(msg)
+                all_vectors.append(vec)
 
-            response = _as_mapping(raw_response)
+            usage = response.get("usage") or {}
+            total_input_tokens += usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+            hidden = response.get("_hidden_params", {}) or {}
+            response_cost = hidden.get("response_cost")
+            if isinstance(response_cost, (int, float, Decimal)):
+                total_cost += Decimal(str(response_cost))
 
-            response_model = response.get("model")
-            if isinstance(response_model, str) and response_model:
-                resolved_model = response_model
-
-            data = response.get("data", [])
-            if not isinstance(data, Sequence):
-                data = []
-
-            for item in data:
-                item_map = _as_mapping(item)
-                embedding = item_map.get("embedding", [])
-                if isinstance(embedding, Sequence):
-                    vector = [float(x) for x in embedding]
-                    if len(vector) != self.expected_dimension:
-                        raise EmbedderError(
-                            f"{self.model_name} returned dim={len(vector)} "
-                            f"expected dim={self.expected_dimension}"
-                        )
-                    vectors.append(vector)
-
-            usage = _as_mapping(response.get("usage"))
-            prompt_tokens = usage.get("prompt_tokens", usage.get("input_tokens", 0))
-            total_input_tokens += (
-                int(prompt_tokens) if isinstance(prompt_tokens, int | float) else 0
-            )
-
-            total_tok = usage.get("total_tokens")
-            if isinstance(total_tok, int | float):
-                total_tokens += int(total_tok)
-            else:
-                total_tokens += int(prompt_tokens) if isinstance(prompt_tokens, int | float) else 0
-
-            hidden = _as_mapping(response.get("_hidden_params"))
-            total_cost += _as_decimal(hidden.get("response_cost", 0))
-
-        latency_ms = int((perf_counter() - started) * 1000)
-
+        latency_ms = int((time.perf_counter() - start) * 1000)
         return EmbeddingResult(
-            vectors=vectors,
-            model_name=resolved_model,
-            dimension=self.expected_dimension,
-            provider=self.provider,
+            vectors=all_vectors,
+            model_name=self.model_name,
+            dimension=self.dimension,
             usage=UsageRecord(
                 usage_type="embedding",
-                provider=self.provider,
-                model_name=resolved_model,
+                provider=self._provider(),
+                model_name=self.model_name,
                 input_tokens=total_input_tokens,
-                output_tokens=0,
-                total_tokens=total_tokens,
-                total_cost_usd=total_cost,
+                total_cost_usd=total_cost if total_cost > 0 else None,
                 latency_ms=latency_ms,
             ),
         )
+
+    async def _call_with_retries(self, chunk: list[str]) -> dict:
+        kwargs: dict = {
+            "model": self.model_name,
+            "input": chunk,
+            "timeout": self._timeout,
+        }
+        if self._api_base:
+            kwargs["api_base"] = self._api_base
+        if self._api_key:
+            kwargs["api_key"] = self._api_key
+
+        try:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(self._max_retries),
+                wait=wait_exponential(multiplier=0.5, min=0.5, max=8),
+                retry=retry_if_exception_type(Exception),
+                reraise=True,
+            ):
+                with attempt:
+                    return await litellm.aembedding(**kwargs)
+        except Exception as exc:
+            msg = f"Embedder {self.model_name!r} failed after {self._max_retries} attempts."
+            raise EmbedderError(msg) from exc
+        # Unreachable, but makes the type checker happy.
+        msg = "litellm.aembedding returned no result."
+        raise EmbedderError(msg)
+
+    def _provider(self) -> str:
+        # Model aliases use ``provider/name`` form.
+        return self.model_name.split("/", 1)[0] if "/" in self.model_name else "unknown"
