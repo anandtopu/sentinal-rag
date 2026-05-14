@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir \
     httpx \
     pydantic \
     pydantic-settings \
-    temporalio
+    temporalio \
+    sqlalchemy \
+    alembic \
+    pgvector \
+    psycopg2-binary
 
 CMD ["python", "-m", "sentinelrag_worker.main"]
