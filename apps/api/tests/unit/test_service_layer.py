@@ -24,7 +24,6 @@ from sentinelrag_shared.errors.exceptions import (
     ConflictError,
     NotFoundError,
     RoleNotFoundError,
-    TemporalUnavailableError,
     TenantNotFoundError,
     UserNotFoundError,
     ValidationFailedError,
@@ -71,13 +70,10 @@ class FakeStorage:
 
 
 class FakeTemporal:
-    def __init__(self, *, fail: bool = False) -> None:
+    def __init__(self) -> None:
         self.started: list[dict[str, Any]] = []
-        self.fail = fail
 
     async def start_workflow(self, workflow: str, payload: Any, **kwargs: Any) -> None:
-        if self.fail:
-            raise RuntimeError("temporal down")
         self.started.append({"workflow": workflow, "payload": payload, **kwargs})
 
 
@@ -153,61 +149,7 @@ async def test_document_upload_deduplicates_indexed_content() -> None:
     assert document is existing
     assert job.status == "completed"
     assert job.input_source["deduplicated"] is True
-    assert job.documents_total == 1
-    assert job.documents_processed == 1
     assert len(db.added) == 1
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_document_upload_force_reindex_reuses_existing_document() -> None:
-    db = FakeDb()
-    temporal = FakeTemporal()
-    tenant_id = uuid4()
-    collection_id = uuid4()
-    existing = Document(
-        id=uuid4(),
-        tenant_id=tenant_id,
-        collection_id=collection_id,
-        title="Existing",
-        source_type="upload",
-        source_uri="tenant/doc/original.txt",
-        mime_type="text/plain",
-        checksum="2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
-        sensitivity_level="internal",
-        metadata_={},
-        status="indexed",
-        created_by=uuid4(),
-    )
-    service = DocumentService(
-        db,  # type: ignore[arg-type]
-        storage=FakeStorage(),  # type: ignore[arg-type]
-        temporal_client=temporal,  # type: ignore[arg-type]
-        ingestion_task_queue="ingestion",
-        default_embedding_model="ollama/nomic-embed-text",
-    )
-    service.collections = SimpleNamespace(get=lambda _id: _async_value(object()))
-    service.docs = SimpleNamespace(get_by_checksum=lambda **_kwargs: _async_value(existing))
-
-    document, job = await service.upload(
-        tenant_id=tenant_id,
-        created_by=uuid4(),
-        payload=DocumentCreate(
-            collection_id=collection_id,
-            chunking_strategy="structure_aware",
-            parsing_strategy="auto",
-        ),
-        filename="doc.txt",
-        mime_type="text/plain",
-        body=b"hello",
-        force_reindex=True,
-    )
-
-    assert document is existing
-    assert document.status == "pending"
-    assert job.input_source["type"] == "reindex"
-    assert job.chunking_strategy == "structure_aware"
-    assert temporal.started[0]["payload"]["parsing_strategy"] == "auto"
 
 
 @pytest.mark.unit
@@ -239,35 +181,9 @@ async def test_document_upload_stores_blob_and_starts_ingestion_workflow() -> No
     assert document.source_uri == storage.puts[0][0]
     assert job.status == "queued"
     assert job.workflow_id == f"ingest-{job.id}"
-    assert job.documents_total == 1
     assert temporal.started[0]["workflow"] == "IngestionWorkflow"
     assert temporal.started[0]["task_queue"] == "ingestion"
     assert temporal.started[0]["payload"]["metadata"] == {"team": "sre"}
-    assert temporal.started[0]["payload"]["parsing_strategy"] == "fast"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_document_upload_maps_temporal_start_failure() -> None:
-    service = DocumentService(
-        FakeDb(),  # type: ignore[arg-type]
-        storage=FakeStorage(),  # type: ignore[arg-type]
-        temporal_client=FakeTemporal(fail=True),  # type: ignore[arg-type]
-        ingestion_task_queue="ingestion",
-        default_embedding_model="ollama/nomic-embed-text",
-    )
-    service.collections = SimpleNamespace(get=lambda _id: _async_value(object()))
-    service.docs = SimpleNamespace(get_by_checksum=lambda **_kwargs: _async_value(None))
-
-    with pytest.raises(TemporalUnavailableError):
-        await service.upload(
-            tenant_id=uuid4(),
-            created_by=uuid4(),
-            payload=DocumentCreate(collection_id=uuid4()),
-            filename="doc.txt",
-            mime_type="text/plain",
-            body=b"hello",
-        )
 
 
 @pytest.mark.unit
@@ -376,28 +292,6 @@ async def test_evaluation_service_start_run_starts_temporal_workflow() -> None:
     assert run.retrieval_config["collection_ids"] == [str(collection_id)]
     assert temporal.started[0]["workflow"] == "EvaluationRunWorkflow"
     assert temporal.started[0]["payload"]["actor_user_id"] == str(actor_id)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_evaluation_service_start_run_maps_temporal_failure() -> None:
-    service = EvaluationService(
-        FakeDb(),  # type: ignore[arg-type]
-        temporal_client=FakeTemporal(fail=True),  # type: ignore[arg-type]
-    )
-    service.datasets = SimpleNamespace(get=lambda _id: _async_value(EvaluationDataset(id=uuid4())))
-
-    with pytest.raises(TemporalUnavailableError):
-        await service.start_run(
-            tenant_id=uuid4(),
-            created_by=uuid4(),
-            payload=EvaluationRunCreate(
-                dataset_id=uuid4(),
-                name="nightly",
-                collection_ids=[uuid4()],
-                model_config={},
-            ),
-        )
 
 
 @pytest.mark.unit

@@ -4,7 +4,7 @@
 > Production-shaped: Postgres + pgvector retrieval, layered hallucination
 > detection, immutable audit, per-tenant cost budgets, multi-cloud
 > Terraform, Helm + ArgoCD, k6 + Chaos Mesh resilience tests, daily
-> backup verifiers, and 37 ADRs explaining every non-obvious choice.
+> backup verifiers, and 30 ADRs explaining every non-obvious choice.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Stack](https://img.shields.io/badge/stack-Python%203.12%20%7C%20FastAPI%20%7C%20Next.js%2015%20%7C%20Postgres%2016-1f425f)](docs/architecture/c4/L2-container.md)
@@ -80,7 +80,7 @@ Detailed diagrams (rendered natively on GitHub):
 
 - **[`AGENTS.md`](AGENTS.md)** — the canonical Codex guide: locked
   stack, session checklist, architectural pillars, and footguns.
-- **[ADR catalog](docs/architecture/adr/README.md)** — 37 accepted ADRs.
+- **[ADR catalog](docs/architecture/adr/README.md)** — 30 accepted ADRs.
   Each is one decision, short, with trade-offs spelled out and
   alternatives recorded.
 - **[Progress snapshot](PROGRESS.md)** — one-page status of every phase + what's left.
@@ -197,9 +197,8 @@ make seed
 # 4. Start the API with hot reload.
 make api
 
-# 5. Install workspace deps + start the frontend (separate terminal).
-make install              # uv + pnpm install across the workspace
-make frontend             # runs `pnpm dev` in apps/frontend
+# 5. Start the frontend (separate terminal).
+cd apps/frontend && npm install && npm run dev
 
 # 6. Hit the API.
 curl -H "Authorization: Bearer dev" \

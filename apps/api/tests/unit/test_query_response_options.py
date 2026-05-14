@@ -11,9 +11,7 @@ import pytest
 from app.api.v1.routes import query as query_routes
 from app.api.v1.routes.query import _build_trace, _coerce_metadata, _to_query_response
 from app.schemas.query import GenerationConfigIn, QueryRequest, RetrievalConfigIn
-from app.services.budget_reservation import BudgetReservationService
-from app.services.idempotency import IdempotencyService
-from app.services.rag import CitationOut, QueryOptions, QueryResult
+from app.services.rag_orchestrator import CitationOut, QueryOptions, QueryResult
 from sentinelrag_shared.auth import AuthContext
 from sentinelrag_shared.errors import RBACDeniedError
 from starlette.responses import StreamingResponse
@@ -58,8 +56,6 @@ def _result_with_citation() -> QueryResult:
         confidence_score=None,
         grounding_score=0.9,
         hallucination_risk_score=None,
-        nli_verdict=None,
-        judge_verdict=None,
         citations=[
             CitationOut(
                 citation_id=uuid4(),
@@ -181,8 +177,6 @@ async def test_build_trace_maps_retrieval_and_generation_rows() -> None:
                     grounding_score=0.8,
                     hallucination_risk_score=None,
                     confidence_score=None,
-                    nli_verdict="entail",
-                    judge_verdict=None,
                 )
             ),
         ]
@@ -318,10 +312,6 @@ async def test_execute_query_rejects_cloud_model_without_permission() -> None:
             db=object(),  # type: ignore[arg-type]
             reranker=object(),  # type: ignore[arg-type]
             audit_storage=object(),  # type: ignore[arg-type]
-            idempotency=IdempotencyService(None),
-            budget_reservations=BudgetReservationService(None),
-            retrieval_client=None,
-            embedder=object(),  # type: ignore[arg-type]
         )
 
 
@@ -336,7 +326,6 @@ async def test_execute_query_passes_abstain_option_to_orchestrator(
         default_generation_model = "ollama/llama3.1:8b"
         default_embedding_model = "ollama/nomic-embed-text"
         ollama_base_url = "http://localhost:11434"
-        generation_timeout_seconds = 60.0
 
     class FakeOrchestrator:
         def __init__(self, **_kwargs: object) -> None:
@@ -350,8 +339,6 @@ async def test_execute_query_passes_abstain_option_to_orchestrator(
                 confidence_score=None,
                 grounding_score=0.0,
                 hallucination_risk_score=None,
-                nli_verdict=None,
-                judge_verdict=None,
                 citations=[],
                 input_tokens=0,
                 output_tokens=0,
@@ -363,7 +350,7 @@ async def test_execute_query_passes_abstain_option_to_orchestrator(
         return FakeSettings()
 
     monkeypatch.setattr(query_routes, "get_settings", fake_get_settings)
-    monkeypatch.setattr(query_routes, "Orchestrator", FakeOrchestrator)
+    monkeypatch.setattr(query_routes, "RagOrchestrator", FakeOrchestrator)
 
     request = _request()
     request.options.abstain_if_unsupported = False
@@ -375,10 +362,6 @@ async def test_execute_query_passes_abstain_option_to_orchestrator(
         db=object(),  # type: ignore[arg-type]
         reranker=object(),  # type: ignore[arg-type]
         audit_storage=object(),  # type: ignore[arg-type]
-        idempotency=IdempotencyService(None),
-        budget_reservations=BudgetReservationService(None),
-        retrieval_client=None,
-        embedder=object(),  # type: ignore[arg-type]
     )
 
     options = cast(QueryOptions, captured["options"])

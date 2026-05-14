@@ -19,7 +19,6 @@ from typing import Any
 from uuid import UUID
 
 from sentinelrag_shared.auth import AuthContext
-from sentinelrag_shared.llm import UsageRecord
 from sentinelrag_shared.retrieval.candidate import Candidate, RetrievalStage
 from sentinelrag_shared.retrieval.keyword_search import KeywordSearch
 from sentinelrag_shared.retrieval.vector_search import VectorSearch
@@ -31,18 +30,12 @@ class HybridRetrievalResult:
 
     Carries each stage's raw results so the orchestrator can persist them
     to ``retrieval_results`` for the query trace.
-
-    ``embedding_usage`` is populated by the caller (the retrieval
-    client) when the vector arm runs; it carries the query embedding's
-    token/cost accounting so the orchestrator can include it in the
-    budget pre-check and persist it on ``usage_records``.
     """
 
     bm25_candidates: list[Candidate]
     vector_candidates: list[Candidate]
     merged_candidates: list[Candidate]
     metadata: dict[str, Any] = field(default_factory=dict)
-    embedding_usage: UsageRecord | None = None
 
 
 class HybridRetriever:
@@ -61,9 +54,6 @@ class HybridRetriever:
         vector_search: VectorSearch,
         rrf_k: int = 60,
     ) -> None:
-        if rrf_k <= 0:
-            msg = "rrf_k must be greater than zero."
-            raise ValueError(msg)
         self.keyword_search = keyword_search
         self.vector_search = vector_search
         self.rrf_k = rrf_k
@@ -132,21 +122,13 @@ def merge_with_rrf(
     rrf_k: int = 60,
 ) -> list[Candidate]:
     """Combine two ranked lists via Reciprocal Rank Fusion + dedupe."""
-    if rrf_k <= 0:
-        msg = "rrf_k must be greater than zero."
-        raise ValueError(msg)
-    if top_k <= 0:
-        return []
-
     scored: dict[UUID, tuple[float, Candidate, int | None, int | None]] = {}
 
     for cand in bm25:
-        _validate_candidate_rank(cand)
         rrf = 1.0 / (rrf_k + cand.rank)
         scored[cand.chunk_id] = (rrf, cand, cand.rank, None)
 
     for cand in vector:
-        _validate_candidate_rank(cand)
         rrf = 1.0 / (rrf_k + cand.rank)
         if cand.chunk_id in scored:
             prev_score, prev_cand, prev_bm25_rank, _ = scored[cand.chunk_id]
@@ -163,7 +145,9 @@ def merge_with_rrf(
 
     ranked = sorted(scored.values(), key=lambda x: x[0], reverse=True)
     out: list[Candidate] = []
-    for new_rank, (rrf_score, cand, bm25_rank, vector_rank) in enumerate(ranked[:top_k], start=1):
+    for new_rank, (rrf_score, cand, bm25_rank, vector_rank) in enumerate(
+        ranked[:top_k], start=1
+    ):
         out.append(
             Candidate(
                 chunk_id=cand.chunk_id,
@@ -181,9 +165,3 @@ def merge_with_rrf(
             )
         )
     return out
-
-
-def _validate_candidate_rank(candidate: Candidate) -> None:
-    if candidate.rank < 1:
-        msg = f"Candidate rank must be >= 1; got {candidate.rank}."
-        raise ValueError(msg)
