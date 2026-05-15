@@ -108,7 +108,11 @@ jobs:
           push-to-registry: true
 
       - name: Trivy scan (HIGH/CRITICAL only)
+<<<<<<< HEAD
         uses: aquasecurity/trivy-action@v0.36.0
+=======
+        uses: aquasecurity/trivy-action@v0.36.0
+>>>>>>> e063b11 (fix(actions): repair bandit and trivy workflows for deploy)
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/sentinelrag-${{ matrix.image.name }}@${{ steps.build.outputs.digest }}
           format: sarif
@@ -119,7 +123,7 @@ jobs:
 
       - name: Upload Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.image.name }}.sarif
           category: trivy-build-${{ matrix.image.name }}
