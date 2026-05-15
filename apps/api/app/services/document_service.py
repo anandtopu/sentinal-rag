@@ -1,11 +1,11 @@
 """Document + ingestion service.
 
 Coordinates the document upload lifecycle:
-1. Hash the upload to compute a content checksum.
-2. Insert / fetch the ``Document`` row (idempotent on tenant + checksum).
-3. Write the blob to object storage at a deterministic key.
-4. Create an ``IngestionJob`` row.
-5. Start the Temporal ``IngestionWorkflow`` and persist its workflow_id.
+    1. Hash the upload to compute a content checksum.
+    2. Insert / fetch the ``Document`` row (idempotent on tenant + checksum).
+    3. Write the blob to object storage at a deterministic key.
+    4. Create an ``IngestionJob`` row.
+    5. Start the Temporal ``IngestionWorkflow`` and persist its workflow_id.
 
 Idempotency rule: re-uploading the same content (same SHA-256) returns the
 existing document and skips re-ingestion if the document is already
@@ -16,7 +16,6 @@ existing document and skips re-ingestion if the document is already
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from sentinelrag_shared.contracts import IngestionWorkflowInput
@@ -36,10 +35,6 @@ from app.db.repositories import (
     IngestionJobRepository,
 )
 from app.schemas.documents import DocumentCreate
-
-ChunkingStrategy = Literal["semantic", "sliding_window", "structure_aware"]
-ParsingStrategy = Literal["fast", "hi_res", "ocr_only", "auto"]
-JsonDict = dict[str, Any]
 
 
 class DocumentService:
@@ -73,14 +68,17 @@ class DocumentService:
         body: bytes,
         force_reindex: bool = False,
     ) -> tuple[Document, IngestionJob]:
+        # Verify the collection exists in this tenant (RLS enforces tenancy).
         collection = await self.collections.get(payload.collection_id)
         if collection is None:
             raise NotFoundError("Collection not found.")
 
         checksum = hashlib.sha256(body).hexdigest()
 
+        # Idempotency: same checksum within the tenant → return the existing doc.
         existing = await self.docs.get_by_checksum(tenant_id=tenant_id, checksum=checksum)
         if existing is not None and existing.status == "indexed" and not force_reindex:
+            # Return a no-op job pointer for API consistency.
             existing_job = IngestionJob(
                 tenant_id=tenant_id,
                 collection_id=payload.collection_id,
@@ -99,7 +97,6 @@ class DocumentService:
         if existing is not None and force_reindex:
             if not existing.source_uri:
                 raise ValidationFailedError("Existing document has no source_uri to reindex.")
-
             existing.status = "pending"
             job = await self._create_and_start_job(
                 tenant_id=tenant_id,
@@ -115,13 +112,13 @@ class DocumentService:
             )
             return existing, job
 
+        # Storage key follows the convention from ADR-0015.
         document_id = uuid4()
         version_token = uuid4().hex[:12]
         storage_key = (
             f"{tenant_id}/documents/{document_id}/versions/{version_token}/"
             f"original.{_extension_for(mime_type, filename)}"
         )
-
         await self.storage.put(
             storage_key,
             body,
@@ -160,6 +157,7 @@ class DocumentService:
             metadata=payload.metadata,
             input_source_type="upload",
         )
+
         return document, job
 
     async def _create_and_start_job(
@@ -171,9 +169,9 @@ class DocumentService:
         document_id: UUID,
         storage_uri: str,
         mime_type: str,
-        chunking_strategy: ChunkingStrategy,
-        parsing_strategy: ParsingStrategy,
-        metadata: JsonDict,
+        chunking_strategy: str,
+        parsing_strategy: str,
+        metadata: dict,
         input_source_type: str,
     ) -> IngestionJob:
         job = IngestionJob(
@@ -207,7 +205,6 @@ class DocumentService:
             embedding_model=self.default_embedding_model,
             metadata=metadata,
         )
-
         job.workflow_id = workflow_id
         await self.db.flush()
         return job
@@ -221,11 +218,13 @@ class DocumentService:
         document_id: UUID,
         storage_uri: str,
         mime_type: str,
-        chunking_strategy: ChunkingStrategy,
-        parsing_strategy: ParsingStrategy,
+        chunking_strategy: str,
+        parsing_strategy: str,
         embedding_model: str,
-        metadata: JsonDict,
+        metadata: dict,
     ) -> str:
+        # Typed contract from sentinelrag_shared.contracts. Both API service and
+        # temporal-worker import from the same package — no field drift.
         payload = IngestionWorkflowInput(
             job_id=job_id,
             tenant_id=tenant_id,
@@ -238,7 +237,6 @@ class DocumentService:
             embedding_model=embedding_model,
             metadata=metadata,
         )
-
         workflow_id = f"ingest-{job_id}"
         try:
             await self.temporal.start_workflow(
