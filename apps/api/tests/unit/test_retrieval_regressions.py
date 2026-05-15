@@ -154,6 +154,23 @@ def test_access_filter_builds_authorized_collection_predicate() -> None:
     assert predicate.params["auth_tenant_id"] == str(_auth().tenant_id)
     assert predicate.params["min_access_rank"] == 1
     assert predicate.params["requested_collection_ids"] == [str(c) for c in requested]
+    assert "CAST(:requested_collection_ids AS uuid[])" in predicate.sql
+
+
+@pytest.mark.unit
+def test_access_filter_tenant_visibility_only_grants_read() -> None:
+    read_predicate = AccessFilter(require_access_level="read").build(
+        auth=_auth(), collection_ids=None
+    )
+    write_predicate = AccessFilter(require_access_level="write").build(
+        auth=_auth(), collection_ids=None
+    )
+
+    assert read_predicate.params["min_access_rank"] == 1
+    assert write_predicate.params["min_access_rank"] == 2
+    assert "(c.visibility = 'tenant' AND :min_access_rank <= 1)" in (
+        write_predicate.cte_sql or ""
+    )
 
 
 @pytest.mark.unit
@@ -192,6 +209,19 @@ def test_rrf_merge_honors_top_k_and_vector_only_metadata() -> None:
 
     assert len(merged) == 1
     assert merged[0].metadata == {"bm25_rank": None, "vector_rank": 1}
+
+
+@pytest.mark.unit
+def test_rrf_merge_rejects_invalid_rank_and_rrf_k() -> None:
+    with pytest.raises(ValueError, match="rrf_k"):
+        merge_with_rrf(bm25=[], vector=[], top_k=10, rrf_k=0)
+
+    with pytest.raises(ValueError, match="Candidate rank"):
+        merge_with_rrf(
+            bm25=[_candidate(RetrievalStage.BM25, rank=0)],
+            vector=[],
+            top_k=10,
+        )
 
 
 @pytest.mark.unit
