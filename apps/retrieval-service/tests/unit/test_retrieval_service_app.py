@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sentinelrag_retrieval_service.main import app
+from sentinelrag_shared.contracts import RrfMergeRequest
 
 
 def _candidate_json(
@@ -172,3 +173,23 @@ def test_rrf_merge_rejects_invalid_payloads(
     assert response.status_code == 422
     error_locations = {error["loc"][-1] for error in response.json()["detail"]}
     assert field in error_locations
+
+
+@pytest.mark.unit
+def test_rrf_merge_rejects_unknown_request_fields() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/rrf-merge",
+        json={"bm25": [], "vector": [], "surprise": True},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "extra_forbidden"
+
+
+@pytest.mark.unit
+def test_retrieval_service_uses_shared_rrf_contract() -> None:
+    request = RrfMergeRequest.model_validate({"bm25": [], "vector": [], "top_k": 3})
+
+    assert request.top_k == 3

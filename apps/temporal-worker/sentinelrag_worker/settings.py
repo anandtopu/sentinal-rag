@@ -25,7 +25,7 @@ class WorkerSettings:
 
 
 def get_database_url(environ: Mapping[str, str] | None = None) -> str:
-    env = os.environ if environ is None else environ
+    env = environ or os.environ
     return env.get("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
@@ -35,7 +35,7 @@ def env_bool(
     default: bool,
     environ: Mapping[str, str] | None = None,
 ) -> bool:
-    env = os.environ if environ is None else environ
+    env = environ or os.environ
     raw = env.get(name)
     if raw is None:
         return default
@@ -55,7 +55,7 @@ def env_int(
     minimum: int | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> int:
-    env = os.environ if environ is None else environ
+    env = environ or os.environ
     raw = env.get(name)
     try:
         value = default if raw is None else int(raw)
@@ -69,7 +69,7 @@ def env_int(
 
 
 def load_worker_settings(environ: Mapping[str, str] | None = None) -> WorkerSettings:
-    env = os.environ if environ is None else environ
+    env = environ or os.environ
     return WorkerSettings(
         log_level=env.get("LOG_LEVEL", "INFO"),
         environment=env.get("ENVIRONMENT", "local"),
