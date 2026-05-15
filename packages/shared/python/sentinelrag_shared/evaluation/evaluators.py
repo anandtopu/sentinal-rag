@@ -41,7 +41,9 @@ class CitationAccuracyEvaluator:
 
     name = "citation_accuracy"
 
-    async def evaluate(self, *, case: EvalCase, context: EvalContext) -> EvaluationOutput:
+    async def evaluate(
+        self, *, case: EvalCase, context: EvalContext
+    ) -> EvaluationOutput:
         start = time.perf_counter()
         if not case.expected_citation_chunk_ids:
             return EvaluationOutput(
@@ -66,7 +68,8 @@ class CitationAccuracyEvaluator:
         quote_support = 1.0
         if context.cited_quoted_texts and context.retrieved_chunks:
             retrieved_text = "\n".join(
-                str(chunk.get("content", "")).lower() for chunk in context.retrieved_chunks
+                str(chunk.get("content", "")).lower()
+                for chunk in context.retrieved_chunks
             )
             supported_quotes = sum(
                 1
@@ -103,7 +106,9 @@ class AnswerCorrectnessEvaluator:
 
     name = "answer_correctness"
 
-    async def evaluate(self, *, case: EvalCase, context: EvalContext) -> EvaluationOutput:
+    async def evaluate(
+        self, *, case: EvalCase, context: EvalContext
+    ) -> EvaluationOutput:
         start = time.perf_counter()
         rubric = case.grading_rubric or {}
         must_include = [s.lower() for s in rubric.get("must_include", [])]
@@ -157,7 +162,9 @@ class ContextRelevanceEvaluator:
 
     name = "context_relevance"
 
-    async def evaluate(self, *, case: EvalCase, context: EvalContext) -> EvaluationOutput:
+    async def evaluate(
+        self, *, case: EvalCase, context: EvalContext
+    ) -> EvaluationOutput:
         start = time.perf_counter()
         if not context.retrieved_chunks:
             return EvaluationOutput(
@@ -211,7 +218,9 @@ class FaithfulnessEvaluator:
 
     name = "faithfulness"
 
-    async def evaluate(self, *, case: EvalCase, context: EvalContext) -> EvaluationOutput:
+    async def evaluate(
+        self, *, case: EvalCase, context: EvalContext
+    ) -> EvaluationOutput:
         start = time.perf_counter()
         del case
         if not context.answer_text.strip():
