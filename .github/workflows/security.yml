@@ -35,7 +35,7 @@ jobs:
           sarif_file: tfsec.sarif
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: tfsec.sarif
@@ -67,7 +67,7 @@ jobs:
         # them via SARIF and let the security tab gate.
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: bandit.sarif
@@ -80,7 +80,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Trivy filesystem scan
+<<<<<<< HEAD
         uses: aquasecurity/trivy-action@v0.36.0
+=======
+        uses: aquasecurity/trivy-action@master
+>>>>>>> 52e6fca (fix(security): repair trivy action ref and update SARIF uploader)
         with:
           scan-type: fs
           scan-ref: .
@@ -94,7 +98,7 @@ jobs:
           skip-dirs: "infra/helm/sentinelrag/charts"
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-fs.sarif
@@ -127,7 +131,11 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trivy image scan — ${{ matrix.image.name }}
+<<<<<<< HEAD
         uses: aquasecurity/trivy-action@v0.36.0
+=======
+        uses: aquasecurity/trivy-action@master
+>>>>>>> 52e6fca (fix(security): repair trivy action ref and update SARIF uploader)
         with:
           image-ref: sentinelrag-${{ matrix.image.name }}:scan
           format: sarif
@@ -136,7 +144,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload SARIF — ${{ matrix.image.name }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-${{ matrix.image.name }}.sarif
