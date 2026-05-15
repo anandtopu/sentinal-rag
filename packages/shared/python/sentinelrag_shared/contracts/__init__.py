@@ -26,6 +26,13 @@ from sentinelrag_shared.contracts.ingestion import (
     IngestionWorkflowInput,
     IngestionWorkflowResult,
 )
+from sentinelrag_shared.contracts.retrieval import (
+    RetrievalCandidateInput,
+    RetrievalCandidateOutput,
+    RetrievalCapabilitiesResponse,
+    RrfMergeRequest,
+    RrfMergeResponse,
+)
 
 __all__ = [
     "AuditReconciliationInput",
@@ -35,5 +42,10 @@ __all__ = [
     "EvaluationRunWorkflowResult",
     "IngestionWorkflowInput",
     "IngestionWorkflowResult",
+    "RetrievalCandidateInput",
+    "RetrievalCandidateOutput",
+    "RetrievalCapabilitiesResponse",
+    "RrfMergeRequest",
+    "RrfMergeResponse",
     "TenantDriftReport",
 ]

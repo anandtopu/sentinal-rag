@@ -108,8 +108,9 @@ class AccessFilter:
                     ON ur.role_id = p.role_id AND ur.user_id = :auth_user_id
                 WHERE c.tenant_id = CAST(:auth_tenant_id AS uuid)
                   AND (
-                       -- public-to-tenant collections grant read by default
-                       c.visibility = 'tenant'
+                       -- public-to-tenant collections grant read by default,
+                       -- but write/admin still require an explicit policy.
+                       (c.visibility = 'tenant' AND :min_access_rank <= 1)
                     OR -- direct user grant
                        (p.user_id = CAST(:auth_user_id AS uuid)
                         AND CASE p.access_level
@@ -146,7 +147,7 @@ class AccessFilter:
             clauses.append(
                 f"EXISTS (SELECT 1 FROM documents _rc_d "  # noqa: S608
                 f"WHERE _rc_d.id = {self.alias}.document_id "
-                f"AND _rc_d.collection_id = ANY(:requested_collection_ids))"
+                f"AND _rc_d.collection_id = ANY(CAST(:requested_collection_ids AS uuid[])))"
             )
             params["requested_collection_ids"] = [str(cid) for cid in collection_ids]
 

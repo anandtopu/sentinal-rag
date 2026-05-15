@@ -37,6 +37,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from temporalio import activity
 
+from sentinelrag_worker.settings import get_database_url
+
 log = get_logger(__name__)
 
 # ---- DB engine / session ----------------------------------------------------
@@ -47,10 +49,7 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     global _engine, _session_factory  # noqa: PLW0603
     if _session_factory is None:
-        dsn = os.environ.get(
-            "DATABASE_URL",
-            "postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinelrag",
-        )
+        dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
         _session_factory = async_sessionmaker(
             bind=_engine, expire_on_commit=False, autoflush=False
