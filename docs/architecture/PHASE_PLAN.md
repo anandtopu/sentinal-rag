@@ -10,11 +10,17 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 ## Current phase
 
-**All 10 phases complete (code-side) — last update 2026-05-13 (shared LLM
-wrapper coverage pass).** The latest session expanded unit coverage around
-the LiteLLM embedder/generator wrappers and local reranker adapter, and
-fixed retry failure wrapping so provider failures surface as the wrapper
-errors promised by the shared LLM API.
+**All 10 phases complete (code-side) — last update 2026-05-15 (frontend E2E
+coverage pass).** The latest session expanded Playwright coverage around the
+dashboard, settings, audit/usage pages, optional query traces, and mocked
+tenant/user context. The suite now has 15 frontend E2E tests: 11 deterministic
+frontend/mocked-API tests pass locally, and 4 live-backend specs skip cleanly
+when `/api/health` is unavailable.
+
+**Previous shared LLM wrapper coverage pass (2026-05-13).** Expanded unit
+coverage around the LiteLLM embedder/generator wrappers and local reranker
+adapter, and fixed retry failure wrapping so provider failures surface as the
+wrapper errors promised by the shared LLM API.
 
 **Previous backend coverage + retrieval-service hardening pass
 (2026-05-12).** The session restored the repo-local Python 3.12 environment,
@@ -263,7 +269,7 @@ incrementally rather than in a single sweep.
 - 🟢 Hand-rolled shadcn-style primitives (Button, Card, Input, Textarea, Label, Badge, Table) + layout (Sidebar, Topbar, PageHeader, StatusBadge).
 - 🟢 Pages: `/dashboard`, `/collections` (with create form), `/documents` (with upload + ingestion-job polling), `/query-playground` (the headline — collections multiselect, model picker, top-k, SSE-driven trace viewer with polling fallback), `/evaluations`, `/prompts` (templates + versions), `/settings`. `/audit` + `/usage` are stub explainers pointing at Phase 6.
 - 🟢 Vitest suite (`tests/unit/api.test.ts`) covering bearer-auth forwarding, query serialization, error-envelope unwrapping, multipart upload — 5 tests.
-- 🟢 Playwright e2e — `playwright.config.ts` + 3 spec files (smoke, query-playground, collections) totaling 7 tests. API-dependent specs probe `/api/v1/health` and skip cleanly when the backend isn't reachable, so the suite passes in frontend-only CI and exercises the live backend once Phase 7 ships a deployed dev environment.
+- 🟢 Playwright e2e — `playwright.config.ts` + 4 spec files (smoke, query-playground, collections, feature-regression) totaling 15 tests. Deterministic mocked-API coverage exercises dashboard tenant stats, collection create, document upload/ingestion refresh, query answers/citations/trace, optional trace hiding, prompt versions, eval runs, settings identity context, and audit/usage navigation. API-dependent specs probe `/api/health` and skip cleanly when the backend isn't reachable, so the suite passes in frontend-only CI and exercises the live backend once Phase 7 ships a deployed dev environment.
 - 🟢 Streaming SSE for the trace viewer — `GET /api/v1/query/{id}/trace/stream` emits `event: trace` frames over `text/event-stream`; `useTraceStream` consumes via fetch+ReadableStream (so bearer auth still works) and falls back to polling if the first frame doesn't arrive within 4s (nginx-style buffering safety net).
 
 **Done when:** all major API features are usable through the UI. _(Done.)_
