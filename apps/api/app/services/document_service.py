@@ -19,7 +19,11 @@ import hashlib
 from uuid import UUID, uuid4
 
 from sentinelrag_shared.contracts import IngestionWorkflowInput
-from sentinelrag_shared.errors.exceptions import NotFoundError
+from sentinelrag_shared.errors.exceptions import (
+    NotFoundError,
+    TemporalUnavailableError,
+    ValidationFailedError,
+)
 from sentinelrag_shared.object_storage import ObjectStorage
 from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio.client import Client as TemporalClient
@@ -62,6 +66,7 @@ class DocumentService:
         filename: str,
         mime_type: str,
         body: bytes,
+        force_reindex: bool = False,
     ) -> tuple[Document, IngestionJob]:
         # Verify the collection exists in this tenant (RLS enforces tenancy).
         collection = await self.collections.get(payload.collection_id)
@@ -72,20 +77,40 @@ class DocumentService:
 
         # Idempotency: same checksum within the tenant → return the existing doc.
         existing = await self.docs.get_by_checksum(tenant_id=tenant_id, checksum=checksum)
-        if existing is not None and existing.status == "indexed":
+        if existing is not None and existing.status == "indexed" and not force_reindex:
             # Return a no-op job pointer for API consistency.
             existing_job = IngestionJob(
                 tenant_id=tenant_id,
                 collection_id=payload.collection_id,
                 status="completed",
                 input_source={"deduplicated": True, "document_id": str(existing.id)},
-                chunking_strategy="semantic",
+                chunking_strategy=payload.chunking_strategy,
                 embedding_model=self.default_embedding_model,
+                documents_total=1,
+                documents_processed=1,
                 created_by=created_by,
             )
             self.db.add(existing_job)
             await self.db.flush()
             return existing, existing_job
+
+        if existing is not None and force_reindex:
+            if not existing.source_uri:
+                raise ValidationFailedError("Existing document has no source_uri to reindex.")
+            existing.status = "pending"
+            job = await self._create_and_start_job(
+                tenant_id=tenant_id,
+                collection_id=payload.collection_id,
+                created_by=created_by,
+                document_id=existing.id,
+                storage_uri=existing.source_uri,
+                mime_type=existing.mime_type or mime_type,
+                chunking_strategy=payload.chunking_strategy,
+                parsing_strategy=payload.parsing_strategy,
+                metadata=payload.metadata,
+                input_source_type="reindex",
+            )
+            return existing, job
 
         # Storage key follows the convention from ADR-0015.
         document_id = uuid4()
@@ -120,40 +145,69 @@ class DocumentService:
         )
         self.db.add(document)
 
-        job = IngestionJob(
+        job = await self._create_and_start_job(
             tenant_id=tenant_id,
             collection_id=payload.collection_id,
+            document_id=document.id,
+            created_by=created_by,
+            storage_uri=storage_key,
+            mime_type=mime_type,
+            chunking_strategy=payload.chunking_strategy,
+            parsing_strategy=payload.parsing_strategy,
+            metadata=payload.metadata,
+            input_source_type="upload",
+        )
+
+        return document, job
+
+    async def _create_and_start_job(
+        self,
+        *,
+        tenant_id: UUID,
+        collection_id: UUID,
+        created_by: UUID,
+        document_id: UUID,
+        storage_uri: str,
+        mime_type: str,
+        chunking_strategy: str,
+        parsing_strategy: str,
+        metadata: dict,
+        input_source_type: str,
+    ) -> IngestionJob:
+        job = IngestionJob(
+            tenant_id=tenant_id,
+            collection_id=collection_id,
             status="queued",
             input_source={
-                "type": "upload",
+                "type": input_source_type,
                 "document_id": str(document_id),
-                "storage_uri": storage_key,
+                "storage_uri": storage_uri,
                 "mime_type": mime_type,
+                "parsing_strategy": parsing_strategy,
             },
-            chunking_strategy="semantic",
+            chunking_strategy=chunking_strategy,
             embedding_model=self.default_embedding_model,
+            documents_total=1,
             created_by=created_by,
         )
         self.db.add(job)
         await self.db.flush()
 
-        # Kick off the Temporal workflow; persist the workflow_id for status polling.
-        # Import locally to avoid a heavy import in the route module.
         workflow_id = await self._start_ingestion_workflow(
             job_id=job.id,
             tenant_id=tenant_id,
-            collection_id=payload.collection_id,
-            document_id=document.id,
-            storage_uri=storage_key,
+            collection_id=collection_id,
+            document_id=document_id,
+            storage_uri=storage_uri,
             mime_type=mime_type,
-            chunking_strategy="semantic",
+            chunking_strategy=chunking_strategy,
+            parsing_strategy=parsing_strategy,
             embedding_model=self.default_embedding_model,
-            metadata=payload.metadata,
+            metadata=metadata,
         )
         job.workflow_id = workflow_id
         await self.db.flush()
-
-        return document, job
+        return job
 
     async def _start_ingestion_workflow(
         self,
@@ -165,6 +219,7 @@ class DocumentService:
         storage_uri: str,
         mime_type: str,
         chunking_strategy: str,
+        parsing_strategy: str,
         embedding_model: str,
         metadata: dict,
     ) -> str:
@@ -178,16 +233,22 @@ class DocumentService:
             storage_uri=storage_uri,
             mime_type=mime_type,
             chunking_strategy=chunking_strategy,
+            parsing_strategy=parsing_strategy,
             embedding_model=embedding_model,
             metadata=metadata,
         )
         workflow_id = f"ingest-{job_id}"
-        await self.temporal.start_workflow(
-            "IngestionWorkflow",
-            payload.model_dump(mode="json"),
-            id=workflow_id,
-            task_queue=self.ingestion_task_queue,
-        )
+        try:
+            await self.temporal.start_workflow(
+                "IngestionWorkflow",
+                payload.model_dump(mode="json"),
+                id=workflow_id,
+                task_queue=self.ingestion_task_queue,
+            )
+        except Exception as exc:
+            raise TemporalUnavailableError(
+                "Temporal is unavailable; ingestion workflow was not started."
+            ) from exc
         return workflow_id
 
 

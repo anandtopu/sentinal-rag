@@ -3833,6 +3833,7 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "temporalio" },
+    { name = "unstructured", extra = ["all-docs"] },
 ]
 
 [package.metadata]
@@ -3846,6 +3847,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
     { name = "structlog", specifier = ">=24.4" },
     { name = "temporalio", specifier = ">=1.8" },
+    { name = "unstructured", extras = ["all-docs"], specifier = ">=0.16" },
 ]
 
 [[package]]

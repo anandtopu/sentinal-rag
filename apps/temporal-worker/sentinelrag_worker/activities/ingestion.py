@@ -13,12 +13,9 @@ their references for replay.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import os
-import pickle
-import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -27,6 +24,7 @@ from uuid import UUID
 # These imports come from sentinelrag-shared and from the API package which
 # defines the ORM models. The Temporal worker container installs both.
 from sentinelrag_shared.object_storage import ObjectStorage, build_object_storage
+from sentinelrag_shared.parsing import ElementType, ParsedElement
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -87,7 +85,7 @@ def _as_uuid(value: str | UUID) -> UUID:
 
 # ---- Activities ----
 @activity.defn
-async def mark_job_running(job_id: str, tenant_id: str) -> None:
+async def mark_job_running(job_id: str, tenant_id: str, document_id: str) -> None:
     tid = _as_uuid(tenant_id)
     async with _session_for_tenant(tid) as session:
         await session.execute(
@@ -97,10 +95,16 @@ async def mark_job_running(job_id: str, tenant_id: str) -> None:
             ),
             {"id": str(_as_uuid(job_id))},
         )
+        await session.execute(
+            text("UPDATE documents SET status='processing' WHERE id=:did"),
+            {"did": str(_as_uuid(document_id))},
+        )
 
 
 @activity.defn
-async def mark_job_failed(job_id: str, tenant_id: str, error: str) -> None:
+async def mark_job_failed(
+    job_id: str, tenant_id: str, document_id: str, error: str
+) -> None:
     tid = _as_uuid(tenant_id)
     async with _session_for_tenant(tid) as session:
         await session.execute(
@@ -110,6 +114,10 @@ async def mark_job_failed(job_id: str, tenant_id: str, error: str) -> None:
                 "WHERE id=:id"
             ),
             {"id": str(_as_uuid(job_id)), "err": error},
+        )
+        await session.execute(
+            text("UPDATE documents SET status='failed' WHERE id=:did"),
+            {"did": str(_as_uuid(document_id))},
         )
 
 
@@ -181,13 +189,12 @@ async def upsert_document_version(
 
 @activity.defn
 async def parse_document(
-    storage_uri: str, mime_type: str, tenant_id: str
+    storage_uri: str, mime_type: str, tenant_id: str, parsing_strategy: str = "fast"
 ) -> dict[str, str]:
-    """Parse the blob and persist the ParsedElement list to a temp pickle.
+    """Parse the blob and persist intermediate outputs to object storage.
 
-    The next activity (chunk_and_persist) reads from this temp file. We use a
-    tempfile (not the DB or object storage) because parsed elements can be
-    large and are intermediate-only — discarded after chunking.
+    The next activity may run on a different worker pod, so local temp files
+    are not durable enough for Temporal activity boundaries.
     """
     # Lazy import: parser deps are heavy.
     from sentinelrag_shared.parsing import UnstructuredParser  # noqa: PLC0415
@@ -195,22 +202,54 @@ async def parse_document(
     storage = _build_storage()
     try:
         data = await storage.get(storage_uri)
+
+        parser = UnstructuredParser(strategy=parsing_strategy)
+        elements = list(parser.parse(blob=data, mime_type=mime_type))
+        raw_text = "\n\n".join(e.text.strip() for e in elements if e.text.strip())
+
+        raw_text_uri = _raw_text_key(storage_uri)
+        elements_uri = _parsed_elements_key(storage_uri)
+        await storage.put(
+            raw_text_uri,
+            raw_text.encode("utf-8"),
+            content_type="text/plain; charset=utf-8",
+            custom_metadata={"tenant_id": tenant_id},
+        )
+        await storage.put(
+            elements_uri,
+            json.dumps([_element_to_dict(e) for e in elements], default=str).encode(
+                "utf-8"
+            ),
+            content_type="application/json",
+            custom_metadata={"tenant_id": tenant_id},
+        )
     finally:
         await storage.close()
+    return {
+        "elements_uri": elements_uri,
+        "raw_text_uri": raw_text_uri,
+        "element_count": str(len(elements)),
+    }
 
-    parser = UnstructuredParser(strategy="fast")
-    elements = list(parser.parse(blob=data, mime_type=mime_type))
 
-    # Persist to a temp file scoped to this activity attempt; the next
-    # activity reads it. If the next activity is retried, it re-fetches
-    # using the same path (Temporal includes the attempt token in the
-    # activity context).
-    fd, path = tempfile.mkstemp(prefix="sr-parse-", suffix=".pkl")
-    os.close(fd)
-    with open(path, "wb") as f:
-        pickle.dump(elements, f)
-    del tenant_id  # signature kept for audit / future per-tenant temp-dir routing
-    return {"elements_path": path, "element_count": str(len(elements))}
+@activity.defn
+async def update_document_version_storage_uri(
+    tenant_id: str, version_id: str, raw_text_uri: str
+) -> None:
+    tid = _as_uuid(tenant_id)
+    async with _session_for_tenant(tid) as session:
+        await session.execute(
+            text(
+                "UPDATE document_versions "
+                "SET storage_uri=:uri, parser_version=:parser "
+                "WHERE id=:vid"
+            ),
+            {
+                "vid": str(_as_uuid(version_id)),
+                "uri": raw_text_uri,
+                "parser": "unstructured",
+            },
+        )
 
 
 @activity.defn
@@ -218,7 +257,7 @@ async def chunk_and_persist(
     tenant_id: str,
     document_id: str,
     version_id: str,
-    elements_path: str,
+    elements_uri: str,
     chunking_strategy: str,
 ) -> int:
     """Read parsed elements, chunk, persist DocumentChunk rows.
@@ -232,10 +271,12 @@ async def chunk_and_persist(
     did = _as_uuid(document_id)
     vid = _as_uuid(version_id)
 
-    with open(elements_path, "rb") as f:
-        elements = pickle.load(f)  # noqa: S301
-    with contextlib.suppress(OSError):
-        os.unlink(elements_path)
+    storage = _build_storage()
+    try:
+        raw_elements = json.loads((await storage.get(elements_uri)).decode("utf-8"))
+    finally:
+        await storage.close()
+    elements = [_element_from_dict(item) for item in raw_elements]
 
     chunker = get_chunker(ChunkingStrategy(chunking_strategy))
     chunks = chunker.chunk(elements)
@@ -362,13 +403,50 @@ async def finalize_document(
             text(
                 "UPDATE ingestion_jobs "
                 "SET status='completed', completed_at=now(), "
-                "    documents_processed=documents_processed+1, "
-                "    chunks_created=chunks_created+:chunks "
+                "    documents_processed=CASE "
+                "        WHEN status='completed' THEN documents_processed "
+                "        ELSE LEAST(documents_total, documents_processed+1) "
+                "    END, "
+                "    chunks_created=:chunks "
                 "WHERE id=:id"
             ),
             {"id": str(jid), "chunks": chunks_created},
         )
     del did  # silenced: kept in signature for explicit doc/audit linkage
+
+
+def _raw_text_key(storage_uri: str) -> str:
+    prefix = storage_uri.rsplit("/", 1)[0] if "/" in storage_uri else storage_uri
+    return f"{prefix}/raw.txt"
+
+
+def _parsed_elements_key(storage_uri: str) -> str:
+    prefix = storage_uri.rsplit("/", 1)[0] if "/" in storage_uri else storage_uri
+    return f"{prefix}/parsed-elements.json"
+
+
+def _element_to_dict(element: ParsedElement) -> dict[str, Any]:
+    return {
+        "text": element.text,
+        "element_type": element.element_type.value,
+        "page_number": element.page_number,
+        "section_title": element.section_title,
+        "table_html": element.table_html,
+        "metadata": element.metadata,
+    }
+
+
+def _element_from_dict(item: dict[str, Any]) -> ParsedElement:
+    return ParsedElement(
+        text=str(item.get("text") or ""),
+        element_type=ElementType(str(item.get("element_type") or ElementType.UNCATEGORIZED)),
+        page_number=item.get("page_number") if isinstance(item.get("page_number"), int) else None,
+        section_title=item.get("section_title")
+        if isinstance(item.get("section_title"), str)
+        else None,
+        table_html=item.get("table_html") if isinstance(item.get("table_html"), str) else None,
+        metadata=item.get("metadata") if isinstance(item.get("metadata"), dict) else {},
+    )
 
 
 # Used by the worker entrypoint to register all activities.
@@ -378,6 +456,7 @@ ALL_ACTIVITIES: list[Any] = [
     download_and_hash,
     upsert_document_version,
     parse_document,
+    update_document_version_storage_uri,
     chunk_and_persist,
     embed_chunks,
     finalize_document,

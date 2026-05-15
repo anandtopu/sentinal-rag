@@ -153,7 +153,61 @@ async def test_document_upload_deduplicates_indexed_content() -> None:
     assert document is existing
     assert job.status == "completed"
     assert job.input_source["deduplicated"] is True
+    assert job.documents_total == 1
+    assert job.documents_processed == 1
     assert len(db.added) == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_document_upload_force_reindex_reuses_existing_document() -> None:
+    db = FakeDb()
+    temporal = FakeTemporal()
+    tenant_id = uuid4()
+    collection_id = uuid4()
+    existing = Document(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        collection_id=collection_id,
+        title="Existing",
+        source_type="upload",
+        source_uri="tenant/doc/original.txt",
+        mime_type="text/plain",
+        checksum="2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        sensitivity_level="internal",
+        metadata_={},
+        status="indexed",
+        created_by=uuid4(),
+    )
+    service = DocumentService(
+        db,  # type: ignore[arg-type]
+        storage=FakeStorage(),  # type: ignore[arg-type]
+        temporal_client=temporal,  # type: ignore[arg-type]
+        ingestion_task_queue="ingestion",
+        default_embedding_model="ollama/nomic-embed-text",
+    )
+    service.collections = SimpleNamespace(get=lambda _id: _async_value(object()))
+    service.docs = SimpleNamespace(get_by_checksum=lambda **_kwargs: _async_value(existing))
+
+    document, job = await service.upload(
+        tenant_id=tenant_id,
+        created_by=uuid4(),
+        payload=DocumentCreate(
+            collection_id=collection_id,
+            chunking_strategy="structure_aware",
+            parsing_strategy="auto",
+        ),
+        filename="doc.txt",
+        mime_type="text/plain",
+        body=b"hello",
+        force_reindex=True,
+    )
+
+    assert document is existing
+    assert document.status == "pending"
+    assert job.input_source["type"] == "reindex"
+    assert job.chunking_strategy == "structure_aware"
+    assert temporal.started[0]["payload"]["parsing_strategy"] == "auto"
 
 
 @pytest.mark.unit
@@ -185,9 +239,35 @@ async def test_document_upload_stores_blob_and_starts_ingestion_workflow() -> No
     assert document.source_uri == storage.puts[0][0]
     assert job.status == "queued"
     assert job.workflow_id == f"ingest-{job.id}"
+    assert job.documents_total == 1
     assert temporal.started[0]["workflow"] == "IngestionWorkflow"
     assert temporal.started[0]["task_queue"] == "ingestion"
     assert temporal.started[0]["payload"]["metadata"] == {"team": "sre"}
+    assert temporal.started[0]["payload"]["parsing_strategy"] == "fast"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_document_upload_maps_temporal_start_failure() -> None:
+    service = DocumentService(
+        FakeDb(),  # type: ignore[arg-type]
+        storage=FakeStorage(),  # type: ignore[arg-type]
+        temporal_client=FakeTemporal(fail=True),  # type: ignore[arg-type]
+        ingestion_task_queue="ingestion",
+        default_embedding_model="ollama/nomic-embed-text",
+    )
+    service.collections = SimpleNamespace(get=lambda _id: _async_value(object()))
+    service.docs = SimpleNamespace(get_by_checksum=lambda **_kwargs: _async_value(None))
+
+    with pytest.raises(TemporalUnavailableError):
+        await service.upload(
+            tenant_id=uuid4(),
+            created_by=uuid4(),
+            payload=DocumentCreate(collection_id=uuid4()),
+            filename="doc.txt",
+            mime_type="text/plain",
+            body=b"hello",
+        )
 
 
 @pytest.mark.unit

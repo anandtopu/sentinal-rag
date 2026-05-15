@@ -153,7 +153,10 @@ export const api = {
     file: File;
     title?: string;
     sensitivity_level?: string;
+    chunking_strategy?: string;
+    parsing_strategy?: string;
     metadata?: Record<string, unknown>;
+    force_reindex?: boolean;
     token?: string;
   }) => {
     const fd = new FormData();
@@ -161,10 +164,13 @@ export const api = {
     fd.append('file', args.file);
     if (args.title) fd.append('title', args.title);
     if (args.sensitivity_level) fd.append('sensitivity_level', args.sensitivity_level);
+    if (args.chunking_strategy) fd.append('chunking_strategy', args.chunking_strategy);
+    if (args.parsing_strategy) fd.append('parsing_strategy', args.parsing_strategy);
     fd.append('metadata', JSON.stringify(args.metadata ?? {}));
     return request<DocumentUploadResponse>('POST', '/documents', {
       token: args.token,
       formData: fd,
+      query: { force_reindex: args.force_reindex },
     });
   },
 
@@ -179,6 +185,8 @@ export const api = {
     }),
   getIngestionJob: (job_id: string, token?: string) =>
     request<IngestionJob>('GET', `/ingestion/jobs/${job_id}`, { token }),
+  cancelIngestionJob: (job_id: string, token?: string) =>
+    request<IngestionJob>('POST', `/ingestion/jobs/${job_id}/cancel`, { token }),
 
   // Query
   executeQuery: (payload: QueryRequest, token?: string) =>

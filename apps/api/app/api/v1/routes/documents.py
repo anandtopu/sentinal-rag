@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -43,8 +43,15 @@ async def upload_document(
     collection_id: Annotated[UUID, Form()],
     file: Annotated[UploadFile, File()],
     title: Annotated[str | None, Form()] = None,
-    sensitivity_level: Annotated[str, Form()] = "internal",
+    sensitivity_level: Annotated[
+        Literal["public", "internal", "confidential", "restricted"], Form()
+    ] = "internal",
+    chunking_strategy: Annotated[
+        Literal["semantic", "sliding_window", "structure_aware"], Form()
+    ] = "semantic",
+    parsing_strategy: Annotated[Literal["fast", "hi_res", "ocr_only", "auto"], Form()] = "fast",
     metadata: Annotated[str, Form()] = "{}",
+    force_reindex: Annotated[bool, Query()] = False,
 ) -> DocumentUploadResponse:
     body = await file.read()
     if not body:
@@ -53,14 +60,19 @@ async def upload_document(
         raise HTTPException(status_code=413, detail="Upload too large.")
 
     try:
-        meta_dict: dict[str, Any] = json.loads(metadata) if metadata else {}
+        parsed_metadata = json.loads(metadata) if metadata else {}
     except json.JSONDecodeError as exc:
         raise ValidationFailedError("metadata must be JSON.") from exc
+    if not isinstance(parsed_metadata, dict):
+        raise ValidationFailedError("metadata must be a JSON object.")
+    meta_dict: dict[str, Any] = parsed_metadata
 
     payload = DocumentCreate(
         collection_id=collection_id,
         title=title,
         sensitivity_level=sensitivity_level,
+        chunking_strategy=chunking_strategy,
+        parsing_strategy=parsing_strategy,
         metadata=meta_dict,
     )
 
@@ -79,6 +91,7 @@ async def upload_document(
         filename=file.filename or "unnamed",
         mime_type=file.content_type or "application/octet-stream",
         body=body,
+        force_reindex=force_reindex,
     )
     return DocumentUploadResponse(
         document_id=document.id,
