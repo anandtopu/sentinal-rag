@@ -244,6 +244,7 @@ export interface EvaluationScoreSummary {
   total_cost_usd: number | null;
   cases_total: number;
   cases_completed: number;
+  cases_failed: number;
 }
 
 export interface EvaluationRunResults {

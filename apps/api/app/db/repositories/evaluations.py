@@ -23,6 +23,16 @@ class EvaluationDatasetRepository(BaseRepository[EvaluationDataset]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_recent(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationDataset]:
+        stmt = (
+            select(EvaluationDataset)
+            .order_by(EvaluationDataset.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
 
 class EvaluationCaseRepository(BaseRepository[EvaluationCase]):
     model = EvaluationCase
@@ -70,13 +80,30 @@ class EvaluationScoreRepository(BaseRepository[EvaluationScore]):
 
     async def aggregate_for_run(self, run_id: UUID) -> dict[str, float | None]:
         stmt = select(
-            func.avg(EvaluationScore.context_relevance_score).label("ctx"),
-            func.avg(EvaluationScore.faithfulness_score).label("faith"),
-            func.avg(EvaluationScore.answer_correctness_score).label("ans"),
-            func.avg(EvaluationScore.citation_accuracy_score).label("cite"),
-            func.avg(EvaluationScore.latency_ms).label("lat"),
-            func.sum(EvaluationScore.cost_usd).label("cost"),
-            func.count(EvaluationScore.id).label("n"),
+            func.avg(EvaluationScore.context_relevance_score)
+            .filter(EvaluationScore.status == "completed")
+            .label("ctx"),
+            func.avg(EvaluationScore.faithfulness_score)
+            .filter(EvaluationScore.status == "completed")
+            .label("faith"),
+            func.avg(EvaluationScore.answer_correctness_score)
+            .filter(EvaluationScore.status == "completed")
+            .label("ans"),
+            func.avg(EvaluationScore.citation_accuracy_score)
+            .filter(EvaluationScore.status == "completed")
+            .label("cite"),
+            func.avg(EvaluationScore.latency_ms)
+            .filter(EvaluationScore.status == "completed")
+            .label("lat"),
+            func.sum(EvaluationScore.cost_usd)
+            .filter(EvaluationScore.status == "completed")
+            .label("cost"),
+            func.count(EvaluationScore.id)
+            .filter(EvaluationScore.status == "completed")
+            .label("completed"),
+            func.count(EvaluationScore.id)
+            .filter(EvaluationScore.status == "failed")
+            .label("failed"),
         ).where(EvaluationScore.evaluation_run_id == run_id)
         result = await self.session.execute(stmt)
         row = result.one()
@@ -87,5 +114,6 @@ class EvaluationScoreRepository(BaseRepository[EvaluationScore]):
             "citation_accuracy_avg": float(row.cite) if row.cite is not None else None,
             "average_latency_ms": int(row.lat) if row.lat is not None else None,
             "total_cost_usd": float(row.cost) if row.cost is not None else None,
-            "cases_completed": int(row.n),
+            "cases_completed": int(row.completed),
+            "cases_failed": int(row.failed),
         }

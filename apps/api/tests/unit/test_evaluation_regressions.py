@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from app.main import create_app
+from app.schemas.evaluations import EvaluationCaseCreate, EvaluationRunCreate
 from app.services.rag_orchestrator import RagOrchestrator
 from sentinelrag_shared.contracts import (
     EvaluationRunWorkflowInput,
@@ -80,7 +81,29 @@ def test_eval_runs_list_route_is_registered() -> None:
     methods_by_path = {
         route.path: getattr(route, "methods", set())
         for route in app.routes
-        if route.path == "/api/v1/eval/runs"
+        if route.path in {"/api/v1/eval/runs", "/api/v1/eval/datasets"}
     }
 
     assert "GET" in methods_by_path["/api/v1/eval/runs"]
+    assert "GET" in methods_by_path["/api/v1/eval/datasets"]
+
+
+@pytest.mark.unit
+def test_eval_run_schema_rejects_unknown_retrieval_keys() -> None:
+    with pytest.raises(ValueError, match="Unknown retrieval_config keys"):
+        EvaluationRunCreate(
+            dataset_id=uuid4(),
+            name="run",
+            collection_ids=[uuid4()],
+            retrieval_config={"surprise": True},
+            model_config={},
+        )
+
+
+@pytest.mark.unit
+def test_eval_case_schema_validates_rubric_shape() -> None:
+    with pytest.raises(ValueError, match="must_include"):
+        EvaluationCaseCreate(
+            input_query="rollback",
+            grading_rubric={"must_include": "helm"},
+        )

@@ -45,6 +45,18 @@ async def create_dataset(
     return EvaluationDatasetRead.model_validate(ds)
 
 
+@router.get("/datasets", response_model=list[EvaluationDatasetRead])
+async def list_datasets(
+    _ctx: Annotated[AuthContext, Depends(require_permission("evals:run"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[EvaluationDatasetRead]:
+    service = EvaluationService(db)
+    datasets = await service.list_datasets(limit=limit, offset=offset)
+    return [EvaluationDatasetRead.model_validate(ds) for ds in datasets]
+
+
 @router.post(
     "/datasets/{dataset_id}/cases",
     response_model=EvaluationCaseRead,

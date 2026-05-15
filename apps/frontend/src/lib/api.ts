@@ -192,6 +192,8 @@ export const api = {
     request<PromptVersion[]>('GET', `/prompts/${template_id}/versions`, { token }),
 
   // Evaluation
+  listEvalDatasets: (token?: string) =>
+    request<EvaluationDataset[]>('GET', '/eval/datasets', { token }),
   listEvalRuns: (token?: string) => request<EvaluationRun[]>('GET', '/eval/runs', { token }),
   getEvalRun: (run_id: string, token?: string) =>
     request<EvaluationRunResults>('GET', `/eval/runs/${run_id}`, { token }),

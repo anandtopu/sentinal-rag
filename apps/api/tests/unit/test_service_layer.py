@@ -24,6 +24,7 @@ from sentinelrag_shared.errors.exceptions import (
     ConflictError,
     NotFoundError,
     RoleNotFoundError,
+    TemporalUnavailableError,
     TenantNotFoundError,
     UserNotFoundError,
     ValidationFailedError,
@@ -70,10 +71,13 @@ class FakeStorage:
 
 
 class FakeTemporal:
-    def __init__(self) -> None:
+    def __init__(self, *, fail: bool = False) -> None:
         self.started: list[dict[str, Any]] = []
+        self.fail = fail
 
     async def start_workflow(self, workflow: str, payload: Any, **kwargs: Any) -> None:
+        if self.fail:
+            raise RuntimeError("temporal down")
         self.started.append({"workflow": workflow, "payload": payload, **kwargs})
 
 
@@ -292,6 +296,30 @@ async def test_evaluation_service_start_run_starts_temporal_workflow() -> None:
     assert run.retrieval_config["collection_ids"] == [str(collection_id)]
     assert temporal.started[0]["workflow"] == "EvaluationRunWorkflow"
     assert temporal.started[0]["payload"]["actor_user_id"] == str(actor_id)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_evaluation_service_start_run_maps_temporal_failure() -> None:
+    service = EvaluationService(
+        FakeDb(),  # type: ignore[arg-type]
+        temporal_client=FakeTemporal(fail=True),  # type: ignore[arg-type]
+    )
+    service.datasets = SimpleNamespace(
+        get=lambda _id: _async_value(EvaluationDataset(id=uuid4()))
+    )
+
+    with pytest.raises(TemporalUnavailableError):
+        await service.start_run(
+            tenant_id=uuid4(),
+            created_by=uuid4(),
+            payload=EvaluationRunCreate(
+                dataset_id=uuid4(),
+                name="nightly",
+                collection_ids=[uuid4()],
+                model_config={},
+            ),
+        )
 
 
 @pytest.mark.unit

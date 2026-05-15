@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, Request
+from sentinelrag_shared.errors import TemporalUnavailableError
 from sentinelrag_shared.llm import Reranker
 from sentinelrag_shared.object_storage import ObjectStorage
 from temporalio.client import Client as TemporalClient
@@ -34,8 +35,7 @@ def get_audit_storage(request: Request) -> ObjectStorage:
 def get_temporal_client(request: Request) -> TemporalClient:
     client = getattr(request.app.state, "temporal_client", None)
     if client is None:
-        msg = "Temporal client not configured."
-        raise RuntimeError(msg)
+        raise TemporalUnavailableError("Temporal client not configured.")
     return client
 
 

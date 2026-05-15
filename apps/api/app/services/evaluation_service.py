@@ -10,7 +10,11 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sentinelrag_shared.errors.exceptions import ConflictError, NotFoundError
+from sentinelrag_shared.errors.exceptions import (
+    ConflictError,
+    NotFoundError,
+    TemporalUnavailableError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio.client import Client as TemporalClient
 
@@ -70,6 +74,11 @@ class EvaluationService:
         await self.db.flush()
         return ds
 
+    async def list_datasets(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[EvaluationDataset]:
+        return await self.datasets.list_recent(limit=limit, offset=offset)
+
     async def add_case(
         self,
         *,
@@ -125,23 +134,28 @@ class EvaluationService:
 
         if self.temporal is not None:
             workflow_id = f"eval-{run.id}"
-            await self.temporal.start_workflow(
-                "EvaluationRunWorkflow",
-                {
-                    "evaluation_run_id": str(run.id),
-                    "tenant_id": str(tenant_id),
-                    "dataset_id": str(payload.dataset_id),
-                    "actor_user_id": str(created_by) if created_by else None,
-                    "collection_ids": [str(c) for c in payload.collection_ids],
-                    "prompt_version_id": str(payload.prompt_version_id)
-                    if payload.prompt_version_id
-                    else None,
-                    "retrieval_config": payload.retrieval_config,
-                    "model_config": payload.model_config_,
-                },
-                id=workflow_id,
-                task_queue=self.evaluation_task_queue,
-            )
+            try:
+                await self.temporal.start_workflow(
+                    "EvaluationRunWorkflow",
+                    {
+                        "evaluation_run_id": str(run.id),
+                        "tenant_id": str(tenant_id),
+                        "dataset_id": str(payload.dataset_id),
+                        "actor_user_id": str(created_by) if created_by else None,
+                        "collection_ids": [str(c) for c in payload.collection_ids],
+                        "prompt_version_id": str(payload.prompt_version_id)
+                        if payload.prompt_version_id
+                        else None,
+                        "retrieval_config": payload.retrieval_config,
+                        "model_config": payload.model_config_,
+                    },
+                    id=workflow_id,
+                    task_queue=self.evaluation_task_queue,
+                )
+            except Exception as exc:
+                raise TemporalUnavailableError(
+                    "Temporal is unavailable; evaluation run was not started."
+                ) from exc
             run.workflow_id = workflow_id
             await self.db.flush()
 

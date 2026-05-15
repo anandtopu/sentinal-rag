@@ -33,7 +33,7 @@ def _jaccard(a: set[str], b: set[str]) -> float:
 
 
 class CitationAccuracyEvaluator:
-    """Fraction of expected_citation_chunk_ids actually cited.
+    """Precision/recall score for citations against expected and retrieved chunks.
 
     If no expected citations were provided, returns ``None`` (signaling that
     this metric isn't applicable to this case rather than a 0 score).
@@ -52,19 +52,49 @@ class CitationAccuracyEvaluator:
                 reasoning="No expected citations specified.",
                 latency_ms=int((time.perf_counter() - start) * 1000),
             )
-        expected = set(case.expected_citation_chunk_ids)
-        cited = set(context.cited_chunk_ids)
-        score = len(expected & cited) / len(expected) if expected else 0.0
+        expected = {str(chunk_id) for chunk_id in case.expected_citation_chunk_ids}
+        cited = {str(chunk_id) for chunk_id in context.cited_chunk_ids}
+        retrieved = {
+            str(chunk["chunk_id"])
+            for chunk in context.retrieved_chunks
+            if chunk.get("chunk_id") is not None
+        }
+        valid_cited = cited & retrieved if retrieved else set()
+
+        recall = len(expected & valid_cited) / len(expected)
+        precision = len(expected & valid_cited) / len(cited) if cited else 0.0
+        score = (recall + precision) / 2
+
+        quote_support = 1.0
+        if context.cited_quoted_texts and context.retrieved_chunks:
+            retrieved_text = "\n".join(
+                str(chunk.get("content", "")).lower()
+                for chunk in context.retrieved_chunks
+            )
+            supported_quotes = sum(
+                1
+                for quote in context.cited_quoted_texts
+                if not quote or quote.lower() in retrieved_text
+            )
+            quote_support = supported_quotes / len(context.cited_quoted_texts)
+            score = (score + quote_support) / 2
+
         latency_ms = int((time.perf_counter() - start) * 1000)
         return EvaluationOutput(
             name=self.name,
             score=round(score, 4),
             reasoning=(
-                f"Cited {len(expected & cited)} of {len(expected)} expected "
-                f"chunks; {len(cited - expected)} extra citations."
+                f"Recall {len(expected & valid_cited)}/{len(expected)} expected; "
+                f"precision denominator {len(cited)}; "
+                f"{len(cited - retrieved) if retrieved else 0} citations not retrieved."
             ),
             latency_ms=latency_ms,
-            extras={"expected_count": len(expected), "actual_count": len(cited)},
+            extras={
+                "expected_count": len(expected),
+                "actual_count": len(cited),
+                "retrieved_count": len(retrieved),
+                "quote_support": round(quote_support, 4),
+            },
         )
 
 
