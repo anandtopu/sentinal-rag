@@ -75,7 +75,7 @@ npm run build
 npm run typecheck
 npm run lint
 npm test             # vitest
-npm run test:e2e     # playwright (e2e suite is a stub today)
+npm run test:e2e     # playwright on :3107; mocked specs pass without the backend
 ```
 
 ## Environment

@@ -32,9 +32,10 @@ cd apps/frontend && npm run test
 # Expect: 5 passed (api client).
 
 # Frontend e2e — Playwright; the API-dependent specs auto-skip when
-# the backend isn't reachable.
+# the backend isn't reachable. Defaults to :3107 to avoid dev-server
+# collisions; set E2E_PORT or E2E_REUSE_SERVER=true when needed.
 cd apps/frontend && npm run test:e2e
-# Expect: 7 tests, smoke + query-playground + collections.
+# Expect: 15 tests total. Frontend-only: 11 passed, 4 skipped.
 
 # Lint + format + typecheck.
 uv run ruff check apps packages scripts tests   # → All checks passed!
@@ -201,7 +202,7 @@ playground with SSE-driven trace stream.
 | Layer | What to run |
 |---|---|
 | Unit | `cd apps/frontend && npm run test` — 5 vitest tests covering bearer auth forwarding, query serialization, error envelope unwrapping, multipart upload. |
-| E2E | `cd apps/frontend && npm run test:e2e` — 7 Playwright tests; API-dependent specs skip cleanly when backend not reachable. |
+| E2E | `cd apps/frontend && npm run test:e2e` — 15 Playwright tests; deterministic mocked-API specs cover the dashboard, collections, documents, query, prompts, evaluations, settings, audit, and usage surfaces. API-dependent specs skip cleanly when backend not reachable. |
 | Manual | `make up && make api && cd apps/frontend && npm run dev`. Open `http://localhost:3000`. Hit `/query-playground`. Submit a query — the trace pane should update in real time via SSE (look for `event: trace` frames in DevTools network panel). |
 
 **Fail signal:** the trace pane shows nothing → either SSE is buffering

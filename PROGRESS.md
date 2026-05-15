@@ -4,9 +4,10 @@
 > [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md);
 > this file is the recruiter-readable cover sheet.
 
-**Last updated:** 2026-05-13 — all 10 phases code-side complete. Latest
-session expanded shared LLM wrapper coverage and fixed retry failure
-wrapping. `pytest -m unit` is now green across **162 collected unit
+**Last updated:** 2026-05-15 — all 10 phases code-side complete. Latest
+session expanded frontend Playwright E2E coverage for the dashboard,
+settings, audit/usage surfaces, optional query traces, and mocked tenant/user
+context. `pytest -m unit` remains green across **162 collected unit
 tests** with **70.80% Python coverage**.
 
 ## Status by phase
@@ -29,6 +30,9 @@ tests** with **70.80% Python coverage**.
 - **30 accepted ADRs** at `docs/architecture/adr/` (template + ADR-0001…ADR-0030).
 - **162 collected unit tests passing, 0 flakes observed in the current
   Python 3.12 environment.**
+- **15 frontend Playwright E2E tests**: 11 deterministic frontend/mocked-API
+  tests pass locally; 4 live-backend specs skip cleanly when `/api/health` is
+  unavailable.
 - **5 GitHub Actions workflows**: `ci.yml`, `security.yml`, `perf-smoke.yml`, `dr-backup-verify.yml`, `build-images.yml`.
 - **4 operations runbooks** at `docs/operations/runbooks/`: deployment-aws, deployment-gcp, cluster-bootstrap, disaster-recovery.
 - **5 Helm values overlays**: `values.yaml` (defaults), `values-{local,dev,prod,gcp-dev}.yaml`. All `helm lint` clean.

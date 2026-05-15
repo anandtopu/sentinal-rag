@@ -3,6 +3,22 @@ import { expect, test } from '@playwright/test';
 import { ids, installApiMocks } from './helpers/api-mocks';
 
 test.describe('feature regression suite (mocked API)', () => {
+  test('dashboard summarizes tenant, collection, evaluation, and pillar state', async ({
+    page,
+  }) => {
+    await installApiMocks(page);
+
+    await page.goto('/dashboard');
+
+    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+    await expect(page.getByText('Acme Research', { exact: true })).toBeVisible();
+    await expect(page.getByText('acme', { exact: true })).toBeVisible();
+    await expect(page.getByText('Active scopes for retrieval')).toBeVisible();
+    await expect(page.getByText('Lifetime runs (ragas + custom)')).toBeVisible();
+    await expect(page.getByText(/RBAC injected at retrieval time/i)).toBeVisible();
+    await expect(page.getByText(/Prompts are versioned artifacts/i)).toBeVisible();
+  });
+
   test('collections list and create flow preserves RBAC scope fields', async ({ page }) => {
     await installApiMocks(page);
 
@@ -70,6 +86,26 @@ test.describe('feature regression suite (mocked API)', () => {
     });
   });
 
+  test('query playground keeps trace optional while preserving query payload', async ({ page }) => {
+    const state = await installApiMocks(page);
+
+    await page.goto('/query-playground');
+    await page.getByRole('button', { name: 'Security Notes' }).click();
+    await page.getByLabel(/question/i).fill('Summarize restricted review notes.');
+    await page.getByLabel(/model/i).fill('ollama/qwen2.5:7b');
+    await page.getByLabel(/show stage trace/i).uncheck();
+    await page.getByRole('button', { name: 'Run query' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Answer' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Trace' })).toHaveCount(0);
+    expect(state.postedQuery).toMatchObject({
+      query: 'Summarize restricted review notes.',
+      collection_ids: [ids.collectionPrivate],
+      generation: { model: 'ollama/qwen2.5:7b' },
+      options: { include_debug_trace: true },
+    });
+  });
+
   test('prompt and evaluation pages expose versioned/reproducible artifacts', async ({ page }) => {
     await installApiMocks(page);
 
@@ -83,5 +119,34 @@ test.describe('feature regression suite (mocked API)', () => {
     await page.goto('/evaluations');
     await expect(page.getByRole('cell', { name: 'Nightly faithfulness regression' })).toBeVisible();
     await expect(page.getByText('completed', { exact: true })).toBeVisible();
+  });
+
+  test('settings page renders tenant and user context from authenticated API calls', async ({
+    page,
+  }) => {
+    await installApiMocks(page);
+
+    await page.goto('/settings');
+
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    await expect(page.getByText(/name:\s*Acme Research/i)).toBeVisible();
+    await expect(page.getByText(/plan:\s*enterprise/i)).toBeVisible();
+    await expect(page.getByText(/email:\s*demo\.admin@acme\.test/i)).toBeVisible();
+    await expect(page.getByText(/name:\s*Demo Admin/i)).toBeVisible();
+    await expect(page.getByText('dev token', { exact: true })).toBeVisible();
+  });
+
+  test('audit and usage pages keep cost and immutability work visible in navigation', async ({
+    page,
+  }) => {
+    await installApiMocks(page);
+
+    await page.goto('/audit');
+    await expect(page.getByRole('heading', { name: 'Audit', level: 1 })).toBeVisible();
+    await expect(page.getByText(/dual-written to Postgres \+ S3 Object Lock/i)).toBeVisible();
+
+    await page.getByRole('link', { name: 'Usage' }).click();
+    await expect(page.getByRole('heading', { name: 'Usage & Cost', level: 1 })).toBeVisible();
+    await expect(page.getByText(/soft\/hard caps/i)).toBeVisible();
   });
 });

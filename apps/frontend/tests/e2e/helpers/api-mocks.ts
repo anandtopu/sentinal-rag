@@ -101,6 +101,30 @@ export async function installApiMocks(page: Page): Promise<MockState> {
 
     if (path === '/api/health') return json(route, { status: 'ok' });
 
+    if (path === '/api/tenants/me') {
+      return json(route, {
+        id: '00000000-0000-4000-8000-000000000001',
+        slug: 'acme',
+        name: 'Acme Research',
+        plan: 'enterprise',
+        status: 'active',
+        metadata: {},
+        created_at: now,
+        updated_at: now,
+      });
+    }
+    if (path === '/api/users/me') {
+      return json(route, {
+        id: '00000000-0000-4000-8000-000000000002',
+        tenant_id: '00000000-0000-4000-8000-000000000001',
+        email: 'demo.admin@acme.test',
+        full_name: 'Demo Admin',
+        status: 'active',
+        created_at: now,
+        updated_at: now,
+      });
+    }
+
     if (path === '/api/collections' && request.method() === 'GET') {
       return json(route, pageEnvelope(state.collections));
     }
