@@ -17,15 +17,23 @@ spec:
     spec:
       serviceAccountName: sentinelrag-app
       securityContext:
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: temporal
           image: temporalio/auto-setup:1.25
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -e
+              until nc -z 127.0.0.1 5432; do
+                echo "waiting for cloud sql proxy"
+                sleep 2
+              done
+              /entrypoint.sh start
           ports:
-            - containerPort: 7233
-              name: grpc
+            - name: grpc
+              containerPort: 7233
           env:
             - name: DB
               value: "postgres12"
@@ -48,30 +56,28 @@ spec:
                 secretKeyRef:
                   name: sentinelrag-secrets
                   key: TEMPORAL_DB_NAME
-            - name: VISIBILITY_DBNAME
-              valueFrom:
-                secretKeyRef:
-                  name: sentinelrag-secrets
-                  key: TEMPORAL_VISIBILITY_DB_NAME
-                  optional: true
             - name: NUM_HISTORY_SHARDS
               value: "1"
             - name: SERVICES
               value: "frontend,history,matching,worker"
             - name: LOG_LEVEL
-              value: "info"
+              value: "debug"
           readinessProbe:
             tcpSocket:
               port: 7233
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 10
-            failureThreshold: 10
+            failureThreshold: 12
           livenessProbe:
             tcpSocket:
               port: 7233
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
             periodSeconds: 20
             failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           resources:
             requests:
               cpu: "100m"
@@ -80,23 +86,19 @@ spec:
               cpu: "500m"
               memory: "512Mi"
               ephemeral-storage: "1Gi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1000
-            capabilities:
-              drop: ["ALL"]
 
         - name: cloud-sql-proxy
           image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.4
           args:
-            - "--address=0.0.0.0"
+            - "--private-ip"
+            - "--auto-iam-authn"
+            - "--address=127.0.0.1"
             - "--port=5432"
             - "sentinelrag:us-central1:sentinelrag-pg"
           readinessProbe:
             tcpSocket:
               port: 5432
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 5
           securityContext:
             runAsNonRoot: true
@@ -115,8 +117,6 @@ kind: Service
 metadata:
   name: temporal-frontend
   namespace: sentinelrag
-  labels:
-    app: temporal-frontend
 spec:
   selector:
     app: temporal-frontend
