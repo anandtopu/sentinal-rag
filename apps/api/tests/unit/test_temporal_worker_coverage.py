@@ -17,10 +17,14 @@ from sentinelrag_worker.workflows import ingestion as ingestion_workflow
 class FakeStorage:
     def __init__(self, data: bytes) -> None:
         self.data = data
+        self.puts: list[tuple[str, bytes, dict[str, Any]]] = []
         self.closed = False
 
     async def get(self, _key: str) -> bytes:
         return self.data
+
+    async def put(self, key: str, data: bytes, **kwargs: Any) -> None:
+        self.puts.append((key, data, kwargs))
 
     async def close(self) -> None:
         self.closed = True
@@ -69,6 +73,10 @@ def test_activity_uuid_and_vector_helpers_are_deterministic() -> None:
     assert ingestion_activities._as_uuid(str(value)) == value
     assert ingestion_activities._as_uuid(value) == value
     assert ingestion_activities._format_vector([1, "2.5"]) == "[1.0,2.5]"  # type: ignore[list-item]
+    assert (
+        ingestion_activities._raw_text_key("tenant/documents/doc/versions/v/original.txt")
+        == "tenant/documents/doc/versions/v/raw.txt"
+    )
 
 
 @pytest.mark.unit
@@ -172,6 +180,29 @@ async def test_evaluation_list_case_ids_returns_ordered_ids(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_ingestion_mark_job_failed_also_marks_document_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession([FakeDbResult(), FakeDbResult()])
+    monkeypatch.setattr(
+        ingestion_activities,
+        "_session_for_tenant",
+        _session_factory(session),
+    )
+
+    await ingestion_activities.mark_job_failed(
+        str(uuid4()),
+        str(uuid4()),
+        str(uuid4()),
+        "parse failed",
+    )
+
+    assert "UPDATE ingestion_jobs" in session.calls[0][0]
+    assert "UPDATE documents SET status='failed'" in session.calls[1][0]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_evaluation_record_case_failure_upserts_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -225,7 +256,7 @@ async def test_ingestion_workflow_marks_job_failed_when_activity_fails(
         await ingestion_workflow.IngestionWorkflow().run(payload)
 
     assert calls[-1][0] == "mark_job_failed"
-    assert calls[-1][1][2] == "parse failed"
+    assert calls[-1][1][3] == "parse failed"
 
 
 @pytest.mark.unit

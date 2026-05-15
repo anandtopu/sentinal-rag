@@ -15,11 +15,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import Any
-from uuid import UUID
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
+# Activity references + contract reconstruction live behind the unsafe
+# context manager because they import heavy non-deterministic modules
+# (sqlalchemy, etc.).
 with workflow.unsafe.imports_passed_through():
     from sentinelrag_shared.contracts import (
         IngestionWorkflowInput,
@@ -28,7 +30,10 @@ with workflow.unsafe.imports_passed_through():
 
     from sentinelrag_worker.activities import ingestion as activities
 
+
+# Backward-compat alias for any older imports.
 IngestionWorkflowInput = IngestionWorkflowInput  # noqa: PLW0127
+
 
 _STANDARD_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
@@ -44,6 +49,8 @@ class IngestionWorkflow:
 
     @workflow.run
     async def run(self, raw_payload: dict[str, Any]) -> dict[str, Any]:
+        # Validate the incoming payload through the typed contract. If the
+        # API and worker drift on field names, this is where we catch it.
         payload = IngestionWorkflowInput.model_validate(raw_payload)
 
         await workflow.execute_activity(
@@ -61,7 +68,7 @@ class IngestionWorkflow:
                 retry_policy=_STANDARD_RETRY,
             )
 
-            version_id_str: str = await workflow.execute_activity(
+            version_id: str = await workflow.execute_activity(
                 activities.upsert_document_version,
                 args=[
                     str(payload.tenant_id),
@@ -72,7 +79,6 @@ class IngestionWorkflow:
                 start_to_close_timeout=timedelta(seconds=15),
                 retry_policy=_STANDARD_RETRY,
             )
-            version_id = UUID(version_id_str)
 
             parse_result = await workflow.execute_activity(
                 activities.parse_document,
@@ -90,7 +96,7 @@ class IngestionWorkflow:
                 activities.update_document_version_storage_uri,
                 args=[
                     str(payload.tenant_id),
-                    str(version_id),
+                    version_id,
                     parse_result["raw_text_uri"],
                 ],
                 start_to_close_timeout=timedelta(seconds=15),
@@ -102,7 +108,7 @@ class IngestionWorkflow:
                 args=[
                     str(payload.tenant_id),
                     str(payload.document_id),
-                    str(version_id),
+                    version_id,
                     parse_result["elements_uri"],
                     payload.chunking_strategy,
                 ],
@@ -114,7 +120,7 @@ class IngestionWorkflow:
                 activities.embed_chunks,
                 args=[
                     str(payload.tenant_id),
-                    str(version_id),
+                    version_id,
                     payload.embedding_model,
                 ],
                 start_to_close_timeout=timedelta(minutes=30),
