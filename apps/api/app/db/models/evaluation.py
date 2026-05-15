@@ -27,7 +27,9 @@ from app.db.base import Base
 
 class EvaluationDataset(Base):
     __tablename__ = "evaluation_datasets"
-    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_eval_datasets_tenant_name"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_eval_datasets_tenant_name"),
+    )
 
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -110,7 +112,9 @@ class EvaluationRun(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
-    model_config_: Mapped[dict[str, Any]] = mapped_column("model_config", JSONB, nullable=False)
+    model_config_: Mapped[dict[str, Any]] = mapped_column(
+        "model_config", JSONB, nullable=False
+    )
     retrieval_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     prompt_version_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -118,9 +122,15 @@ class EvaluationRun(Base):
         nullable=True,
     )
     workflow_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'queued'"))
-    started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'queued'")
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
     created_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -163,7 +173,9 @@ class EvaluationScore(Base):
     citation_accuracy_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
-    status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'completed'"))
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'completed'")
+    )
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     judge_model: Mapped[str | None] = mapped_column(String, nullable=True)
     judge_reasoning: Mapped[str | None] = mapped_column(String, nullable=True)

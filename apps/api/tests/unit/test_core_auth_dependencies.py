@@ -6,10 +6,15 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from app import dependencies
 from app.core import auth as auth_module
 from app.db.session import current_tenant_id, current_user_id
 from sentinelrag_shared.auth import AuthContext
-from sentinelrag_shared.errors import AuthRequiredError, RBACDeniedError
+from sentinelrag_shared.errors import (
+    AuthRequiredError,
+    RBACDeniedError,
+    TemporalUnavailableError,
+)
 from sentinelrag_shared.errors.exceptions import AuthInvalidError
 
 
@@ -65,6 +70,10 @@ def _request(verifier: object | None = None) -> object:
     state = SimpleNamespace()
     if verifier is not None:
         state.jwt_verifier = verifier
+    return SimpleNamespace(app=SimpleNamespace(state=state))
+
+
+def _state_request(state: object) -> object:
     return SimpleNamespace(app=SimpleNamespace(state=state))
 
 
@@ -183,3 +192,9 @@ async def test_require_permission_dependency_returns_authorized_context() -> Non
     )
 
     assert await dependency(ctx) is ctx  # type: ignore[arg-type]
+
+
+@pytest.mark.unit
+def test_temporal_dependency_raises_service_unavailable_when_missing() -> None:
+    with pytest.raises(TemporalUnavailableError):
+        dependencies.get_temporal_client(_state_request(SimpleNamespace()))  # type: ignore[arg-type]

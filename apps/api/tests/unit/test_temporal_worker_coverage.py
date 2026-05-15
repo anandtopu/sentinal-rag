@@ -172,6 +172,25 @@ async def test_evaluation_list_case_ids_returns_ordered_ids(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_evaluation_record_case_failure_upserts_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession([FakeDbResult()])
+    monkeypatch.setattr(eval_activities, "_session_for_tenant", _session_factory(session))
+
+    await eval_activities.record_case_failure(
+        str(uuid4()),
+        str(uuid4()),
+        str(uuid4()),
+        "provider timeout",
+    )
+
+    assert "ON CONFLICT" in session.calls[0][0]
+    assert session.calls[0][1]["error"] == "provider timeout"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_ingestion_workflow_marks_job_failed_when_activity_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
