@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-frontend
+  namespace: sentinelrag
+  labels:
+    app: temporal-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-frontend
+  template:
+    metadata:
+      labels:
+        app: temporal-frontend
+    spec:
+      serviceAccountName: sentinelrag-app
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: temporal
+          image: temporalio/auto-setup:1.25
+          ports:
+            - containerPort: 7233
+              name: grpc
+          env:
+            - name: DB
+              value: "postgres12"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_SEEDS
+              value: "127.0.0.1"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sentinelrag-secrets
+                  key: TEMPORAL_DB_USER
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: sentinelrag-secrets
+                  key: TEMPORAL_DB_PASSWORD
+            - name: DBNAME
+              valueFrom:
+                secretKeyRef:
+                  name: sentinelrag-secrets
+                  key: TEMPORAL_DB_NAME
+            - name: VISIBILITY_DBNAME
+              valueFrom:
+                secretKeyRef:
+                  name: sentinelrag-secrets
+                  key: TEMPORAL_VISIBILITY_DB_NAME
+                  optional: true
+            - name: NUM_HISTORY_SHARDS
+              value: "1"
+            - name: SERVICES
+              value: "frontend,history,matching,worker"
+            - name: LOG_LEVEL
+              value: "info"
+          readinessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+              ephemeral-storage: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.4
+          args:
+            - "--address=0.0.0.0"
+            - "--port=5432"
+            - "sentinelrag:us-central1:sentinelrag-pg"
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              ephemeral-storage: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-frontend
+  namespace: sentinelrag
+  labels:
+    app: temporal-frontend
+spec:
+  selector:
+    app: temporal-frontend
+  ports:
+    - name: grpc
+      port: 7233
+      targetPort: 7233
+  type: ClusterIP
