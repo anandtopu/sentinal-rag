@@ -1,4 +1,7 @@
+name: CI
+
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   push:
@@ -120,6 +123,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
       - name: Helm lint
+        shell: bash
         run: |
           if [ -f infra/helm/sentinelrag/Chart.yaml ]; then
             helm lint infra/helm/sentinelrag
@@ -135,8 +139,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - name: Terraform fmt
+        shell: bash
         run: |
-          if find infra/terraform -name '*.tf' -print -quit | grep -q .; then
+          if [ -d infra/terraform ] && find infra/terraform -type f -name '*.tf' | grep -q .; then
             terraform fmt -check -recursive infra/terraform
           else
             echo "Terraform files not present, skipping."
