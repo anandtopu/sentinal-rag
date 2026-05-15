@@ -2,7 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: temporal-worker
-  namespace: default
+  namespace: sentinelrag
+  labels:
+    app: temporal-worker
 spec:
   replicas: 1
   selector:
@@ -13,20 +15,67 @@ spec:
       labels:
         app: temporal-worker
     spec:
-      serviceAccountName: sentinal-rag-sa
+      serviceAccountName: sentinelrag-app
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-      - name: temporal-worker
-        image: gcr.io/sentinelrag/temporal-worker:latest
-        env:
-        - name: TEMPORAL_HOST
-          value: "temporal-frontend:7233"
-        - name: DATABASE_URL
-          value: "postgresql://localhost:5432/sentinalrag"
-      - name: cloud-sql-proxy
-        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
-        args:
-        - "--structured-logs"
-        - "--port=5432"
-        - "sentinelrag:us-central1:sentinal-rag-db"
-        securityContext:
-          runAsNonRoot: true
+        - name: temporal-worker
+          image: us-central1-docker.pkg.dev/sentinelrag/sentinelrag/temporal-worker:latest
+          command: ["python", "-m", "sentinelrag_worker.main"]
+          env:
+            - name: TEMPORAL_HOST
+              value: "temporal-frontend.sentinelrag.svc.cluster.local:7233"
+            - name: TEMPORAL_NAMESPACE
+              value: "default"
+            - name: TEMPORAL_TASK_QUEUE_INGESTION
+              value: "ingestion"
+            - name: TEMPORAL_TASK_QUEUE_EVALUATION
+              value: "evaluation"
+            - name: TEMPORAL_TASK_QUEUE_AUDIT
+              value: "audit"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+          envFrom:
+            - secretRef:
+                name: sentinelrag-secrets
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sentinelrag_worker.main"]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop: ["ALL"]
+
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.4
+          args:
+            - "--address=0.0.0.0"
+            - "--port=5432"
+            - "sentinelrag:us-central1:sentinelrag-pg"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              ephemeral-storage: "1Gi"
