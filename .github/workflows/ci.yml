@@ -1,1 +1,370 @@
-# paste the full YAML above here
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  python-quality:
+    name: Python lint + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.x"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install workspace (all members in editable mode)
+        run: uv sync --all-packages --all-extras
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Pyright
+        run: uv run pyright
+
+  python-tests:
+    name: Python unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.x"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install workspace (all members in editable mode)
+        run: uv sync --all-packages --all-extras
+
+      - name: Run unit tests
+        run: uv run pytest -m unit --cov --cov-report=xml
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  frontend-quality:
+    name: Frontend lint + typecheck + tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Biome lint
+        run: npm run lint
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E regression tests
+        run: npm run test:e2e
+
+  python-integration:
+    name: Python integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      docker:
+        image: docker:dind
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.x"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install workspace (all members in editable mode)
+        run: uv sync --all-packages --all-extras
+
+      - name: Run integration tests
+        run: uv run pytest -m integration
+
+  helm-lint:
+    name: Helm chart lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        shell: bash
+        run: |
+          if [ -f infra/helm/sentinelrag/Chart.yaml ]; then
+            helm lint infra/helm/sentinelrag
+          else
+            echo "Helm chart not present, skipping."
+          fi
+
+  terraform-fmt:
+    name: Terraform fmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        shell: bash
+        run: |
+          if [ -d infra/terraform ] && find infra/terraform -name '*.tf' -print -quit | grep -q .; then
+            terraform fmt -check -recursive infra/terraform
+          else
+            echo "Terraform files not present, skipping."
+          fi
+
+  detect-secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bandit:
+    name: Bandit Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bandit
+        run: pip install "bandit[sarif]==1.7.10" "toml>=0.10.2"
+
+      - name: Run bandit
+        shell: bash
+        run: |
+          mkdir -p reports
+          bandit -r apps packages \
+            --severity-level medium \
+            -x tests,__pycache__ \
+            -f sarif \
+            -o reports/bandit.sarif
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: reports/bandit.sarif
+          category: bandit
+
+  tfsec:
+    name: tfsec Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tfsec when Terraform exists
+        shell: bash
+        run: |
+          if [ -d infra/terraform ] && find infra/terraform -name '*.tf' -print -quit | grep -q .; then
+            docker run --rm \
+              -v "$PWD:/src" \
+              aquasec/tfsec:latest \
+              /src/infra/terraform \
+              --soft-fail \
+              --format sarif \
+              --out /src/tfsec.sarif
+          else
+            echo '{"version":"2.1.0","runs":[]}' > tfsec.sarif
+          fi
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: tfsec.sarif
+          category: tfsec
+
+  trivy-fs-iac:
+    name: Trivy filesystem + IaC
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: misconfig,secret,vuln
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  trivy-image-api:
+    name: Trivy Docker image api
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t sentinelrag-api:ci .
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sentinelrag-api:ci
+          format: sarif
+          output: trivy-api.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-api.sarif
+          category: trivy-api
+
+  trivy-image-frontend:
+    name: Trivy Docker image frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend image
+        run: docker build -f apps/frontend/Dockerfile -t sentinelrag-frontend:ci apps/frontend
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sentinelrag-frontend:ci
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+  trivy-image-temporal-worker:
+    name: Trivy Docker image temporal-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build temporal-worker image
+        run: docker build -f apps/temporal-worker/Dockerfile -t sentinelrag-temporal-worker:ci .
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sentinelrag-temporal-worker:ci
+          format: sarif
+          output: trivy-temporal-worker.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-temporal-worker.sarif
+          category: trivy-temporal-worker
