@@ -19,6 +19,7 @@ class CapabilitiesResponse(BaseModel):
     chunking_strategies: list[str]
     source_connectors: list[str]
 
+
 app = FastAPI(
     title="SentinelRAG Ingestion Service",
     version="0.1.0",
@@ -39,5 +40,4 @@ async def capabilities() -> CapabilitiesResponse:
         source_connectors=[
             connector.name for connector in build_default_registry().connectors
         ],
-
     )
