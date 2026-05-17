@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
 from sentinelrag_shared.audit import (
     DualWriteAuditService,
@@ -23,7 +23,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import require_permission
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.dependencies import AuditStorageDep, RerankerDep
+from app.dependencies import (
+    AuditStorageDep,
+    BudgetReservationDep,
+    EmbedderDep,
+    IdempotencyDep,
+    RerankerDep,
+    RetrievalClientDep,
+)
 from app.schemas.query import (
     CitationRead,
     GeneratedAnswerSummary,
@@ -33,6 +40,7 @@ from app.schemas.query import (
     QueryUsage,
     RetrievalResultRead,
 )
+from app.services.idempotency import IdempotencyService
 from app.services.rag import (
     GenerationConfig,
     Orchestrator,
@@ -64,11 +72,40 @@ async def execute_query(
     db: Annotated[AsyncSession, Depends(get_db)],
     reranker: RerankerDep,
     audit_storage: AuditStorageDep,
+    idempotency: IdempotencyDep,
+    budget_reservations: BudgetReservationDep,
+    retrieval_client: RetrievalClientDep,
+    embedder: EmbedderDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> QueryResponse:
     settings = get_settings()
     requested_model = payload.generation.model or settings.default_generation_model
     if requires_cloud_model_permission(requested_model):
         ctx.require_permission("llm:cloud_models")
+
+    # R3.S2: namespace by tenant + hash the body so a malicious client
+    # can't reuse a key with a different payload and get the cached
+    # response of the old payload.
+    cache_key: str | None = None
+    if idempotency_key:
+        body_hash = IdempotencyService.body_hash(
+            payload.model_dump_json().encode("utf-8")
+        )
+        cache_key = IdempotencyService.cache_key(
+            tenant_id=ctx.tenant_id,
+            idempotency_key=idempotency_key,
+            body_hash=body_hash,
+        )
+        cached = await _resolve_idempotent_response(idempotency, cache_key)
+        if cached is not None:
+            return cached
+        claimed = await idempotency.try_claim(cache_key)
+        if not claimed:
+            # Couldn't claim — race with a leader that finished between
+            # our get and our claim. Read once more before giving up.
+            cached = await _resolve_idempotent_response(idempotency, cache_key)
+            if cached is not None:
+                return cached
 
     orchestrator = Orchestrator(
         session=db,
@@ -79,34 +116,62 @@ async def execute_query(
             primary=PostgresAuditSink(db),
             secondaries=[ObjectStorageAuditSink(audit_storage)],
         ),
+        generation_timeout_seconds=settings.generation_timeout_seconds,
+        budget_reservations=budget_reservations,
+        retrieval_client=retrieval_client,
+        embedder=embedder,
     )
-    result = await orchestrator.run(
-        query=payload.query,
-        auth=ctx,
-        collection_ids=list(payload.collection_ids),
-        retrieval=RetrievalConfig(
-            mode=payload.retrieval.mode,
-            top_k_bm25=payload.retrieval.top_k_bm25,
-            top_k_vector=payload.retrieval.top_k_vector,
-            top_k_hybrid=payload.retrieval.top_k_hybrid,
-            top_k_rerank=payload.retrieval.top_k_rerank,
-            ef_search=payload.retrieval.ef_search,
-        ),
-        generation=GenerationConfig(
-            model=requested_model,
-            temperature=payload.generation.temperature,
-            max_tokens=payload.generation.max_tokens,
-        ),
-        options=QueryOptions(
-            include_debug_trace=payload.options.include_debug_trace,
-            abstain_if_unsupported=payload.options.abstain_if_unsupported,
-        ),
-    )
+    try:
+        result = await orchestrator.run(
+            query=payload.query,
+            auth=ctx,
+            collection_ids=list(payload.collection_ids),
+            retrieval=RetrievalConfig(
+                mode=payload.retrieval.mode,
+                top_k_bm25=payload.retrieval.top_k_bm25,
+                top_k_vector=payload.retrieval.top_k_vector,
+                top_k_hybrid=payload.retrieval.top_k_hybrid,
+                top_k_rerank=payload.retrieval.top_k_rerank,
+                ef_search=payload.retrieval.ef_search,
+            ),
+            generation=GenerationConfig(
+                model=requested_model,
+                temperature=payload.generation.temperature,
+                max_tokens=payload.generation.max_tokens,
+            ),
+            options=QueryOptions(
+                include_debug_trace=payload.options.include_debug_trace,
+                abstain_if_unsupported=payload.options.abstain_if_unsupported,
+            ),
+        )
+    except Exception:
+        # R3.S2: orchestrator failure → free the pending claim so a
+        # retry isn't forced to wait the full pending TTL.
+        if cache_key is not None:
+            await idempotency.release_claim(cache_key)
+        raise
 
-    return _to_query_response(
+    response = _to_query_response(
         result,
         include_citations=payload.options.include_citations,
     )
+    if cache_key is not None:
+        await idempotency.store_result(cache_key, response.model_dump_json())
+    return response
+
+
+async def _resolve_idempotent_response(
+    idempotency: IdempotencyService, cache_key: str
+) -> QueryResponse | None:
+    """Return the cached response (if any), waiting briefly for a pending leader."""
+    cached = await idempotency.get_cached(cache_key)
+    if cached is None:
+        return None
+    if "__pending__" in cached:
+        cached = await idempotency.wait_for_result(cache_key)
+        if cached is None or "__pending__" in cached:
+            return None
+    return QueryResponse.model_validate(cached)
 
 
 def _to_query_response(

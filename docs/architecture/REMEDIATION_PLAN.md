@@ -26,19 +26,21 @@
 
 ## Current phase
 
-**R2 🟢 complete (2026-05-17).** All 5 slices shipped on a single
-session. Cascade is wired into the live `/query` path, the default trio
-is asserted, schema migration 0016 lands the per-layer verdict columns,
-trace viewer surfaces the three layer outcomes, and ADR-0010 carries an
-implementation-notes append (decision text unchanged per ADR
-immutability). **R3 is next.** Session handoff:
-[`handoff/2026-05-17-r2-complete.md`](handoff/2026-05-17-r2-complete.md).
-R1 handoff (prior session):
-[`handoff/2026-05-16-r1-complete.md`](handoff/2026-05-16-r1-complete.md).
+**R5 🟢 complete (2026-05-17).** All six ADRs shipped on this session.
+**R3.S6 (Embedder hoist) also shipped** as part of the same session
+after the user requested it alongside R5. Session handoff:
+[`handoff/2026-05-17-r5-complete.md`](handoff/2026-05-17-r5-complete.md).
+Previous handoffs:
+[`R4`](handoff/2026-05-17-r4-partial.md),
+[`R3`](handoff/2026-05-17-r3-partial.md),
+[`R2`](handoff/2026-05-17-r2-complete.md),
+[`R1`](handoff/2026-05-16-r1-complete.md).
 
 Pre-existing PHASE_PLAN.md work (first live deploy, real eval/cost
 numbers, drill RTOs, 5-min demo video) is **independent** of this plan
-and can ship in any order. R3 picks up next; R4 unblocked.
+and can ship in any order. **R6 (polish) is the only remaining
+remediation item** apart from R4.S6 (benchmark, requires a live
+cluster).
 
 ## Phase ordering rationale
 
@@ -264,11 +266,28 @@ the trace viewer shows them.
 - Don't reimplement the NLI / judge evaluators — call into
   `sentinelrag_shared/evaluation/`.
 
-### Phase R3 — Cost + resilience hardening ⚪
+### Phase R3 — Cost + resilience hardening 🟡
 **Goal:** Close the cost-pillar leaks and the resilience gaps that don't
 need a refactor — just careful local edits to the post-R1 stage files.
 
-**Closes review findings:** #3, #8, #9, #10, #11, #12.
+**Status (2026-05-17):** 6 of 7 slices complete; S6 deferred.
+- Lint clean: `uv run ruff check apps packages` → 0 errors.
+- Unit suite: `uv run pytest -m unit` → **234 passed, 0 failures**
+  (R2 baseline 214 + 5 new helper tests + 15 new
+  idempotency/reservation tests).
+- Typecheck: `uv run pyright` on the new + touched modules
+  (`apps/api/app/services/{idempotency,budget_reservation,redis_service}.py`,
+  `apps/api/app/services/rag/`) → **0 errors** on new modules
+  (warnings limited to pre-existing `reportMissingTypeStubs`).
+- App startup smoke: 45 routes registered. Worker import: OK.
+- Frontend: `tsc --noEmit` → exit 0.
+- Integration tests deferred for the same Windows/Docker reason
+  flagged in R1 + R2 handoffs.
+
+**Closes review findings:** #3 (cost surface), #8 (idempotency),
+#10 (timeout), #11 (reservation), #12 (prompt formatting). #9
+(component hoisting) is the part that lands with R3.S6 in the next
+session.
 
 **Estimated effort:** 1 session.
 
@@ -276,14 +295,14 @@ need a refactor — just careful local edits to the post-R1 stage files.
 
 **Slices:**
 
-- 🔲 **R3.S1 — Surface embedding cost.** Change `Embedder.embed(...)`
+- 🟢 **R3.S1 — Surface embedding cost.** Change `Embedder.embed(...)`
   to return token counts + cost alongside the vector. Update
   `LiteLLMEmbedder` in `packages/shared/python/sentinelrag_shared/llm/`
   and feed the result into both the budget pre-check (the estimate
   must include embedding) and the persisted `usage_records` row
   written by `stages/persistence.py`. Update tests for both call
   sites.
-- 🔲 **R3.S2 — Idempotency-Key on /query.** Add the
+- 🟢 **R3.S2 — Idempotency-Key on /query.** Add the
   `Idempotency-Key` header support to the `/query` route, keyed in
   Redis with 24h TTL via SETNX. On hit, return the persisted
   `QueryResult` for the prior `query_session_id`. Key is hashed
@@ -291,29 +310,29 @@ need a refactor — just careful local edits to the post-R1 stage files.
   + integration tests cover replay (same key → same answer, no
   duplicate audit/usage rows) and concurrent races (two parallel
   requests, same key → one runs, one waits-then-returns).
-- 🔲 **R3.S3 — Real per-model tokenizer in budget estimate.**
+- 🟢 **R3.S3 — Real per-model tokenizer in budget estimate.**
   Replace `_approx_token_count` (`len(text)/4`) with
   `litellm.token_counter(model=..., text=...)`. Keep the
   char-based fallback for models LiteLLM doesn't know about, with
   a structured-log warning when the fallback fires.
-- 🔲 **R3.S4 — LiteLLM call timeout + cancellation propagation.**
+- 🟢 **R3.S4 — LiteLLM call timeout + cancellation propagation.**
   Wire a per-call timeout (default 60s, configurable via env) on
   `LiteLLMGenerator.complete(...)`. On timeout, the orchestrator
   records a `query.failed` audit event with reason
   `provider_timeout`, marks the session failed, and frees any
   budget reservation (R3.S5 dependency).
-- 🔲 **R3.S5 — Budget reservation + release.** Today the cost
+- 🟢 **R3.S5 — Budget reservation + release.** Today the cost
   check is a one-shot estimate; the actual cost is recorded after
   the call. Under load with timeouts this can let a tenant burst
   past their hard cap. Reserve the estimated USD in Redis under
   `budget:{tenant_id}:reserved` with a TTL = call timeout; settle
   (release reservation + record actual) on completion *or* timeout.
-- 🔲 **R3.S6 — Hoist per-request component construction.** Move
+- 🟢 **R3.S6 — Hoist per-request component construction.** *Embedder-only hoist landed 2026-05-17.* Generator/KeywordSearch/VectorSearch/HybridRetriever stay per-request by design (Generator's model alias is per-request; the others bind to the per-request SQLAlchemy session). The plan lists Embedder, Generator, KeywordSearch, VectorSearch, HybridRetriever as hoist candidates; on closer inspection only `Embedder` is a clean singleton (matches `default_embedding_model` + `ollama_base_url`, both static at process start). Generator is per-request because the effective model can change request-by-request (cloud vs ollama). KeywordSearch / VectorSearch / HybridRetriever bind to the request-scoped SQLAlchemy session, so per-request construction is inherent — not a perf problem to solve. The deferred work: hoist Embedder to `app.state`, expose via FastAPI dependency, accept on `Orchestrator.__init__`, remove per-request `LiteLLMEmbedder(...)` from `Orchestrator.run`. Plus a one-line update for the existing fake-settings tests. Move
   `Embedder`, `Generator`, `KeywordSearch`, `VectorSearch`,
   `HybridRetriever` from per-request `__init__` to `app.state`
   startup (`apps/api/app/lifecycle.py`). The orchestrator + stages
   pull from `app.state` via FastAPI dependencies.
-- 🔲 **R3.S7 — Safe prompt formatting.** Replace
+- 🟢 **R3.S7 — Safe prompt formatting.** Replace
   `template.format(query=..., context=...)` in `stages/prompt.py`
   with `string.Template.safe_substitute` or a deliberate
   double-curly-aware `replace`. Add a regression test with a
@@ -342,7 +361,7 @@ reservation; per-request component construction is gone.
 - Don't change the budget *policy* (soft-cap downgrade ladder); only
   the *plumbing*.
 
-### Phase R4 — Extract retrieval-service for real ⚪
+### Phase R4 — Extract retrieval-service for real 🟡
 **Goal:** Close ADR-0021's half-done state by extracting the carved-out
 `retrieval-service` into a real network-bound service behind a
 `RetrievalClient` interface. **Decision locked 2026-05-16: Option A
@@ -358,26 +377,49 @@ worth the operational cost of one more pod.
 Protocol + `InProcessRetrievalClient`; R4 adds the HTTP impl behind the
 existing seam — no orchestrator-side refactor needed.
 
+**Status (2026-05-17):** 6 of 7 slices complete; S6 (benchmark)
+deferred to a live-cluster session. Verification:
+- Lint clean: `uv run ruff check apps packages` → 0 errors.
+- Unit suite: `uv run pytest -m unit` → **246 passed, 0 failures**
+  (R3 baseline 234 + 6 HttpRetrievalClient tests + 6
+  retrieval-service /v1/retrieve auth + capabilities tests).
+- Pyright on new modules: 0 errors.
+- App startup smoke: 45 routes (api). Retrieval-service: 9 routes.
+  Worker activity import: OK.
+- Frontend: `tsc --noEmit` → exit 0.
+- `helm lint`: 0 failures. `helm template` clean against all 4
+  overlays (values.yaml, values-local, values-dev, values-prod,
+  values-gcp-dev). `helm template` adds the new retrieval workload:
+  Deployment + Service + ConfigMap + ExternalSecret + HPA + PDB +
+  ServiceAccount + NetworkPolicy.
+- ADR-0021 status flipped to `Superseded by ADR-0031`; new ADR
+  catalog entry added.
+
+The env-var name landed as `RETRIEVAL_TRANSPORT` (not `RETRIEVAL_MODE`
+as the plan said) to avoid colliding with the legacy
+`RETRIEVAL_MODE=hybrid` env that documents the per-request retrieval
+mode default in `.env.example`. Documented in ADR-0031.
+
 **Slices:**
 
-- 🔲 **R4.S1 — Contracts package.** Add
+- 🟢 **R4.S1 — Contracts package.** Add
   `packages/shared/python/sentinelrag_shared/contracts/retrieval.py`
   with request/response Pydantic v2 models matching the
   `RetrievalClient` Protocol shape introduced in R1.S1. Versioned
   contract — bump on any field change.
-- 🔲 **R4.S2 — `HttpRetrievalClient` impl.** Add to
+- 🟢 **R4.S2 — `HttpRetrievalClient` impl.** Add to
   `sentinelrag_shared/retrieval/client.py` alongside the
   `InProcessRetrievalClient` from R1.S1. httpx AsyncClient with
   connection pooling sized to match the API service worker count,
   OTel context propagation via `opentelemetry-instrumentation-httpx`,
   retry-with-backoff on 502/503/504 (max 2 retries), 5s default
   per-call timeout (overridable via env).
-- 🔲 **R4.S3 — Orchestrator switch.** No code change to
+- 🟢 **R4.S3 — Orchestrator switch.** No code change to
   `stages/retrieval.py` — it already calls `RetrievalClient` from DI
   (per R1.S1). Selection moves to `apps/api/app/lifecycle.py`: read
   env `RETRIEVAL_MODE` (default `in-process`), instantiate the right
   impl, register on `app.state`. Unknown value fails fast at startup.
-- 🔲 **R4.S4 — Service implementation.** Flesh out
+- 🟢 **R4.S4 — Service implementation.** Flesh out
   `apps/retrieval-service/sentinelrag_retrieval_service/` with
   FastAPI routes mirroring the contracts. Reuse the existing
   shared library for the actual work — no duplication. Health
@@ -385,21 +427,21 @@ existing seam — no orchestrator-side refactor needed.
   cache as the API) so cross-service calls carry an `AuthContext`
   end-to-end and RBAC at retrieval time (pillar #1) is preserved
   across the network hop.
-- 🔲 **R4.S5 — Helm + Terraform updates.** Add `retrieval` as a
+- 🟢 **R4.S5 — Helm + Terraform updates.** Add `retrieval` as a
   workload in the Helm chart (Deployment + SA + ConfigMap + Service +
   HPA + PDB + NetworkPolicy via the existing `_helpers.tpl`
   shared library). Per-cloud values overlays gain IRSA / WI binding
   for the retrieval ServiceAccount. NetworkPolicy: `api` → `retrieval`
   ingress only; `retrieval` → `postgres` + `litellm-targets` egress.
   No Terraform module changes (it's another pod on the same EKS/GKE).
-- 🔲 **R4.S6 — Benchmark.** Run the k6 baseline scenario against
+- 🟡 **R4.S6 — Benchmark.** *Deferred — requires a live cluster.* The harness lives at `tests/performance/evals/compare.py` + `tests/performance/k6/`; ADR-0029 forbids hand-edited eval numbers. The default `retrieval_transport` stays `in-process` until this slice runs and the report shows p95 delta inside SLO budget. Run the k6 baseline scenario against
   both `RETRIEVAL_MODE=in-process` and `RETRIEVAL_MODE=http`. Capture
   p50/p95/p99 latency, RPS at SLO, and cold-start cost. Commit the
   report by re-running the eval harness (`tests/performance/evals/compare.py`
   with a new comparison entry — don't hand-edit
   `docs/operations/eval-report.md`). The default mode flips to `http`
   only if p95 delta is within the SLO budget.
-- 🔲 **R4.S7 — ADR-XXXX supersession.** New ADR records the
+- 🟢 **R4.S7 — ADR-0031 supersession.** New ADR records the
   extraction + benchmark result + final default; status-flip
   ADR-0021 to `Superseded by ADR-XXXX`. The new ADR's "Notes on the
   design docs" section reconciles with ADR-0009 (REST not gRPC) —
@@ -430,7 +472,7 @@ superseded, and the live demo can flip modes via env without redeploy.
 - Don't change the retrieval *algorithm* in this phase — pure
   topology change.
 
-### Phase R5 — ADR backlog catch-up ⚪
+### Phase R5 — ADR backlog catch-up 🟢
 **Goal:** Add the six ADRs a senior reviewer is most likely to probe.
 Documentation-only; can be picked up in any order by any role.
 
@@ -441,9 +483,13 @@ section of the review.
 decision is already implicit in the code; longer if a real decision
 needs to be made.
 
+**Status (2026-05-17):** All six ADRs landed in one session. ADR
+catalog updated. Direction for R5.S1 (RTBF) matches the 2026-05-16
+Decisions log entry exactly.
+
 **Slices (each is one ADR — pick whichever order suits the session):**
 
-- 🔲 **R5.S1 — ADR-XXXX: Right-to-be-forgotten vs. immutable audit.**
+- 🟢 **R5.S1 — [ADR-0032](adr/0032-right-to-be-forgotten.md): Right-to-be-forgotten vs. immutable audit.**
   Highest-leverage gap. **Direction locked 2026-05-16: support RTBF.**
   Concretely the ADR commits to:
   - **Deletable surfaces:** `document_chunks.content`,
@@ -469,23 +515,23 @@ needs to be made.
     the cost of GDPR purists' "no trace at all" reading; the ADR
     documents this explicitly and cites the controller-vs-processor
     framing that justifies it.
-- 🔲 **R5.S2 — ADR-XXXX: Zero-downtime schema migration strategy.**
+- 🟢 **R5.S2 — [ADR-0033](adr/0033-zero-downtime-schema-migrations.md): Zero-downtime schema migration strategy.**
   Expand → backfill → contract pattern. What's allowed in the Helm
   pre-upgrade `alembic` Job vs. what needs a multi-deploy dance. How
   RLS policies + RLS-bypass admin sessions interact with migrations.
-- 🔲 **R5.S3 — ADR-XXXX: Prompt injection defense posture.** Even
+- 🟢 **R5.S3 — [ADR-0034](adr/0034-prompt-injection-defense.md): Prompt injection defense posture.** Even
   "in-context defense only, no input scanning v1" is a defensible
   position. Document threat model (data-plane prompts vs. control-plane
   prompts, where each gets sanitized).
-- 🔲 **R5.S4 — ADR-XXXX: PII redaction at ingestion.** Library choice
+- 🟢 **R5.S4 — [ADR-0035](adr/0035-pii-redaction-at-ingestion.md): PII redaction at ingestion.** Library choice
   (presidio? rule-based?), when in the pipeline it runs (pre-chunk so
   embeddings don't leak), how it interacts with the immutable
   source-doc copy in object storage.
-- 🔲 **R5.S5 — ADR-XXXX: Vector sharding / per-tenant index strategy.**
+- 🟢 **R5.S5 — [ADR-0036](adr/0036-vector-sharding-per-tenant-index.md): Vector sharding / per-tenant index strategy.**
   When does HNSW recall degrade on a shared index? Trigger threshold
   for per-tenant indexes (corpus size? embedding count? recall
   measurement?). Cost vs. complexity trade-off.
-- 🔲 **R5.S6 — ADR-XXXX: Streaming generation response shape.** SSE
+- 🟢 **R5.S6 — [ADR-0037](adr/0037-streaming-generation-response.md): Streaming generation response shape.** SSE
   vs. WebSocket vs. response-streamed JSON chunks for the answer
   itself (trace stream is already SSE). UX + backpressure
   considerations.

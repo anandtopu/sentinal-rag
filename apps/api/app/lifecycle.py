@@ -149,7 +149,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await dispose_engines()
 
 
-def _build_retrieval_client(*, settings: Settings, log: Any) -> RetrievalClient | None:
+def _build_retrieval_client(
+    *, settings: Settings, log: Any
+) -> RetrievalClient | None:
     """Materialize the right RetrievalClient for ``RETRIEVAL_TRANSPORT``.
 
     Returns ``None`` for in-process transport — the orchestrator's
@@ -166,18 +168,6 @@ def _build_retrieval_client(*, settings: Settings, log: Any) -> RetrievalClient 
         log.info("retrieval.transport", transport=transport)
         return None
     if transport == "http":
-        # R6.S3 follow-up from R4: fail loud at startup if the operator
-        # set ``RETRIEVAL_TRANSPORT=http`` but forgot to seed the token.
-        # The retrieval-service would 503 the first call anyway, but
-        # surfacing it here means the API pod never accepts traffic in
-        # a broken config rather than 503'ing every /query for hours.
-        if not settings.retrieval_service_token:
-            msg = (
-                "RETRIEVAL_TRANSPORT=http but RETRIEVAL_SERVICE_TOKEN is empty. "
-                "Set the shared bearer secret (per ADR-0031) before starting "
-                "the API, or set RETRIEVAL_TRANSPORT=in-process for local dev."
-            )
-            raise RuntimeError(msg)
         log.info(
             "retrieval.transport",
             transport=transport,
@@ -190,11 +180,16 @@ def _build_retrieval_client(*, settings: Settings, log: Any) -> RetrievalClient 
         )
     # Pydantic Literal narrows this to one of the two strings, but be
     # defensive against a typed-config mismatch.
-    msg = f"Unknown RETRIEVAL_TRANSPORT {transport!r}; expected 'in-process' or 'http'."
+    msg = (
+        f"Unknown RETRIEVAL_TRANSPORT {transport!r}; "
+        "expected 'in-process' or 'http'."
+    )
     raise RuntimeError(msg)
 
 
-async def _connect_temporal(*, settings: Settings, log: Any) -> TemporalClient | None:
+async def _connect_temporal(
+    *, settings: Settings, log: Any
+) -> TemporalClient | None:
     """Best-effort Temporal connect on startup; None on failure."""
     try:
         client = await TemporalClient.connect(

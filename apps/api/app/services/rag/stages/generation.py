@@ -11,11 +11,21 @@ from decimal import Decimal
 
 from sentinelrag_shared.llm import LiteLLMGenerator
 
+from app.services.rag._helpers import fill_prompt
 from app.services.rag.types import QueryContext
 
 
 class GenerationStage:
-    """Stateless — model + base url come from the QueryContext at call time."""
+    """Stateless — model + base url come from the QueryContext at call time.
+
+    Args:
+        request_timeout_seconds: per-call wall-clock cap (R3.S4). Tunable
+            from ``Settings.generation_timeout_seconds``; the default
+            matches LiteLLMGenerator's own default.
+    """
+
+    def __init__(self, *, request_timeout_seconds: float = 60.0) -> None:
+        self._timeout = request_timeout_seconds
 
     async def run(self, ctx: QueryContext) -> None:
         if ctx.resolved_prompt is None:
@@ -30,9 +40,12 @@ class GenerationStage:
             api_base=ctx.ollama_base_url
             if ctx.effective_model.startswith("ollama/")
             else None,
+            request_timeout_seconds=self._timeout,
         )
-        user_prompt = ctx.resolved_prompt.user_prompt_template.format(
-            query=ctx.query.strip(), context=ctx.context_text
+        user_prompt = fill_prompt(
+            ctx.resolved_prompt.user_prompt_template,
+            query=ctx.query.strip(),
+            context=ctx.context_text,
         )
         gen_result = await generator.complete(
             system_prompt=ctx.resolved_prompt.system_prompt,
