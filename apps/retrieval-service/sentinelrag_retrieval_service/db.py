@@ -25,7 +25,9 @@ from sentinelrag_retrieval_service.config import get_settings
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
-_SET_TENANT_SQL: Final = text("SELECT set_config('app.current_tenant_id', :tid, true)")
+_SET_TENANT_SQL: Final = text(
+    "SELECT set_config('app.current_tenant_id', :tid, true)"
+)
 
 
 def get_engine() -> AsyncEngine:
