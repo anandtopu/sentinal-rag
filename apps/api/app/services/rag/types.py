@@ -101,6 +101,7 @@ class QueryContext:
     query_session_id: UUID | None = None
     hybrid_result: HybridRetrievalResult | None = None
     reranked: list[Candidate] = field(default_factory=list)
+    embedding_usage: UsageRecord | None = None  # R3.S1 — surfaced from RetrievalClient
 
     # --- Context + prompt ---
     context_text: str = ""
@@ -109,6 +110,10 @@ class QueryContext:
 
     # --- Budget + generation ---
     budget_decision: BudgetDecision | None = None
+    # R3.S5 — populated by BudgetStage when a reservation is placed; the
+    # orchestrator uses this as the signal to release on exit. None
+    # means "no reservation, nothing to release."
+    budget_reservation_amount_usd: Decimal | None = None
     effective_model: str = ""
     answer_text: str = ""
     gen_usage: UsageRecord | None = None

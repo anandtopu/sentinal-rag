@@ -27,6 +27,7 @@ from sentinelrag_shared.errors import BudgetExceededError
 
 from app.db.models import TenantBudget
 from app.db.repositories import TenantBudgetRepository
+from app.services.budget_reservation import BudgetReservationService
 
 
 # ---------------------------------------------------------------------------
@@ -109,8 +110,19 @@ def estimate_completion_cost(
 
 
 class CostService:
-    def __init__(self, repo: TenantBudgetRepository) -> None:
+    def __init__(
+        self,
+        repo: TenantBudgetRepository,
+        reservations: BudgetReservationService | None = None,
+    ) -> None:
         self.repo = repo
+        # R3.S5: optional. When wired (via the route handler) the gate
+        # adds in-flight reservation totals to projected spend so
+        # concurrent queries can't burst past the hard cap during a
+        # provider timeout. A ``None`` reservations service is the
+        # legacy behavior — kept so direct CostService instantiation
+        # in tests stays cheap.
+        self.reservations = reservations
 
     async def check_budget(
         self,
@@ -138,7 +150,12 @@ class CostService:
             period_start=budget.current_period_start,
             period_end=budget.current_period_end,
         )
-        projected = spend + estimate_usd
+        reserved = (
+            await self.reservations.total_reserved(tenant_id=tenant_id)
+            if self.reservations is not None
+            else Decimal("0")
+        )
+        projected = spend + reserved + estimate_usd
 
         # Compute thresholds in USD.
         soft_limit = budget.limit_usd * Decimal(budget.soft_threshold_pct) / Decimal(100)

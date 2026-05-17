@@ -1,7 +1,8 @@
 # ADR-0021: Retrieval is in-process for v1; extract to retrieval-service in Phase 7
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0031](0031-retrieval-service-extraction.md)
 - **Date:** 2026-04-27
+- **Superseded on:** 2026-05-17
 - **Tags:** retrieval, deployment, microservices, scope
 
 ## Context

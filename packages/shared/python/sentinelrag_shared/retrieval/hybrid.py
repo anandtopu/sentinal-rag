@@ -19,6 +19,7 @@ from typing import Any
 from uuid import UUID
 
 from sentinelrag_shared.auth import AuthContext
+from sentinelrag_shared.llm import UsageRecord
 from sentinelrag_shared.retrieval.candidate import Candidate, RetrievalStage
 from sentinelrag_shared.retrieval.keyword_search import KeywordSearch
 from sentinelrag_shared.retrieval.vector_search import VectorSearch
@@ -30,12 +31,18 @@ class HybridRetrievalResult:
 
     Carries each stage's raw results so the orchestrator can persist them
     to ``retrieval_results`` for the query trace.
+
+    ``embedding_usage`` is populated by the caller (the retrieval
+    client) when the vector arm runs; it carries the query embedding's
+    token/cost accounting so the orchestrator can include it in the
+    budget pre-check and persist it on ``usage_records``.
     """
 
     bm25_candidates: list[Candidate]
     vector_candidates: list[Candidate]
     merged_candidates: list[Candidate]
     metadata: dict[str, Any] = field(default_factory=dict)
+    embedding_usage: UsageRecord | None = None
 
 
 class HybridRetriever:

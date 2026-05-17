@@ -14,10 +14,11 @@ from uuid import UUID, uuid4
 
 import pytest
 from app.services.rag._helpers import (
-    approx_token_count,
+    fill_prompt,
     json_dumps,
     referenced_indices,
     restage_candidates,
+    token_count,
     token_overlap_score,
 )
 from app.services.rag.stages.context_assembly import ContextAssemblyStage
@@ -73,11 +74,45 @@ def _ctx(reranked: list[Candidate] | None = None, *, answer: str = "") -> QueryC
 
 
 @pytest.mark.unit
-def test_approx_token_count_rounds_up() -> None:
-    # 4 chars/token, ceiling division → 4 chars = 1 token, 5 chars = 2 tokens
-    assert approx_token_count("") == 0
-    assert approx_token_count("abcd") == 1
-    assert approx_token_count("abcde") == 2
+def test_token_count_returns_zero_for_empty() -> None:
+    """Edge: empty string short-circuits before LiteLLM is even consulted."""
+    assert token_count(model="ollama/llama3.1:8b", text="") == 0
+
+
+@pytest.mark.unit
+def test_token_count_uses_litellm_for_known_models() -> None:
+    """A known model returns a real tokenizer count (>0 for non-empty text)."""
+    count = token_count(model="openai/gpt-4o-mini", text="hello world")
+    assert count > 0
+
+
+@pytest.mark.unit
+def test_token_count_falls_back_for_unknown_models() -> None:
+    """Unknown model → char-based estimate, no exception."""
+    # 4 chars/token, ceiling division → 4 chars = 1 token, 5 chars = 2 tokens.
+    assert token_count(model="bogus/model-xyz", text="abcd") == 1
+    assert token_count(model="bogus/model-xyz", text="abcde") == 2
+
+
+@pytest.mark.unit
+def test_fill_prompt_substitutes_query_and_context() -> None:
+    out = fill_prompt("Q: {query} | C: {context}", query="hi", context="ctx")
+    assert out == "Q: hi | C: ctx"
+
+
+@pytest.mark.unit
+def test_fill_prompt_preserves_literal_braces_in_context() -> None:
+    """A context block carrying JSON or LaTeX must not crash the prompt fill."""
+    code_context = '{"deploy": "ok", "config": {"region": "us-east-1"}}'
+    out = fill_prompt("Q: {query}\n\nCtx:\n{context}", query="how?", context=code_context)
+    assert code_context in out
+    assert "Q: how?" in out
+
+
+@pytest.mark.unit
+def test_fill_prompt_preserves_literal_braces_in_query() -> None:
+    out = fill_prompt("Q: {query}", query="What is {x}?", context="")
+    assert out == "Q: What is {x}?"
 
 
 @pytest.mark.unit

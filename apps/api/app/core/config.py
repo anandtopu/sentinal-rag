@@ -88,11 +88,34 @@ class Settings(BaseSettings):
     # orchestrator falls back to NoOpReranker. Set true for end-to-end demos.
     enable_reranker: bool = False
     ollama_base_url: str = "http://localhost:11434"
+    # R3.S4: per-call wall-clock cap on a single LiteLLM completion. If
+    # this fires the orchestrator records a query.failed audit event
+    # with reason=provider_timeout and frees the budget reservation.
+    # Generation does not retry on timeout — three retries at this
+    # cap would blow past any reasonable request budget.
+    generation_timeout_seconds: float = 60.0
 
     # --- Feature flags ---
     unleash_url: str = "http://localhost:4242/api/"
     unleash_api_token: str = ""
     unleash_app_name: str = "sentinelrag-api"
+
+    # --- Retrieval transport (R4) ---
+    # ``in-process`` (default) composes the shared retrieval library
+    # against the API's own SQLAlchemy session. ``http`` calls
+    # apps/retrieval-service over httpx. Per ADR (R4.S7), the default
+    # stays in-process until the R4.S6 benchmark verifies p95 budget.
+    # Named ``retrieval_transport`` (not ``retrieval_mode``) to avoid
+    # colliding with the legacy ``RETRIEVAL_MODE`` env var in
+    # ``.env.example`` — that knob is a per-request retrieval mode
+    # default that intentionally is NOT loaded into Settings.
+    retrieval_transport: Literal["in-process", "http"] = "in-process"
+    retrieval_service_url: str = "http://retrieval:8000"
+    # Shared bearer secret for service-to-service auth. mTLS / Keycloak
+    # service-accounts are the production upgrade path; this is the R4
+    # v1 simplification documented in the supersession ADR.
+    retrieval_service_token: str = ""
+    retrieval_service_timeout_seconds: float = 5.0
 
 
 @lru_cache

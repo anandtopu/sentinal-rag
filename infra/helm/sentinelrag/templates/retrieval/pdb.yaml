@@ -1,0 +1,14 @@
+{{- if and .Values.retrieval.enabled .Values.retrieval.pdb.enabled -}}
+{{- $ctx := merge (dict "workload" "retrieval" "workloadKey" "retrieval") . -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.retrieval.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 6 }}
+{{- end -}}

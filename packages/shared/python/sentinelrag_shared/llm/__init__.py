@@ -14,6 +14,7 @@ from sentinelrag_shared.llm.embedder import (
 from sentinelrag_shared.llm.generator import (
     Generator,
     GeneratorError,
+    GeneratorTimeoutError,
     LiteLLMGenerator,
 )
 from sentinelrag_shared.llm.reranker import (
@@ -39,6 +40,7 @@ __all__ = [
     "GenerationResult",
     "Generator",
     "GeneratorError",
+    "GeneratorTimeoutError",
     "LiteLLMEmbedder",
     "LiteLLMGenerator",
     "NoOpReranker",

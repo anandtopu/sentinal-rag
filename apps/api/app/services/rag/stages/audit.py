@@ -40,7 +40,19 @@ class AuditStage:
             )
         )
 
-    async def record_query_failed(self, ctx: QueryContext, *, error: str) -> None:
+    async def record_query_failed(
+        self,
+        ctx: QueryContext,
+        *,
+        error: str,
+        reason: str = "internal_error",
+    ) -> None:
+        """``reason`` is a categorical tag for filtering in audit dashboards.
+
+        Today's set: ``provider_timeout`` (R3.S4), ``internal_error``
+        (default). Add new values here as additional failure modes get
+        classified — don't sprinkle freeform strings.
+        """
         if ctx.query_session_id is None:
             # If the session row never opened, there's nothing useful to attach
             # an audit event to. Skip — the failure log + metric capture it.
@@ -55,6 +67,7 @@ class AuditStage:
                 action="execute",
                 metadata={
                     "error": error[:500],
+                    "reason": reason,
                     "latency_ms": ctx.latency_ms,
                 },
             )

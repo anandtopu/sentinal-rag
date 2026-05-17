@@ -3733,17 +3733,27 @@ name = "sentinelrag-retrieval-service"
 version = "0.1.0"
 source = { editable = "apps/retrieval-service" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "fastapi" },
+    { name = "pgvector" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "sentinelrag-shared" },
+    { name = "sqlalchemy" },
+    { name = "structlog" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "pgvector", specifier = ">=0.3" },
     { name = "pydantic", specifier = ">=2.9" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
     { name = "sentinelrag-shared", editable = "packages/shared/python" },
+    { name = "sqlalchemy", specifier = ">=2.0" },
+    { name = "structlog", specifier = ">=24.4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
 

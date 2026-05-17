@@ -1,0 +1,22 @@
+{{- if .Values.retrieval.enabled -}}
+{{- $ctx := merge (dict "workload" "retrieval" "workloadKey" "retrieval") . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+  {{- with .Values.retrieval.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.retrieval.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.retrieval.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 4 }}
+{{- end -}}
