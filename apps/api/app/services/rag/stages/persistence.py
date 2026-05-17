@@ -80,6 +80,9 @@ class PersistenceStage:
             output_tokens=ctx.output_tokens,
             cost_usd=ctx.gen_cost,
             grounding_score=ctx.grounding_score,
+            nli_verdict=ctx.nli_verdict,
+            judge_verdict=ctx.judge_verdict,
+            judge_reasoning=ctx.judge_reasoning,
         )
 
     async def _persist_citations(self, ctx: QueryContext) -> list[CitationOut]:

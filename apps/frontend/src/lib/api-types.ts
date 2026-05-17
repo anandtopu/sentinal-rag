@@ -146,6 +146,8 @@ export interface QueryResponse {
   confidence_score: number | null;
   grounding_score: number | null;
   hallucination_risk_score: number | null;
+  nli_verdict: string | null;
+  judge_verdict: string | null;
   citations: CitationRead[];
   usage: QueryUsage;
 }
@@ -167,6 +169,8 @@ export interface GeneratedAnswerSummary {
   grounding_score: number | null;
   hallucination_risk_score: number | null;
   confidence_score: number | null;
+  nli_verdict: string | null;
+  judge_verdict: string | null;
 }
 
 export interface QueryTraceResponse {

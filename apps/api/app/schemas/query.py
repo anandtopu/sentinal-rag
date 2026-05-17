@@ -68,6 +68,8 @@ class QueryResponse(APIModel):
     confidence_score: float | None
     grounding_score: float | None
     hallucination_risk_score: float | None
+    nli_verdict: str | None = None
+    judge_verdict: str | None = None
     citations: list[CitationRead]
     usage: QueryUsage
 
@@ -92,6 +94,8 @@ class GeneratedAnswerSummary(APIModel):
     grounding_score: float | None
     hallucination_risk_score: float | None
     confidence_score: float | None
+    nli_verdict: str | None = None
+    judge_verdict: str | None = None
 
 
 class QueryTraceResponse(APIModel):

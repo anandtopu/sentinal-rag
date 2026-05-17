@@ -56,6 +56,8 @@ def _result_with_citation() -> QueryResult:
         confidence_score=None,
         grounding_score=0.9,
         hallucination_risk_score=None,
+        nli_verdict=None,
+        judge_verdict=None,
         citations=[
             CitationOut(
                 citation_id=uuid4(),
@@ -177,6 +179,8 @@ async def test_build_trace_maps_retrieval_and_generation_rows() -> None:
                     grounding_score=0.8,
                     hallucination_risk_score=None,
                     confidence_score=None,
+                    nli_verdict="entail",
+                    judge_verdict=None,
                 )
             ),
         ]
@@ -339,6 +343,8 @@ async def test_execute_query_passes_abstain_option_to_orchestrator(
                 confidence_score=None,
                 grounding_score=0.0,
                 hallucination_risk_score=None,
+                nli_verdict=None,
+                judge_verdict=None,
                 citations=[],
                 input_tokens=0,
                 output_tokens=0,

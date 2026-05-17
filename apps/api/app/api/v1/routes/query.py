@@ -134,6 +134,8 @@ def _to_query_response(
         confidence_score=result.confidence_score,
         grounding_score=result.grounding_score,
         hallucination_risk_score=result.hallucination_risk_score,
+        nli_verdict=result.nli_verdict,
+        judge_verdict=result.judge_verdict,
         citations=citations,
         usage=QueryUsage(
             input_tokens=result.input_tokens,
@@ -180,7 +182,7 @@ async def _build_trace(
             text(
                 "SELECT model_name, prompt_version_id, input_tokens, output_tokens, "
                 "       cost_usd, grounding_score, hallucination_risk_score, "
-                "       confidence_score "
+                "       confidence_score, nli_verdict, judge_verdict "
                 "FROM generated_answers WHERE query_session_id = :id"
             ),
             {"id": str(query_session_id)},
@@ -213,6 +215,8 @@ async def _build_trace(
                 grounding_score=gen_row.grounding_score,
                 hallucination_risk_score=gen_row.hallucination_risk_score,
                 confidence_score=gen_row.confidence_score,
+                nli_verdict=gen_row.nli_verdict,
+                judge_verdict=gen_row.judge_verdict,
             )
             if gen_row is not None
             else None

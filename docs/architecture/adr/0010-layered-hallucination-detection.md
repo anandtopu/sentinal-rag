@@ -94,3 +94,73 @@ plus the candidates that were retrieved (transparent failure).
 
 - [RAG hallucination evaluation patterns](https://arxiv.org/abs/2401.00396)
 - [DeBERTa-v3 NLI](https://huggingface.co/cross-encoder/nli-deberta-v3-base)
+
+## Implementation notes (2026-05-17)
+
+R2 of the remediation plan wired the cascade into the live `/query`
+path. Status stays `Accepted`; the decision text above is unchanged.
+These notes capture how the decision was actually realized so a future
+reader doesn't have to reconstruct it from code.
+
+### Flag scheme (Unleash, behind the FeatureFlagClient Protocol)
+
+| Key | Default | Behavior |
+|---|---|---|
+| `hallucination.nli.enabled` | `true` | Layer 2 runs on every non-abstained query. |
+| `hallucination.judge.enabled` | `false` | Master switch for layer 3. While `false`, layer 3 is never invoked even when sample rate is positive. |
+| `hallucination.judge.sample_rate` | `0.0` | Probability of running the judge on a non-high-risk answer. Clamped to `[0.0, 1.0]` at resolve time so a flag-server typo can't push it past 1. |
+
+The defaults map lives at one source of truth
+(`packages/shared/python/sentinelrag_shared/feature_flags/flags.py::HALLUCINATION_CASCADE_DEFAULTS`)
+and is asserted by a unit test so a future flag-server misconfiguration
+cannot silently flip the judge on at 100% sampling.
+
+### Layer thresholds + dispatch (per query)
+
+1. **Layer 1 (overlap)** — always runs. Sets `grounding_score`. If the
+   answer is empty or equals the abstention sentinel, or no retrieved
+   context survived to the prompt, layers 2 and 3 are short-circuited.
+2. **Layer 2 (NLI)** — gated on `hallucination.nli.enabled`. The
+   default in-process backend is a no-op that returns `"skipped"`; the
+   real deberta backend is deployed alongside the retrieval-service
+   pod and wired in via DI (`Orchestrator.__init__` takes an
+   `NliBackend`). Persisted verdict values: `entail | neutral |
+   contradict | skipped`.
+3. **Layer 3 (judge)** — runs only if `judge.enabled` AND
+   (NLI verdict ∈ {`neutral`, `contradict`, `skipped`} OR a per-query
+   coin flip lands under `judge.sample_rate`). Implementation uses any
+   `Generator` (LiteLLM-routed) with a static, structured prompt that
+   forces a `PASS/FAIL` first line. Persisted verdict values:
+   `pass | fail | skipped`. Free-form rationale lands on the
+   pre-existing `judge_reasoning` column.
+
+### Persistence shape
+
+Migration `0016_generated_answers_layered_verdicts.py` added
+`nli_verdict TEXT NULL` and `judge_verdict TEXT NULL` to
+`generated_answers`, plus CHECK constraints listing the exact allowed
+literals. `NULL` means the layer didn't run; `'skipped'` means the
+layer was requested but had no real backend / failed parse — the
+distinction matters for operators triaging "is the cascade healthy."
+
+### Observability
+
+`sentinelrag_hallucination_layer_latency_ms{layer="overlap|nli|judge"}`
+histogram replaces the previous `sentinelrag_grounding_score` summary
+for cascade-aware dashboards. The latter stays in place so existing
+Grafana panels don't break. No `tenant_id` attribute — cardinality
+discipline from ADR-0023.
+
+### Deferred for follow-up
+
+- A real `HuggingFaceNliBackend` and a `LiteLLMJudge` wired into
+  `app.state` (orchestrator currently accepts both via DI but defaults
+  to no-op so the cascade stays off until operators raise the flag and
+  bind the real adapter).
+- An Unleash-backed `FeatureFlagClient` impl; today the system runs on
+  the in-process `StaticFeatureFlags` with the documented defaults.
+  Both swaps land behind the existing Protocol with no orchestrator
+  change.
+- Frontend cascade panel currently displays the three persisted
+  verdicts side-by-side; ADR-0010's "abstention threshold" UI control
+  is intentionally out of scope for R2.

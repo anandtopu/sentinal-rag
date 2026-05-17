@@ -10,7 +10,7 @@ from uuid import UUID
 
 if TYPE_CHECKING:
     from sentinelrag_shared.auth import AuthContext
-    from sentinelrag_shared.llm import LiteLLMEmbedder, Usage
+    from sentinelrag_shared.llm import LiteLLMEmbedder, UsageRecord
     from sentinelrag_shared.retrieval import Candidate, HybridRetrievalResult
 
     from app.db.models import PromptVersion
@@ -60,6 +60,8 @@ class QueryResult:
     confidence_score: float | None
     grounding_score: float | None
     hallucination_risk_score: float | None
+    nli_verdict: str | None
+    judge_verdict: str | None
     citations: list[CitationOut]
     input_tokens: int
     output_tokens: int
@@ -109,13 +111,16 @@ class QueryContext:
     budget_decision: BudgetDecision | None = None
     effective_model: str = ""
     answer_text: str = ""
-    gen_usage: Usage | None = None
+    gen_usage: UsageRecord | None = None
     gen_cost: Decimal = Decimal("0")
     input_tokens: int = 0
     output_tokens: int = 0
 
-    # --- Quality signals ---
+    # --- Quality signals (ADR-0010 layered cascade) ---
     grounding_score: float | None = None
+    nli_verdict: str | None = None
+    judge_verdict: str | None = None
+    judge_reasoning: str | None = None
 
     # --- Persistence outputs ---
     generated_answer_id: UUID | None = None
@@ -131,9 +136,11 @@ class QueryContext:
         return QueryResult(
             query_session_id=self.query_session_id,
             answer=self.answer_text,
-            confidence_score=None,  # R2 (layered hallucination) will fill these
+            confidence_score=None,
             grounding_score=self.grounding_score,
             hallucination_risk_score=None,
+            nli_verdict=self.nli_verdict,
+            judge_verdict=self.judge_verdict,
             citations=self.cited_out,
             input_tokens=self.input_tokens,
             output_tokens=self.output_tokens,

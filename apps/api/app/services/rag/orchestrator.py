@@ -19,6 +19,8 @@ from sentinelrag_shared.audit import (
     PostgresAuditSink,
 )
 from sentinelrag_shared.auth import AuthContext
+from sentinelrag_shared.evaluation.grounding import Judge, NliBackend
+from sentinelrag_shared.feature_flags import FeatureFlagClient
 from sentinelrag_shared.llm import LiteLLMEmbedder, NoOpReranker, Reranker
 from sentinelrag_shared.retrieval import AccessFilter
 from sentinelrag_shared.telemetry import (
@@ -65,6 +67,9 @@ class Orchestrator:
         cost_service: CostService | None = None,
         audit_service: AuditService | None = None,
         retrieval_client: RetrievalClient | None = None,
+        nli_backend: NliBackend | None = None,
+        judge: Judge | None = None,
+        flag_client: FeatureFlagClient | None = None,
     ) -> None:
         self._session = session
         self._embedding_model = embedding_model
@@ -83,6 +88,12 @@ class Orchestrator:
         # ollama-vs-cloud heuristic still applies; the in-process client
         # gets wired in once the embedder exists.
         self._retrieval_client_override = retrieval_client
+        # Cascade adapters: passing None lets ``GroundingStage`` install
+        # its own NoOp defaults (judge stays "skipped" until a real one
+        # is wired).
+        self._nli_backend = nli_backend
+        self._judge = judge
+        self._flag_client = flag_client
 
     async def run(
         self,
@@ -125,7 +136,11 @@ class Orchestrator:
         prompt_stage = PromptStage(self._session)
         budget_stage = BudgetStage(self._cost_service, self._audit_service)
         generation_stage = GenerationStage()
-        grounding_stage = GroundingStage()
+        grounding_stage = GroundingStage(
+            nli_backend=self._nli_backend,
+            judge=self._judge,
+            flag_client=self._flag_client,
+        )
         persistence_stage = PersistenceStage(self._session)
         audit_stage = AuditStage(self._audit_service)
 
