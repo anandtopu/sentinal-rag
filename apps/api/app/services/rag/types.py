@@ -10,7 +10,7 @@ from uuid import UUID
 
 if TYPE_CHECKING:
     from sentinelrag_shared.auth import AuthContext
-    from sentinelrag_shared.llm import LiteLLMEmbedder, UsageRecord
+    from sentinelrag_shared.llm import LiteLLMEmbedder, Usage
     from sentinelrag_shared.retrieval import Candidate, HybridRetrievalResult
 
     from app.db.models import PromptVersion
@@ -60,8 +60,6 @@ class QueryResult:
     confidence_score: float | None
     grounding_score: float | None
     hallucination_risk_score: float | None
-    nli_verdict: str | None
-    judge_verdict: str | None
     citations: list[CitationOut]
     input_tokens: int
     output_tokens: int
@@ -73,7 +71,8 @@ class QueryResult:
 # to abstention. Kept module-level so tests can import the same string the
 # generation stage emits.
 ABSTAIN_ANSWER = (
-    "I do not have enough information in the provided sources to answer that confidently."
+    "I do not have enough information in the provided sources "
+    "to answer that confidently."
 )
 
 
@@ -100,7 +99,6 @@ class QueryContext:
     query_session_id: UUID | None = None
     hybrid_result: HybridRetrievalResult | None = None
     reranked: list[Candidate] = field(default_factory=list)
-    embedding_usage: UsageRecord | None = None  # R3.S1 — surfaced from RetrievalClient
 
     # --- Context + prompt ---
     context_text: str = ""
@@ -109,22 +107,15 @@ class QueryContext:
 
     # --- Budget + generation ---
     budget_decision: BudgetDecision | None = None
-    # R3.S5 — populated by BudgetStage when a reservation is placed; the
-    # orchestrator uses this as the signal to release on exit. None
-    # means "no reservation, nothing to release."
-    budget_reservation_amount_usd: Decimal | None = None
     effective_model: str = ""
     answer_text: str = ""
-    gen_usage: UsageRecord | None = None
+    gen_usage: Usage | None = None
     gen_cost: Decimal = Decimal("0")
     input_tokens: int = 0
     output_tokens: int = 0
 
-    # --- Quality signals (ADR-0010 layered cascade) ---
+    # --- Quality signals ---
     grounding_score: float | None = None
-    nli_verdict: str | None = None
-    judge_verdict: str | None = None
-    judge_reasoning: str | None = None
 
     # --- Persistence outputs ---
     generated_answer_id: UUID | None = None
@@ -140,11 +131,9 @@ class QueryContext:
         return QueryResult(
             query_session_id=self.query_session_id,
             answer=self.answer_text,
-            confidence_score=None,
+            confidence_score=None,  # R2 (layered hallucination) will fill these
             grounding_score=self.grounding_score,
             hallucination_risk_score=None,
-            nli_verdict=self.nli_verdict,
-            judge_verdict=self.judge_verdict,
             citations=self.cited_out,
             input_tokens=self.input_tokens,
             output_tokens=self.output_tokens,

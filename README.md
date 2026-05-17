@@ -1,4 +1,4 @@
-# SentinelRAG
+de# SentinelRAG
 
 > **Multi-tenant, RBAC-aware, evaluation-driven enterprise RAG platform.**
 > Production-shaped: Postgres + pgvector retrieval, layered hallucination

@@ -12,12 +12,7 @@ Public surface:
 
 from __future__ import annotations
 
-from app.services.rag.client import (
-    HttpRetrievalClient,
-    InProcessRetrievalClient,
-    RetrievalClient,
-    RetrievalClientError,
-)
+from app.services.rag.client import InProcessRetrievalClient, RetrievalClient
 from app.services.rag.orchestrator import Orchestrator
 from app.services.rag.types import (
     CitationOut,
@@ -31,13 +26,11 @@ from app.services.rag.types import (
 __all__ = [
     "CitationOut",
     "GenerationConfig",
-    "HttpRetrievalClient",
     "InProcessRetrievalClient",
     "Orchestrator",
     "QueryContext",
     "QueryOptions",
     "QueryResult",
     "RetrievalClient",
-    "RetrievalClientError",
     "RetrievalConfig",
 ]
