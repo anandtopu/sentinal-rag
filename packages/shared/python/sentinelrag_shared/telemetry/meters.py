@@ -111,6 +111,21 @@ def grounding_score() -> metrics.Histogram:
     )
 
 
+@lru_cache(maxsize=1)
+def hallucination_layer_latency_ms() -> metrics.Histogram:
+    """Per-layer latency for the hallucination cascade (ADR-0010).
+
+    Attributes: ``layer`` (``overlap``|``nli``|``judge``). No tenant_id —
+    keeping cardinality bounded so Prometheus storage doesn't blow up
+    when the cascade fans out across tens of thousands of tenants.
+    """
+    return _meter().create_histogram(
+        "sentinelrag_hallucination_layer_latency_ms",
+        unit="ms",
+        description="Latency per layer of the hallucination cascade",
+    )
+
+
 # Helpers ---------------------------------------------------------------------
 
 def record_query_completed(*, status: str, latency_ms: int) -> None:
@@ -149,3 +164,10 @@ def record_audit_drift(*, side: str, count: int) -> None:
 def record_audit_secondary_failure(*, sink: str) -> None:
     """Increment when a dual-write secondary sink fails. ``sink`` = class name."""
     audit_secondary_failures_total().add(1, {"sink": sink})
+
+
+def record_hallucination_layer_latency(*, layer: str, latency_ms: int) -> None:
+    """``layer`` ∈ {overlap, nli, judge}. Negative latencies are dropped."""
+    if latency_ms < 0:
+        return
+    hallucination_layer_latency_ms().record(latency_ms, {"layer": layer})
