@@ -33,11 +33,11 @@ from app.schemas.query import (
     QueryUsage,
     RetrievalResultRead,
 )
-from app.services.rag_orchestrator import (
+from app.services.rag import (
     GenerationConfig,
+    Orchestrator,
     QueryOptions,
     QueryResult,
-    RagOrchestrator,
     RetrievalConfig,
 )
 
@@ -70,7 +70,7 @@ async def execute_query(
     if requires_cloud_model_permission(requested_model):
         ctx.require_permission("llm:cloud_models")
 
-    orchestrator = RagOrchestrator(
+    orchestrator = Orchestrator(
         session=db,
         embedding_model=settings.default_embedding_model,
         ollama_base_url=settings.ollama_base_url,

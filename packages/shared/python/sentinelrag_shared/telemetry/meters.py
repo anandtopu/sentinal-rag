@@ -58,6 +58,22 @@ def llm_cost_usd_total() -> metrics.Counter:
 
 
 @lru_cache(maxsize=1)
+def audit_secondary_failures_total() -> metrics.Counter:
+    """Secondary-sink failures inside the dual-write path.
+
+    Attributes: ``sink`` (sink class name, e.g. ``ObjectStorageAuditSink``).
+    Used by the audit-drift alarm; the daily reconciliation Schedule
+    backfills any missed rows so this counter is an early-warning signal
+    rather than a data-loss alarm.
+    """
+    return _meter().create_counter(
+        "sentinelrag_audit_secondary_failures_total",
+        unit="1",
+        description="Audit dual-write secondary-sink failures (ADR-0016)",
+    )
+
+
+@lru_cache(maxsize=1)
 def audit_reconciliation_drift() -> metrics.Counter:
     """Audit drift counts per reconciliation run.
 
@@ -128,3 +144,8 @@ def record_audit_drift(*, side: str, count: int) -> None:
     if count <= 0:
         return
     audit_reconciliation_drift().add(count, {"side": side})
+
+
+def record_audit_secondary_failure(*, sink: str) -> None:
+    """Increment when a dual-write secondary sink fails. ``sink`` = class name."""
+    audit_secondary_failures_total().add(1, {"sink": sink})

@@ -130,15 +130,15 @@ async def score_case(
 ) -> dict[str, Any]:
     """Run a single eval case end-to-end and persist the score row.
 
-    This activity is the natural place to import the API service's
-    RagOrchestrator. We import lazily to avoid loading FastAPI at module
+    This activity is the natural place to import the API service's RAG
+    orchestrator. We import lazily to avoid loading FastAPI at module
     init in the worker.
     """
     # Lazy import — keeps the worker startup light.
-    from app.services.rag_orchestrator import (  # noqa: PLC0415
+    from app.services.rag import (  # noqa: PLC0415
         GenerationConfig,
+        Orchestrator,
         QueryOptions,
-        RagOrchestrator,
         RetrievalConfig,
     )
     from sentinelrag_shared.auth import AuthContext  # noqa: PLC0415
@@ -204,7 +204,7 @@ async def score_case(
             ),
         )
 
-        orchestrator = RagOrchestrator(
+        orchestrator = Orchestrator(
             session=session,
             embedding_model=model_config.get(
                 "embedding_model",

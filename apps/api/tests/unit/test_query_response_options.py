@@ -11,7 +11,7 @@ import pytest
 from app.api.v1.routes import query as query_routes
 from app.api.v1.routes.query import _build_trace, _coerce_metadata, _to_query_response
 from app.schemas.query import GenerationConfigIn, QueryRequest, RetrievalConfigIn
-from app.services.rag_orchestrator import CitationOut, QueryOptions, QueryResult
+from app.services.rag import CitationOut, QueryOptions, QueryResult
 from sentinelrag_shared.auth import AuthContext
 from sentinelrag_shared.errors import RBACDeniedError
 from starlette.responses import StreamingResponse
@@ -350,7 +350,7 @@ async def test_execute_query_passes_abstain_option_to_orchestrator(
         return FakeSettings()
 
     monkeypatch.setattr(query_routes, "get_settings", fake_get_settings)
-    monkeypatch.setattr(query_routes, "RagOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(query_routes, "Orchestrator", FakeOrchestrator)
 
     request = _request()
     request.options.abstain_if_unsupported = False
