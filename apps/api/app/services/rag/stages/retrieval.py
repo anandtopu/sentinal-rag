@@ -30,10 +30,6 @@ class RetrievalStage:
             ef_search=ctx.retrieval_cfg.ef_search,
         )
         ctx.hybrid_result = result
-        # R3.S1: capture embedding usage for the budget pre-check and
-        # the persisted ``usage_records`` row. bm25-only mode leaves
-        # this None.
-        ctx.embedding_usage = result.embedding_usage
 
         if ctx.query_session_id is None:
             msg = "RetrievalStage requires SessionStage.open to have run first."

@@ -34,35 +34,18 @@ class PersistenceStage:
         ctx.generated_answer_id = await self._persist_generated_answer(ctx)
         ctx.cited_out = await self._persist_citations(ctx)
 
-        # R3.S1: persist the embedding row with the real usage carried up
-        # from the retrieval client. ``embedding_usage`` is None on
-        # bm25-only queries (no embedder call happened) — preserve the
-        # legacy zero-row in that case so downstream cost dashboards
-        # still join cleanly on query_session_id.
-        if ctx.embedding_usage is not None:
-            await self._usage.create(
-                tenant_id=ctx.auth.tenant_id,
-                user_id=ctx.auth.user_id,
-                query_session_id=ctx.query_session_id,
-                usage_type="embedding",
-                provider=ctx.embedding_usage.provider,
-                model_name=ctx.embedding_usage.model_name,
-                input_tokens=ctx.embedding_usage.input_tokens,
-                output_tokens=ctx.embedding_usage.output_tokens,
-                total_cost_usd=ctx.embedding_usage.total_cost_usd or Decimal("0"),
-            )
-        else:
-            await self._usage.create(
-                tenant_id=ctx.auth.tenant_id,
-                user_id=ctx.auth.user_id,
-                query_session_id=ctx.query_session_id,
-                usage_type="embedding",
-                provider=ctx.embedder.model_name.split("/", 1)[0],
-                model_name=ctx.embedder.model_name,
-                input_tokens=0,
-                output_tokens=0,
-                total_cost_usd=Decimal("0"),
-            )
+        # Embedding row — tokens not surfaced in v1 (R3.S1 fixes this).
+        await self._usage.create(
+            tenant_id=ctx.auth.tenant_id,
+            user_id=ctx.auth.user_id,
+            query_session_id=ctx.query_session_id,
+            usage_type="embedding",
+            provider=ctx.embedder.model_name.split("/", 1)[0],
+            model_name=ctx.embedder.model_name,
+            input_tokens=0,
+            output_tokens=0,
+            total_cost_usd=Decimal("0"),
+        )
         if ctx.gen_usage is not None:
             await self._usage.create(
                 tenant_id=ctx.auth.tenant_id,
@@ -78,9 +61,13 @@ class PersistenceStage:
 
     async def _persist_generated_answer(self, ctx: QueryContext) -> UUID:
         assert ctx.query_session_id is not None
-        prompt_version_id = ctx.resolved_prompt.id if ctx.resolved_prompt is not None else None
+        prompt_version_id = (
+            ctx.resolved_prompt.id if ctx.resolved_prompt is not None else None
+        )
         model_provider = (
-            ctx.effective_model.split("/", 1)[0] if "/" in ctx.effective_model else "unknown"
+            ctx.effective_model.split("/", 1)[0]
+            if "/" in ctx.effective_model
+            else "unknown"
         )
         return await self._answers.create(
             tenant_id=ctx.auth.tenant_id,
@@ -93,9 +80,6 @@ class PersistenceStage:
             output_tokens=ctx.output_tokens,
             cost_usd=ctx.gen_cost,
             grounding_score=ctx.grounding_score,
-            nli_verdict=ctx.nli_verdict,
-            judge_verdict=ctx.judge_verdict,
-            judge_reasoning=ctx.judge_reasoning,
         )
 
     async def _persist_citations(self, ctx: QueryContext) -> list[CitationOut]:

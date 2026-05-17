@@ -26,9 +26,6 @@ class GeneratedAnswerRepository:
         output_tokens: int,
         cost_usd: Decimal,
         grounding_score: float | None,
-        nli_verdict: str | None = None,
-        judge_verdict: str | None = None,
-        judge_reasoning: str | None = None,
     ) -> UUID:
         new_id = uuid4()
         await self._session.execute(
@@ -36,10 +33,9 @@ class GeneratedAnswerRepository:
                 "INSERT INTO generated_answers "
                 "(id, tenant_id, query_session_id, answer_text, model_provider, "
                 " model_name, prompt_version_id, input_tokens, output_tokens, "
-                " cost_usd, grounding_score, nli_verdict, judge_verdict, "
-                " judge_reasoning) "
+                " cost_usd, grounding_score) "
                 "VALUES (:id, :tid, :qs, :ans, :prov, :model, :pv, "
-                "        :it, :ot, :cost, :ground, :nli, :judge, :judge_rs)"
+                "        :it, :ot, :cost, :ground)"
             ),
             {
                 "id": str(new_id),
@@ -53,9 +49,6 @@ class GeneratedAnswerRepository:
                 "ot": output_tokens,
                 "cost": cost_usd,
                 "ground": grounding_score,
-                "nli": nli_verdict,
-                "judge": judge_verdict,
-                "judge_rs": judge_reasoning,
             },
         )
         return new_id

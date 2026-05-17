@@ -26,31 +26,10 @@
 
 ## Current phase
 
-**R4.S6 🟡 scaffolded (2026-05-17).** Harness wired — `compare.py`
-extended with the `retrieval-transport` comparison + dual base-URL
-flags; new `k6/transport-compare.js` latency scenario; new
-`docs/operations/runbooks/retrieval-benchmark.md` runbook; ADR-0031
-appended with a "Benchmark scaffolding (2026-05-17)" section. Numbers
-still await a live cluster (ADR-0029 forbids hand-edits). Session
-handoff:
-[`handoff/2026-05-17-r4s6-scaffold.md`](handoff/2026-05-17-r4s6-scaffold.md).
-
-Previously: **R6 🟢 complete (2026-05-17).** README typo fixed,
-quick-start audit landed a `pnpm` correction + ADR count refresh, the
-`RETRIEVAL_SERVICE_TOKEN`-missing startup guard from the R4 handoff
-follow-up list shipped with 4 new tests. Session handoff:
-[`handoff/2026-05-17-r6-complete.md`](handoff/2026-05-17-r6-complete.md).
-Previous handoffs:
-[`R5`](handoff/2026-05-17-r5-complete.md),
-[`R4`](handoff/2026-05-17-r4-partial.md),
-[`R3`](handoff/2026-05-17-r3-partial.md),
-[`R2`](handoff/2026-05-17-r2-complete.md),
-[`R1`](handoff/2026-05-16-r1-complete.md).
-
-Pre-existing PHASE_PLAN.md work (first live deploy, real eval/cost
-numbers, drill RTOs, 5-min demo video) is **independent** of this plan
-and can ship in any order. **Only R4.S6 (benchmark, requires live
-cluster) remains.**
+**R1 not started.** Pre-existing PHASE_PLAN.md work (first live deploy,
+real eval/cost numbers, drill RTOs, 5-min demo video) is **independent**
+of this plan and can ship in any order. R1–R3 are pure code changes that
+do not require live cloud infra.
 
 ## Phase ordering rationale
 
@@ -89,27 +68,10 @@ regardless of how clean the diff looks:
 
 ## Phase ledger
 
-### Phase R1 — Orchestrator surgery + pillar honesty 🟢
+### Phase R1 — Orchestrator surgery + pillar honesty ⚪
 **Goal:** Make the orchestrator the cleanest part of the codebase. Close
 the four highest-impact findings (#1, #2, #6, #7) and stage the file for
 R2/R3 to drop into.
-
-**Status (2026-05-16):** All 5 slices complete on a single session.
-- Lint clean: `uv run ruff check apps packages` → 0 errors.
-- Unit suite: `uv run pytest -m unit` → **194 passed, 0 failures**
-  (baseline 162 + 11 new stage tests + 1 new audit isolation test +
-  20 from in-flight work).
-- Typecheck: `uv run pyright apps/api/app/services/rag` → **0 errors**
-  on the new modules (warnings dominated by pre-existing
-  `reportMissingTypeStubs` for workspace-internal modules).
-- App startup smoke: `from app.main import create_app; create_app()` →
-  45 routes registered.
-- Worker activity import: `from sentinelrag_worker.activities import
-  evaluation` → OK (lazy import of `app.services.rag` resolves).
-- Integration tests (RLS / RBAC retrieval / audit dual-write against
-  real Postgres) **deferred** — Docker Desktop named-pipe permissions
-  blocked on this Windows host, same constraint flagged in
-  PROGRESS.md. Must run before R1 ships in a real PR.
 
 **Closes review findings:** #1, #2, #6, #7. (Partial #9 if hoisting
 component construction is done in the same pass.)
@@ -122,7 +84,7 @@ need Docker for testcontainers.
 
 **Slices:**
 
-- 🟢 **R1.S1 — Extract stages package.** Create
+- 🔲 **R1.S1 — Extract stages package.** Create
   `apps/api/app/services/rag/orchestrator.py` + `apps/api/app/services/rag/stages/`
   with the layout from the review:
   `retrieval.py`, `rerank.py`, `context.py`, `prompt.py`, `budget.py`,
@@ -135,7 +97,7 @@ need Docker for testcontainers.
   is wiring an HTTP impl behind the existing seam, not refactoring
   call sites a second time. R1 ships only the `InProcessRetrievalClient`
   implementation; the HTTP impl lands in R4A.S2.
-- 🟢 **R1.S2 — Replace raw SQL with repositories.** All five
+- 🔲 **R1.S2 — Replace raw SQL with repositories.** All five
   `INSERT`s and the `UPDATE` against `query_sessions`,
   `retrieval_results`, `generated_answers`, `answer_citations`,
   `usage_records` go through the existing repository pattern under
@@ -143,19 +105,19 @@ need Docker for testcontainers.
   exist yet. RLS context (`SET LOCAL app.current_tenant_id`) must be
   set on the same session used by repositories — verify via
   integration test, not unit test.
-- 🟢 **R1.S3 — Schema: real `error_message` column.**
+- 🔲 **R1.S3 — Schema: real `error_message` column.**
   Hand-written Alembic revision adding
   `query_sessions.error_message TEXT NULL`. Drop the
   `normalized_query` poison-pill writes in the orchestrator failure
   path. Backfill is not required (legacy rows keep their polluted
   `normalized_query`; document this in the migration message).
-- 🟢 **R1.S4 — Audit secondary-failure isolation.** Move the
+- 🔲 **R1.S4 — Audit secondary-failure isolation.** Move the
   `contextlib.suppress` from the orchestrator into
   `DualWriteAuditService`. Secondary sink failures emit a structured
   log + an OTel counter (`sentinelrag_audit_secondary_failures_total`),
   and the daily reconciliation Schedule (Phase 6.5) catches the drift.
   Primary (Postgres) sink failures still propagate.
-- 🟢 **R1.S5 — Delete shim + flip imports.** Once R1.S1–S4 land
+- 🔲 **R1.S5 — Delete shim + flip imports.** Once R1.S1–S4 land
   and tests are green, delete the old `apps/api/app/services/rag_orchestrator.py`
   shim and update import sites (`apps/api/app/api/` route handlers,
   any callers in tests).
@@ -186,33 +148,11 @@ stages package is importable + tested in isolation.
 - Don't add idempotency or tokenizer changes here — that's R3.
 - Don't touch the carved-out `retrieval-service` — that's R4.
 
-### Phase R2 — Layered hallucination cascade in the query path 🟢
+### Phase R2 — Layered hallucination cascade in the query path ⚪
 **Goal:** Make pillar #6 and ADR-0010 honest at request time, not just
 in offline eval. Today the orchestrator only runs the token-overlap
 layer; NLI + LLM-judge live in `sentinelrag_shared/evaluation/` and
 never see live traffic.
-
-**Status (2026-05-17):** All 5 slices complete on a single session.
-- Lint clean: `uv run ruff check apps packages` → 0 errors.
-- Unit suite: `uv run pytest -m unit` → **214 passed, 0 failures**
-  (R1 baseline 194 + 20 new tests in
-  `apps/api/tests/unit/test_grounding_cascade.py`).
-- Typecheck: `uv run pyright` on the new modules
-  (`apps/api/app/services/rag`,
-  `packages/.../feature_flags`,
-  `packages/.../evaluation/grounding`) → **0 errors** (warnings limited
-  to pre-existing `reportMissingTypeStubs` on workspace-internal
-  modules).
-- App startup smoke: `from app.main import create_app; create_app()` →
-  45 routes registered. Worker activity import: OK.
-- Frontend: `tsc --noEmit` → exit 0.
-- Migration 0016 parses with `revision='0016'` / `down_revision='0015'`.
-- Integration tests (`-m integration`) deferred for the same Windows /
-  Docker named-pipe reason called out in
-  [PROGRESS.md](../../PROGRESS.md) and the R1 handoff. Must run before
-  R2 ships in a real PR; the critical case is "0016 applied → cascade
-  populates `nli_verdict`/`judge_verdict` columns through the
-  repository → trace endpoint returns them."
 
 **Closes review findings:** #4.
 
@@ -223,14 +163,14 @@ for the cascade). Can run in parallel with R3 once R1 is in.
 
 **Slices:**
 
-- 🟢 **R2.S1 — Wire the cascade into `stages/grounding.py`.** Three-layer
+- 🔲 **R2.S1 — Wire the cascade into `stages/grounding.py`.** Three-layer
   cascade per ADR-0010: token-overlap (always on) → NLI deberta (gated
   by score threshold) → LLM-as-judge (sampled at configurable rate, e.g.
   5% of NLI-pass answers + 100% of NLI-fail answers). Each layer is a
   small adapter calling into the existing
   `sentinelrag_shared/evaluation/` evaluators — no duplication of the
   scoring logic.
-- 🟢 **R2.S2 — Unleash flag for the cascade.** Three flags:
+- 🔲 **R2.S2 — Unleash flag for the cascade.** Three flags:
   `hallucination.nli.enabled` (default **on**),
   `hallucination.judge.enabled` (default **off**),
   `hallucination.judge.sample_rate` (default **0.0**, range
@@ -240,16 +180,16 @@ for the cascade). Can run in parallel with R3 once R1 is in.
   `sentinelrag_shared/feature_flags/` adapter. The default trio is
   asserted in a unit test so a future flag-server misconfiguration
   doesn't silently flip judge on at 100%.
-- 🟢 **R2.S3 — Persist per-layer verdicts.** Hand-written Alembic
+- 🔲 **R2.S3 — Persist per-layer verdicts.** Hand-written Alembic
   revision adding two columns to `generated_answers`:
   `nli_verdict TEXT NULL` (`entail` / `neutral` / `contradict` / `skipped`)
   and `judge_verdict TEXT NULL` (`pass` / `fail` / `skipped`). The
   existing `grounding_score` column stays as layer-1.
-- 🟢 **R2.S4 — Trace UI surfaces verdicts.** The Next.js trace viewer
+- 🔲 **R2.S4 — Trace UI surfaces verdicts.** The Next.js trace viewer
   (`apps/frontend/src/app/query-playground/`) already streams retrieval
   stages; add a "hallucination cascade" panel showing the three layer
   verdicts when present.
-- 🟢 **R2.S5 — Update ADR-0010 status notes.** ADR-0010 stays
+- 🔲 **R2.S5 — Update ADR-0010 status notes.** ADR-0010 stays
   `Accepted`; append a "Implementation notes (2026-MM-DD)" section
   recording the flag scheme + thresholds chosen. **No edits to the
   decision text** (ADR immutability).
@@ -276,28 +216,11 @@ the trace viewer shows them.
 - Don't reimplement the NLI / judge evaluators — call into
   `sentinelrag_shared/evaluation/`.
 
-### Phase R3 — Cost + resilience hardening 🟡
+### Phase R3 — Cost + resilience hardening ⚪
 **Goal:** Close the cost-pillar leaks and the resilience gaps that don't
 need a refactor — just careful local edits to the post-R1 stage files.
 
-**Status (2026-05-17):** 6 of 7 slices complete; S6 deferred.
-- Lint clean: `uv run ruff check apps packages` → 0 errors.
-- Unit suite: `uv run pytest -m unit` → **234 passed, 0 failures**
-  (R2 baseline 214 + 5 new helper tests + 15 new
-  idempotency/reservation tests).
-- Typecheck: `uv run pyright` on the new + touched modules
-  (`apps/api/app/services/{idempotency,budget_reservation,redis_service}.py`,
-  `apps/api/app/services/rag/`) → **0 errors** on new modules
-  (warnings limited to pre-existing `reportMissingTypeStubs`).
-- App startup smoke: 45 routes registered. Worker import: OK.
-- Frontend: `tsc --noEmit` → exit 0.
-- Integration tests deferred for the same Windows/Docker reason
-  flagged in R1 + R2 handoffs.
-
-**Closes review findings:** #3 (cost surface), #8 (idempotency),
-#10 (timeout), #11 (reservation), #12 (prompt formatting). #9
-(component hoisting) is the part that lands with R3.S6 in the next
-session.
+**Closes review findings:** #3, #8, #9, #10, #11, #12.
 
 **Estimated effort:** 1 session.
 
@@ -305,14 +228,14 @@ session.
 
 **Slices:**
 
-- 🟢 **R3.S1 — Surface embedding cost.** Change `Embedder.embed(...)`
+- 🔲 **R3.S1 — Surface embedding cost.** Change `Embedder.embed(...)`
   to return token counts + cost alongside the vector. Update
   `LiteLLMEmbedder` in `packages/shared/python/sentinelrag_shared/llm/`
   and feed the result into both the budget pre-check (the estimate
   must include embedding) and the persisted `usage_records` row
   written by `stages/persistence.py`. Update tests for both call
   sites.
-- 🟢 **R3.S2 — Idempotency-Key on /query.** Add the
+- 🔲 **R3.S2 — Idempotency-Key on /query.** Add the
   `Idempotency-Key` header support to the `/query` route, keyed in
   Redis with 24h TTL via SETNX. On hit, return the persisted
   `QueryResult` for the prior `query_session_id`. Key is hashed
@@ -320,29 +243,29 @@ session.
   + integration tests cover replay (same key → same answer, no
   duplicate audit/usage rows) and concurrent races (two parallel
   requests, same key → one runs, one waits-then-returns).
-- 🟢 **R3.S3 — Real per-model tokenizer in budget estimate.**
+- 🔲 **R3.S3 — Real per-model tokenizer in budget estimate.**
   Replace `_approx_token_count` (`len(text)/4`) with
   `litellm.token_counter(model=..., text=...)`. Keep the
   char-based fallback for models LiteLLM doesn't know about, with
   a structured-log warning when the fallback fires.
-- 🟢 **R3.S4 — LiteLLM call timeout + cancellation propagation.**
+- 🔲 **R3.S4 — LiteLLM call timeout + cancellation propagation.**
   Wire a per-call timeout (default 60s, configurable via env) on
   `LiteLLMGenerator.complete(...)`. On timeout, the orchestrator
   records a `query.failed` audit event with reason
   `provider_timeout`, marks the session failed, and frees any
   budget reservation (R3.S5 dependency).
-- 🟢 **R3.S5 — Budget reservation + release.** Today the cost
+- 🔲 **R3.S5 — Budget reservation + release.** Today the cost
   check is a one-shot estimate; the actual cost is recorded after
   the call. Under load with timeouts this can let a tenant burst
   past their hard cap. Reserve the estimated USD in Redis under
   `budget:{tenant_id}:reserved` with a TTL = call timeout; settle
   (release reservation + record actual) on completion *or* timeout.
-- 🟢 **R3.S6 — Hoist per-request component construction.** *Embedder-only hoist landed 2026-05-17.* Generator/KeywordSearch/VectorSearch/HybridRetriever stay per-request by design (Generator's model alias is per-request; the others bind to the per-request SQLAlchemy session). The plan lists Embedder, Generator, KeywordSearch, VectorSearch, HybridRetriever as hoist candidates; on closer inspection only `Embedder` is a clean singleton (matches `default_embedding_model` + `ollama_base_url`, both static at process start). Generator is per-request because the effective model can change request-by-request (cloud vs ollama). KeywordSearch / VectorSearch / HybridRetriever bind to the request-scoped SQLAlchemy session, so per-request construction is inherent — not a perf problem to solve. The deferred work: hoist Embedder to `app.state`, expose via FastAPI dependency, accept on `Orchestrator.__init__`, remove per-request `LiteLLMEmbedder(...)` from `Orchestrator.run`. Plus a one-line update for the existing fake-settings tests. Move
+- 🔲 **R3.S6 — Hoist per-request component construction.** Move
   `Embedder`, `Generator`, `KeywordSearch`, `VectorSearch`,
   `HybridRetriever` from per-request `__init__` to `app.state`
   startup (`apps/api/app/lifecycle.py`). The orchestrator + stages
   pull from `app.state` via FastAPI dependencies.
-- 🟢 **R3.S7 — Safe prompt formatting.** Replace
+- 🔲 **R3.S7 — Safe prompt formatting.** Replace
   `template.format(query=..., context=...)` in `stages/prompt.py`
   with `string.Template.safe_substitute` or a deliberate
   double-curly-aware `replace`. Add a regression test with a
@@ -371,7 +294,7 @@ reservation; per-request component construction is gone.
 - Don't change the budget *policy* (soft-cap downgrade ladder); only
   the *plumbing*.
 
-### Phase R4 — Extract retrieval-service for real 🟡
+### Phase R4 — Extract retrieval-service for real ⚪
 **Goal:** Close ADR-0021's half-done state by extracting the carved-out
 `retrieval-service` into a real network-bound service behind a
 `RetrievalClient` interface. **Decision locked 2026-05-16: Option A
@@ -387,49 +310,26 @@ worth the operational cost of one more pod.
 Protocol + `InProcessRetrievalClient`; R4 adds the HTTP impl behind the
 existing seam — no orchestrator-side refactor needed.
 
-**Status (2026-05-17):** 6 of 7 slices complete; S6 (benchmark)
-deferred to a live-cluster session. Verification:
-- Lint clean: `uv run ruff check apps packages` → 0 errors.
-- Unit suite: `uv run pytest -m unit` → **246 passed, 0 failures**
-  (R3 baseline 234 + 6 HttpRetrievalClient tests + 6
-  retrieval-service /v1/retrieve auth + capabilities tests).
-- Pyright on new modules: 0 errors.
-- App startup smoke: 45 routes (api). Retrieval-service: 9 routes.
-  Worker activity import: OK.
-- Frontend: `tsc --noEmit` → exit 0.
-- `helm lint`: 0 failures. `helm template` clean against all 4
-  overlays (values.yaml, values-local, values-dev, values-prod,
-  values-gcp-dev). `helm template` adds the new retrieval workload:
-  Deployment + Service + ConfigMap + ExternalSecret + HPA + PDB +
-  ServiceAccount + NetworkPolicy.
-- ADR-0021 status flipped to `Superseded by ADR-0031`; new ADR
-  catalog entry added.
-
-The env-var name landed as `RETRIEVAL_TRANSPORT` (not `RETRIEVAL_MODE`
-as the plan said) to avoid colliding with the legacy
-`RETRIEVAL_MODE=hybrid` env that documents the per-request retrieval
-mode default in `.env.example`. Documented in ADR-0031.
-
 **Slices:**
 
-- 🟢 **R4.S1 — Contracts package.** Add
+- 🔲 **R4.S1 — Contracts package.** Add
   `packages/shared/python/sentinelrag_shared/contracts/retrieval.py`
   with request/response Pydantic v2 models matching the
   `RetrievalClient` Protocol shape introduced in R1.S1. Versioned
   contract — bump on any field change.
-- 🟢 **R4.S2 — `HttpRetrievalClient` impl.** Add to
+- 🔲 **R4.S2 — `HttpRetrievalClient` impl.** Add to
   `sentinelrag_shared/retrieval/client.py` alongside the
   `InProcessRetrievalClient` from R1.S1. httpx AsyncClient with
   connection pooling sized to match the API service worker count,
   OTel context propagation via `opentelemetry-instrumentation-httpx`,
   retry-with-backoff on 502/503/504 (max 2 retries), 5s default
   per-call timeout (overridable via env).
-- 🟢 **R4.S3 — Orchestrator switch.** No code change to
+- 🔲 **R4.S3 — Orchestrator switch.** No code change to
   `stages/retrieval.py` — it already calls `RetrievalClient` from DI
   (per R1.S1). Selection moves to `apps/api/app/lifecycle.py`: read
   env `RETRIEVAL_MODE` (default `in-process`), instantiate the right
   impl, register on `app.state`. Unknown value fails fast at startup.
-- 🟢 **R4.S4 — Service implementation.** Flesh out
+- 🔲 **R4.S4 — Service implementation.** Flesh out
   `apps/retrieval-service/sentinelrag_retrieval_service/` with
   FastAPI routes mirroring the contracts. Reuse the existing
   shared library for the actual work — no duplication. Health
@@ -437,21 +337,21 @@ mode default in `.env.example`. Documented in ADR-0031.
   cache as the API) so cross-service calls carry an `AuthContext`
   end-to-end and RBAC at retrieval time (pillar #1) is preserved
   across the network hop.
-- 🟢 **R4.S5 — Helm + Terraform updates.** Add `retrieval` as a
+- 🔲 **R4.S5 — Helm + Terraform updates.** Add `retrieval` as a
   workload in the Helm chart (Deployment + SA + ConfigMap + Service +
   HPA + PDB + NetworkPolicy via the existing `_helpers.tpl`
   shared library). Per-cloud values overlays gain IRSA / WI binding
   for the retrieval ServiceAccount. NetworkPolicy: `api` → `retrieval`
   ingress only; `retrieval` → `postgres` + `litellm-targets` egress.
   No Terraform module changes (it's another pod on the same EKS/GKE).
-- 🟡 **R4.S6 — Benchmark.** *Harness scaffolded 2026-05-17; numbers await live cluster.* `compare.py` gained a `retrieval-transport` comparison config + `--before-base-url`/`--after-base-url` flags; `tests/performance/k6/transport-compare.js` ships the matching latency scenario; `docs/operations/runbooks/retrieval-benchmark.md` walks the procedure end-to-end; ADR-0031 has a "Benchmark scaffolding (2026-05-17)" section describing what's wired vs what awaits live data. Per ADR-0029 the numbers themselves are not hand-edited — they land when an operator runs both harnesses against a real cluster. Run the k6 baseline scenario against
+- 🔲 **R4.S6 — Benchmark.** Run the k6 baseline scenario against
   both `RETRIEVAL_MODE=in-process` and `RETRIEVAL_MODE=http`. Capture
   p50/p95/p99 latency, RPS at SLO, and cold-start cost. Commit the
   report by re-running the eval harness (`tests/performance/evals/compare.py`
   with a new comparison entry — don't hand-edit
   `docs/operations/eval-report.md`). The default mode flips to `http`
   only if p95 delta is within the SLO budget.
-- 🟢 **R4.S7 — ADR-0031 supersession.** New ADR records the
+- 🔲 **R4.S7 — ADR-XXXX supersession.** New ADR records the
   extraction + benchmark result + final default; status-flip
   ADR-0021 to `Superseded by ADR-XXXX`. The new ADR's "Notes on the
   design docs" section reconciles with ADR-0009 (REST not gRPC) —
@@ -482,7 +382,7 @@ superseded, and the live demo can flip modes via env without redeploy.
 - Don't change the retrieval *algorithm* in this phase — pure
   topology change.
 
-### Phase R5 — ADR backlog catch-up 🟢
+### Phase R5 — ADR backlog catch-up ⚪
 **Goal:** Add the six ADRs a senior reviewer is most likely to probe.
 Documentation-only; can be picked up in any order by any role.
 
@@ -493,13 +393,9 @@ section of the review.
 decision is already implicit in the code; longer if a real decision
 needs to be made.
 
-**Status (2026-05-17):** All six ADRs landed in one session. ADR
-catalog updated. Direction for R5.S1 (RTBF) matches the 2026-05-16
-Decisions log entry exactly.
-
 **Slices (each is one ADR — pick whichever order suits the session):**
 
-- 🟢 **R5.S1 — [ADR-0032](adr/0032-right-to-be-forgotten.md): Right-to-be-forgotten vs. immutable audit.**
+- 🔲 **R5.S1 — ADR-XXXX: Right-to-be-forgotten vs. immutable audit.**
   Highest-leverage gap. **Direction locked 2026-05-16: support RTBF.**
   Concretely the ADR commits to:
   - **Deletable surfaces:** `document_chunks.content`,
@@ -525,23 +421,23 @@ Decisions log entry exactly.
     the cost of GDPR purists' "no trace at all" reading; the ADR
     documents this explicitly and cites the controller-vs-processor
     framing that justifies it.
-- 🟢 **R5.S2 — [ADR-0033](adr/0033-zero-downtime-schema-migrations.md): Zero-downtime schema migration strategy.**
+- 🔲 **R5.S2 — ADR-XXXX: Zero-downtime schema migration strategy.**
   Expand → backfill → contract pattern. What's allowed in the Helm
   pre-upgrade `alembic` Job vs. what needs a multi-deploy dance. How
   RLS policies + RLS-bypass admin sessions interact with migrations.
-- 🟢 **R5.S3 — [ADR-0034](adr/0034-prompt-injection-defense.md): Prompt injection defense posture.** Even
+- 🔲 **R5.S3 — ADR-XXXX: Prompt injection defense posture.** Even
   "in-context defense only, no input scanning v1" is a defensible
   position. Document threat model (data-plane prompts vs. control-plane
   prompts, where each gets sanitized).
-- 🟢 **R5.S4 — [ADR-0035](adr/0035-pii-redaction-at-ingestion.md): PII redaction at ingestion.** Library choice
+- 🔲 **R5.S4 — ADR-XXXX: PII redaction at ingestion.** Library choice
   (presidio? rule-based?), when in the pipeline it runs (pre-chunk so
   embeddings don't leak), how it interacts with the immutable
   source-doc copy in object storage.
-- 🟢 **R5.S5 — [ADR-0036](adr/0036-vector-sharding-per-tenant-index.md): Vector sharding / per-tenant index strategy.**
+- 🔲 **R5.S5 — ADR-XXXX: Vector sharding / per-tenant index strategy.**
   When does HNSW recall degrade on a shared index? Trigger threshold
   for per-tenant indexes (corpus size? embedding count? recall
   measurement?). Cost vs. complexity trade-off.
-- 🟢 **R5.S6 — [ADR-0037](adr/0037-streaming-generation-response.md): Streaming generation response shape.** SSE
+- 🔲 **R5.S6 — ADR-XXXX: Streaming generation response shape.** SSE
   vs. WebSocket vs. response-streamed JSON chunks for the answer
   itself (trace stream is already SSE). UX + backpressure
   considerations.
@@ -565,7 +461,7 @@ catalog README is in sync, and the review's "ADR gaps" list is empty.
   in later remediation phases). This is the project's existing
   convention from PHASE_PLAN.md cross-phase rules.
 
-### Phase R6 — Polish 🟢
+### Phase R6 — Polish ⚪
 **Goal:** Catch-all for sub-1-hour cleanups that surface during
 R1–R5. Can interleave with anything.
 
@@ -575,13 +471,13 @@ R1–R5. Can interleave with anything.
 
 **Slices:**
 
-- 🟢 **R6.S1 — README typo.** `de# SentinelRAG` → `# SentinelRAG` on
+- 🔲 **R6.S1 — README typo.** `de# SentinelRAG` → `# SentinelRAG` on
   line 1 of the root README.
-- 🟢 **R6.S2 — Quick-start smoke verified.** Audit-only run (live `make up` smoke remains Docker-blocked on this host). Patched: README pointed at `npm install && npm run dev` but the project is a pnpm workspace and `make frontend` runs `pnpm dev` — README now points at `make install` + `make frontend`. ADR count refreshed (30 → 37). Run the README's
+- 🔲 **R6.S2 — Quick-start smoke verified.** Run the README's
   Quick-start curl example against a fresh `make up` and confirm it
   returns a sensible response. If anything is stale (env var rename,
   port shift), patch the README in the same commit.
-- 🟢 **R6.S3 — Trailing follow-ups.** Landed the R4 handoff's `RETRIEVAL_TRANSPORT=http` + empty `RETRIEVAL_SERVICE_TOKEN` startup guard in `apps/api/app/lifecycle.py::_build_retrieval_client`; 4 new tests in `test_lifecycle_retrieval_guard.py`. Other R1–R5 follow-ups (NLI/judge real-adapter wiring, judge-reasoning UI, idempotency OpenAPI note, reservation chaos drill, retrieval HPA tuning, per-cloud retrieval IRSA/WI) are each their own implementation-PR scope per the ADRs they sit under, not R6 polish. Reserved for items surfaced by
+- 🔲 **R6.S3 — Trailing follow-ups.** Reserved for items surfaced by
   R1–R5 that don't justify their own phase.
 
 **Verification:**
