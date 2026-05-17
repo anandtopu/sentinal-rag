@@ -26,10 +26,19 @@
 
 ## Current phase
 
-**R1 not started.** Pre-existing PHASE_PLAN.md work (first live deploy,
-real eval/cost numbers, drill RTOs, 5-min demo video) is **independent**
-of this plan and can ship in any order. R1–R3 are pure code changes that
-do not require live cloud infra.
+**R2 🟢 complete (2026-05-17).** All 5 slices shipped on a single
+session. Cascade is wired into the live `/query` path, the default trio
+is asserted, schema migration 0016 lands the per-layer verdict columns,
+trace viewer surfaces the three layer outcomes, and ADR-0010 carries an
+implementation-notes append (decision text unchanged per ADR
+immutability). **R3 is next.** Session handoff:
+[`handoff/2026-05-17-r2-complete.md`](handoff/2026-05-17-r2-complete.md).
+R1 handoff (prior session):
+[`handoff/2026-05-16-r1-complete.md`](handoff/2026-05-16-r1-complete.md).
+
+Pre-existing PHASE_PLAN.md work (first live deploy, real eval/cost
+numbers, drill RTOs, 5-min demo video) is **independent** of this plan
+and can ship in any order. R3 picks up next; R4 unblocked.
 
 ## Phase ordering rationale
 
@@ -68,10 +77,27 @@ regardless of how clean the diff looks:
 
 ## Phase ledger
 
-### Phase R1 — Orchestrator surgery + pillar honesty ⚪
+### Phase R1 — Orchestrator surgery + pillar honesty 🟢
 **Goal:** Make the orchestrator the cleanest part of the codebase. Close
 the four highest-impact findings (#1, #2, #6, #7) and stage the file for
 R2/R3 to drop into.
+
+**Status (2026-05-16):** All 5 slices complete on a single session.
+- Lint clean: `uv run ruff check apps packages` → 0 errors.
+- Unit suite: `uv run pytest -m unit` → **194 passed, 0 failures**
+  (baseline 162 + 11 new stage tests + 1 new audit isolation test +
+  20 from in-flight work).
+- Typecheck: `uv run pyright apps/api/app/services/rag` → **0 errors**
+  on the new modules (warnings dominated by pre-existing
+  `reportMissingTypeStubs` for workspace-internal modules).
+- App startup smoke: `from app.main import create_app; create_app()` →
+  45 routes registered.
+- Worker activity import: `from sentinelrag_worker.activities import
+  evaluation` → OK (lazy import of `app.services.rag` resolves).
+- Integration tests (RLS / RBAC retrieval / audit dual-write against
+  real Postgres) **deferred** — Docker Desktop named-pipe permissions
+  blocked on this Windows host, same constraint flagged in
+  PROGRESS.md. Must run before R1 ships in a real PR.
 
 **Closes review findings:** #1, #2, #6, #7. (Partial #9 if hoisting
 component construction is done in the same pass.)
@@ -84,7 +110,7 @@ need Docker for testcontainers.
 
 **Slices:**
 
-- 🔲 **R1.S1 — Extract stages package.** Create
+- 🟢 **R1.S1 — Extract stages package.** Create
   `apps/api/app/services/rag/orchestrator.py` + `apps/api/app/services/rag/stages/`
   with the layout from the review:
   `retrieval.py`, `rerank.py`, `context.py`, `prompt.py`, `budget.py`,
@@ -97,7 +123,7 @@ need Docker for testcontainers.
   is wiring an HTTP impl behind the existing seam, not refactoring
   call sites a second time. R1 ships only the `InProcessRetrievalClient`
   implementation; the HTTP impl lands in R4A.S2.
-- 🔲 **R1.S2 — Replace raw SQL with repositories.** All five
+- 🟢 **R1.S2 — Replace raw SQL with repositories.** All five
   `INSERT`s and the `UPDATE` against `query_sessions`,
   `retrieval_results`, `generated_answers`, `answer_citations`,
   `usage_records` go through the existing repository pattern under
@@ -105,19 +131,19 @@ need Docker for testcontainers.
   exist yet. RLS context (`SET LOCAL app.current_tenant_id`) must be
   set on the same session used by repositories — verify via
   integration test, not unit test.
-- 🔲 **R1.S3 — Schema: real `error_message` column.**
+- 🟢 **R1.S3 — Schema: real `error_message` column.**
   Hand-written Alembic revision adding
   `query_sessions.error_message TEXT NULL`. Drop the
   `normalized_query` poison-pill writes in the orchestrator failure
   path. Backfill is not required (legacy rows keep their polluted
   `normalized_query`; document this in the migration message).
-- 🔲 **R1.S4 — Audit secondary-failure isolation.** Move the
+- 🟢 **R1.S4 — Audit secondary-failure isolation.** Move the
   `contextlib.suppress` from the orchestrator into
   `DualWriteAuditService`. Secondary sink failures emit a structured
   log + an OTel counter (`sentinelrag_audit_secondary_failures_total`),
   and the daily reconciliation Schedule (Phase 6.5) catches the drift.
   Primary (Postgres) sink failures still propagate.
-- 🔲 **R1.S5 — Delete shim + flip imports.** Once R1.S1–S4 land
+- 🟢 **R1.S5 — Delete shim + flip imports.** Once R1.S1–S4 land
   and tests are green, delete the old `apps/api/app/services/rag_orchestrator.py`
   shim and update import sites (`apps/api/app/api/` route handlers,
   any callers in tests).
@@ -148,11 +174,33 @@ stages package is importable + tested in isolation.
 - Don't add idempotency or tokenizer changes here — that's R3.
 - Don't touch the carved-out `retrieval-service` — that's R4.
 
-### Phase R2 — Layered hallucination cascade in the query path ⚪
+### Phase R2 — Layered hallucination cascade in the query path 🟢
 **Goal:** Make pillar #6 and ADR-0010 honest at request time, not just
 in offline eval. Today the orchestrator only runs the token-overlap
 layer; NLI + LLM-judge live in `sentinelrag_shared/evaluation/` and
 never see live traffic.
+
+**Status (2026-05-17):** All 5 slices complete on a single session.
+- Lint clean: `uv run ruff check apps packages` → 0 errors.
+- Unit suite: `uv run pytest -m unit` → **214 passed, 0 failures**
+  (R1 baseline 194 + 20 new tests in
+  `apps/api/tests/unit/test_grounding_cascade.py`).
+- Typecheck: `uv run pyright` on the new modules
+  (`apps/api/app/services/rag`,
+  `packages/.../feature_flags`,
+  `packages/.../evaluation/grounding`) → **0 errors** (warnings limited
+  to pre-existing `reportMissingTypeStubs` on workspace-internal
+  modules).
+- App startup smoke: `from app.main import create_app; create_app()` →
+  45 routes registered. Worker activity import: OK.
+- Frontend: `tsc --noEmit` → exit 0.
+- Migration 0016 parses with `revision='0016'` / `down_revision='0015'`.
+- Integration tests (`-m integration`) deferred for the same Windows /
+  Docker named-pipe reason called out in
+  [PROGRESS.md](../../PROGRESS.md) and the R1 handoff. Must run before
+  R2 ships in a real PR; the critical case is "0016 applied → cascade
+  populates `nli_verdict`/`judge_verdict` columns through the
+  repository → trace endpoint returns them."
 
 **Closes review findings:** #4.
 
@@ -163,14 +211,14 @@ for the cascade). Can run in parallel with R3 once R1 is in.
 
 **Slices:**
 
-- 🔲 **R2.S1 — Wire the cascade into `stages/grounding.py`.** Three-layer
+- 🟢 **R2.S1 — Wire the cascade into `stages/grounding.py`.** Three-layer
   cascade per ADR-0010: token-overlap (always on) → NLI deberta (gated
   by score threshold) → LLM-as-judge (sampled at configurable rate, e.g.
   5% of NLI-pass answers + 100% of NLI-fail answers). Each layer is a
   small adapter calling into the existing
   `sentinelrag_shared/evaluation/` evaluators — no duplication of the
   scoring logic.
-- 🔲 **R2.S2 — Unleash flag for the cascade.** Three flags:
+- 🟢 **R2.S2 — Unleash flag for the cascade.** Three flags:
   `hallucination.nli.enabled` (default **on**),
   `hallucination.judge.enabled` (default **off**),
   `hallucination.judge.sample_rate` (default **0.0**, range
@@ -180,16 +228,16 @@ for the cascade). Can run in parallel with R3 once R1 is in.
   `sentinelrag_shared/feature_flags/` adapter. The default trio is
   asserted in a unit test so a future flag-server misconfiguration
   doesn't silently flip judge on at 100%.
-- 🔲 **R2.S3 — Persist per-layer verdicts.** Hand-written Alembic
+- 🟢 **R2.S3 — Persist per-layer verdicts.** Hand-written Alembic
   revision adding two columns to `generated_answers`:
   `nli_verdict TEXT NULL` (`entail` / `neutral` / `contradict` / `skipped`)
   and `judge_verdict TEXT NULL` (`pass` / `fail` / `skipped`). The
   existing `grounding_score` column stays as layer-1.
-- 🔲 **R2.S4 — Trace UI surfaces verdicts.** The Next.js trace viewer
+- 🟢 **R2.S4 — Trace UI surfaces verdicts.** The Next.js trace viewer
   (`apps/frontend/src/app/query-playground/`) already streams retrieval
   stages; add a "hallucination cascade" panel showing the three layer
   verdicts when present.
-- 🔲 **R2.S5 — Update ADR-0010 status notes.** ADR-0010 stays
+- 🟢 **R2.S5 — Update ADR-0010 status notes.** ADR-0010 stays
   `Accepted`; append a "Implementation notes (2026-MM-DD)" section
   recording the flag scheme + thresholds chosen. **No edits to the
   decision text** (ADR immutability).

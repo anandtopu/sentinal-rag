@@ -148,7 +148,9 @@ async def test_layer1_runs_unconditionally() -> None:
 async def test_cascade_short_circuits_on_abstain_answer() -> None:
     nli = _FakeNli("entail")
     judge = _FakeJudge()
-    stage = GroundingStage(nli_backend=nli, judge=judge, flag_client=StaticFeatureFlags())
+    stage = GroundingStage(
+        nli_backend=nli, judge=judge, flag_client=StaticFeatureFlags()
+    )
     ctx = _ctx(answer=ABSTAIN_ANSWER, context="ignored")
     await stage.run(ctx)
     assert nli.calls == 0
