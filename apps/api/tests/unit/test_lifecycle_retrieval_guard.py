@@ -45,7 +45,9 @@ def _settings(
 @pytest.mark.unit
 def test_in_process_transport_returns_none() -> None:
     log = _Recorder()
-    client = _build_retrieval_client(settings=_settings(transport="in-process"), log=log)
+    client = _build_retrieval_client(
+        settings=_settings(transport="in-process"), log=log
+    )
     assert client is None
     assert any(c[1] == "retrieval.transport" for c in log.calls)
 
@@ -76,4 +78,6 @@ def test_unknown_transport_fails_at_startup() -> None:
     """Pydantic's Literal narrows this away in practice; defensive guard fires."""
     log = _Recorder()
     with pytest.raises(RuntimeError, match="Unknown RETRIEVAL_TRANSPORT"):
-        _build_retrieval_client(settings=_settings(transport="websockets"), log=log)
+        _build_retrieval_client(
+            settings=_settings(transport="websockets"), log=log
+        )

@@ -26,11 +26,15 @@
 
 ## Current phase
 
-**R5 🟢 complete (2026-05-17).** All six ADRs shipped on this session.
-**R3.S6 (Embedder hoist) also shipped** as part of the same session
-after the user requested it alongside R5. Session handoff:
-[`handoff/2026-05-17-r5-complete.md`](handoff/2026-05-17-r5-complete.md).
+**R6 🟢 complete (2026-05-17).** README typo fixed, quick-start audit
+landed a `pnpm` correction + ADR count refresh, the
+`RETRIEVAL_SERVICE_TOKEN`-missing startup guard from the R4 handoff
+follow-up list shipped with 4 new tests. R-stream remediation is
+**done** except for the live-cluster-bound R4.S6 benchmark. Session
+handoff:
+[`handoff/2026-05-17-r6-complete.md`](handoff/2026-05-17-r6-complete.md).
 Previous handoffs:
+[`R5`](handoff/2026-05-17-r5-complete.md),
 [`R4`](handoff/2026-05-17-r4-partial.md),
 [`R3`](handoff/2026-05-17-r3-partial.md),
 [`R2`](handoff/2026-05-17-r2-complete.md),
@@ -38,9 +42,8 @@ Previous handoffs:
 
 Pre-existing PHASE_PLAN.md work (first live deploy, real eval/cost
 numbers, drill RTOs, 5-min demo video) is **independent** of this plan
-and can ship in any order. **R6 (polish) is the only remaining
-remediation item** apart from R4.S6 (benchmark, requires a live
-cluster).
+and can ship in any order. **Only R4.S6 (benchmark, requires live
+cluster) remains.**
 
 ## Phase ordering rationale
 
@@ -555,7 +558,7 @@ catalog README is in sync, and the review's "ADR gaps" list is empty.
   in later remediation phases). This is the project's existing
   convention from PHASE_PLAN.md cross-phase rules.
 
-### Phase R6 — Polish ⚪
+### Phase R6 — Polish 🟢
 **Goal:** Catch-all for sub-1-hour cleanups that surface during
 R1–R5. Can interleave with anything.
 
@@ -565,13 +568,13 @@ R1–R5. Can interleave with anything.
 
 **Slices:**
 
-- 🔲 **R6.S1 — README typo.** `de# SentinelRAG` → `# SentinelRAG` on
+- 🟢 **R6.S1 — README typo.** `de# SentinelRAG` → `# SentinelRAG` on
   line 1 of the root README.
-- 🔲 **R6.S2 — Quick-start smoke verified.** Run the README's
+- 🟢 **R6.S2 — Quick-start smoke verified.** Audit-only run (live `make up` smoke remains Docker-blocked on this host). Patched: README pointed at `npm install && npm run dev` but the project is a pnpm workspace and `make frontend` runs `pnpm dev` — README now points at `make install` + `make frontend`. ADR count refreshed (30 → 37). Run the README's
   Quick-start curl example against a fresh `make up` and confirm it
   returns a sensible response. If anything is stale (env var rename,
   port shift), patch the README in the same commit.
-- 🔲 **R6.S3 — Trailing follow-ups.** Reserved for items surfaced by
+- 🟢 **R6.S3 — Trailing follow-ups.** Landed the R4 handoff's `RETRIEVAL_TRANSPORT=http` + empty `RETRIEVAL_SERVICE_TOKEN` startup guard in `apps/api/app/lifecycle.py::_build_retrieval_client`; 4 new tests in `test_lifecycle_retrieval_guard.py`. Other R1–R5 follow-ups (NLI/judge real-adapter wiring, judge-reasoning UI, idempotency OpenAPI note, reservation chaos drill, retrieval HPA tuning, per-cloud retrieval IRSA/WI) are each their own implementation-PR scope per the ADRs they sit under, not R6 polish. Reserved for items surfaced by
   R1–R5 that don't justify their own phase.
 
 **Verification:**
