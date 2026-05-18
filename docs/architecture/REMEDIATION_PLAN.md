@@ -26,12 +26,19 @@
 
 ## Current phase
 
-**R6 🟢 complete (2026-05-17).** README typo fixed, quick-start audit
-landed a `pnpm` correction + ADR count refresh, the
-`RETRIEVAL_SERVICE_TOKEN`-missing startup guard from the R4 handoff
-follow-up list shipped with 4 new tests. R-stream remediation is
-**done** except for the live-cluster-bound R4.S6 benchmark. Session
+**R4.S6 🟡 scaffolded (2026-05-17).** Harness wired — `compare.py`
+extended with the `retrieval-transport` comparison + dual base-URL
+flags; new `k6/transport-compare.js` latency scenario; new
+`docs/operations/runbooks/retrieval-benchmark.md` runbook; ADR-0031
+appended with a "Benchmark scaffolding (2026-05-17)" section. Numbers
+still await a live cluster (ADR-0029 forbids hand-edits). Session
 handoff:
+[`handoff/2026-05-17-r4s6-scaffold.md`](handoff/2026-05-17-r4s6-scaffold.md).
+
+Previously: **R6 🟢 complete (2026-05-17).** README typo fixed,
+quick-start audit landed a `pnpm` correction + ADR count refresh, the
+`RETRIEVAL_SERVICE_TOKEN`-missing startup guard from the R4 handoff
+follow-up list shipped with 4 new tests. Session handoff:
 [`handoff/2026-05-17-r6-complete.md`](handoff/2026-05-17-r6-complete.md).
 Previous handoffs:
 [`R5`](handoff/2026-05-17-r5-complete.md),
@@ -437,7 +444,7 @@ mode default in `.env.example`. Documented in ADR-0031.
   for the retrieval ServiceAccount. NetworkPolicy: `api` → `retrieval`
   ingress only; `retrieval` → `postgres` + `litellm-targets` egress.
   No Terraform module changes (it's another pod on the same EKS/GKE).
-- 🟡 **R4.S6 — Benchmark.** *Deferred — requires a live cluster.* The harness lives at `tests/performance/evals/compare.py` + `tests/performance/k6/`; ADR-0029 forbids hand-edited eval numbers. The default `retrieval_transport` stays `in-process` until this slice runs and the report shows p95 delta inside SLO budget. Run the k6 baseline scenario against
+- 🟡 **R4.S6 — Benchmark.** *Harness scaffolded 2026-05-17; numbers await live cluster.* `compare.py` gained a `retrieval-transport` comparison config + `--before-base-url`/`--after-base-url` flags; `tests/performance/k6/transport-compare.js` ships the matching latency scenario; `docs/operations/runbooks/retrieval-benchmark.md` walks the procedure end-to-end; ADR-0031 has a "Benchmark scaffolding (2026-05-17)" section describing what's wired vs what awaits live data. Per ADR-0029 the numbers themselves are not hand-edited — they land when an operator runs both harnesses against a real cluster. Run the k6 baseline scenario against
   both `RETRIEVAL_MODE=in-process` and `RETRIEVAL_MODE=http`. Capture
   p50/p95/p99 latency, RPS at SLO, and cold-start cost. Commit the
   report by re-running the eval harness (`tests/performance/evals/compare.py`
