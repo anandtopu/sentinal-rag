@@ -44,10 +44,11 @@ class NoOpReranker:
         top_k: int,
     ) -> RerankResult:
         del query
-        n = min(top_k, len(candidates))
+        ranked_candidates = list(candidates[: max(top_k, 0)])
+        scores = [1.0 - (i * 0.01) for i in range(len(ranked_candidates))]
         return RerankResult(
-            indices=list(range(n)),
-            scores=[1.0 - (i * 0.01) for i in range(n)],
+            candidates=ranked_candidates,
+            scores=scores,
             model_name=self.model_name,
             usage=UsageRecord(
                 usage_type="rerank",
@@ -121,7 +122,7 @@ class BgeReranker:
     ) -> RerankResult:
         if not candidates:
             return RerankResult(
-                indices=[],
+                candidates=[],
                 scores=[],
                 model_name=self.model_name,
                 usage=UsageRecord(
@@ -140,7 +141,7 @@ class BgeReranker:
         ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[: max(top_k, 0)]
 
         return RerankResult(
-            indices=[i for i, _ in ranked],
+            candidates=[candidates[i] for i, _ in ranked],
             scores=[float(s) for _, s in ranked],
             model_name=self.model_name,
             usage=UsageRecord(
