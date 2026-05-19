@@ -37,9 +37,7 @@ class GenerationStage:
 
         generator = LiteLLMGenerator(
             model_name=ctx.effective_model,
-            api_base=ctx.ollama_base_url
-            if ctx.effective_model.startswith("ollama/")
-            else None,
+            api_base=ctx.ollama_base_url if ctx.effective_model.startswith("ollama/") else None,
             request_timeout_seconds=self._timeout,
         )
         user_prompt = fill_prompt(

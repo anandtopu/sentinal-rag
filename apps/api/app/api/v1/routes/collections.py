@@ -29,9 +29,7 @@ async def create_collection(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectionRead:
     service = CollectionService(db)
-    coll = await service.create(
-        tenant_id=ctx.tenant_id, created_by=ctx.user_id, payload=payload
-    )
+    coll = await service.create(tenant_id=ctx.tenant_id, created_by=ctx.user_id, payload=payload)
     return CollectionRead.model_validate(coll)
 
 

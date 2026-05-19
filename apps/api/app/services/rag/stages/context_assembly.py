@@ -21,9 +21,7 @@ class ContextAssemblyStage:
         lines: list[str] = []
         citations: list[tuple[int, Candidate]] = []
         for i, cand in enumerate(reranked, start=1):
-            page = (
-                f", page {cand.page_number}" if cand.page_number is not None else ""
-            )
+            page = f", page {cand.page_number}" if cand.page_number is not None else ""
             section = f" — {cand.section_title}" if cand.section_title else ""
             lines.append(f"[{i}{section}{page}] {cand.content}")
             citations.append((i, cand))

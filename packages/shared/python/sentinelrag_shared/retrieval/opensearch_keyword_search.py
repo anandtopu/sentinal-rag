@@ -85,13 +85,13 @@ INDEX_MAPPINGS: dict[str, Any] = {
     "mappings": {
         "dynamic": "strict",
         "properties": {
-            "chunk_id":       {"type": "keyword"},
-            "document_id":    {"type": "keyword"},
-            "tenant_id":      {"type": "keyword"},
-            "collection_id":  {"type": "keyword"},
-            "content":        {"type": "text",    "analyzer": "standard"},
-            "page_number":    {"type": "integer"},
-            "section_title":  {"type": "keyword"},
+            "chunk_id": {"type": "keyword"},
+            "document_id": {"type": "keyword"},
+            "tenant_id": {"type": "keyword"},
+            "collection_id": {"type": "keyword"},
+            "content": {"type": "text", "analyzer": "standard"},
+            "page_number": {"type": "integer"},
+            "section_title": {"type": "keyword"},
         },
     },
 }
@@ -166,7 +166,7 @@ class OpenSearchKeywordSearch:
                         }
                     ],
                     "filter": [
-                        {"term":  {"tenant_id": str(auth.tenant_id)}},
+                        {"term": {"tenant_id": str(auth.tenant_id)}},
                         {"terms": {"collection_id": [str(cid) for cid in authorized_ids]}},
                     ],
                 }
@@ -234,15 +234,19 @@ class OpenSearchKeywordSearch:
         for chunk in chunks:
             header = {"index": {"_index": self.index_name, "_id": str(chunk.chunk_id)}}
             lines.append(json.dumps(header))
-            lines.append(json.dumps({
-                "chunk_id":      str(chunk.chunk_id),
-                "document_id":   str(chunk.document_id),
-                "tenant_id":     str(chunk.tenant_id),
-                "collection_id": str(chunk.collection_id),
-                "content":       chunk.content,
-                "page_number":   chunk.page_number,
-                "section_title": chunk.section_title,
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "chunk_id": str(chunk.chunk_id),
+                        "document_id": str(chunk.document_id),
+                        "tenant_id": str(chunk.tenant_id),
+                        "collection_id": str(chunk.collection_id),
+                        "content": chunk.content,
+                        "page_number": chunk.page_number,
+                        "section_title": chunk.section_title,
+                    }
+                )
+            )
         body = "\n".join(lines) + "\n"
 
         response = await self.client.bulk(
@@ -251,9 +255,7 @@ class OpenSearchKeywordSearch:
         )
         if response.get("errors"):
             failed = sum(
-                1
-                for item in response.get("items", [])
-                if next(iter(item.values())).get("error")
+                1 for item in response.get("items", []) if next(iter(item.values())).get("error")
             )
             return len(chunks) - failed
         return len(chunks)
@@ -268,7 +270,7 @@ class OpenSearchKeywordSearch:
             "query": {
                 "bool": {
                     "filter": [
-                        {"term": {"tenant_id":   str(tenant_id)}},
+                        {"term": {"tenant_id": str(tenant_id)}},
                         {"term": {"document_id": str(document_id)}},
                     ]
                 }

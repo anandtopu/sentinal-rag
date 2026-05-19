@@ -46,9 +46,7 @@ _MIN_LINES_WITH_REASON = 2
 class Judge(Protocol):
     """Categorical pass/fail judgment over (query, context, answer)."""
 
-    async def judge(
-        self, *, query: str, context: str, answer: str
-    ) -> JudgeResult: ...
+    async def judge(self, *, query: str, context: str, answer: str) -> JudgeResult: ...
 
 
 class NoOpJudge:
@@ -57,9 +55,7 @@ class NoOpJudge:
     Returns ``skipped`` so persisted rows tell the truth.
     """
 
-    async def judge(
-        self, *, query: str, context: str, answer: str
-    ) -> JudgeResult:
+    async def judge(self, *, query: str, context: str, answer: str) -> JudgeResult:
         del query, context, answer
         return JudgeResult(verdict="skipped", reasoning=None, latency_ms=0)
 
@@ -84,9 +80,7 @@ class LiteLLMJudge:
         self._temperature = temperature
         self._max_tokens = max_tokens
 
-    async def judge(
-        self, *, query: str, context: str, answer: str
-    ) -> JudgeResult:
+    async def judge(self, *, query: str, context: str, answer: str) -> JudgeResult:
         user_prompt = _JUDGE_USER_TEMPLATE.format(
             query=query.strip(),
             context=context.strip(),
@@ -116,9 +110,7 @@ class LiteLLMJudge:
                 reasoning=(result.text or "")[:200] or "unparseable",
                 latency_ms=latency_ms,
             )
-        verdict: JudgeVerdict = (
-            "pass" if verdict_match.group(1).upper() == "PASS" else "fail"
-        )
+        verdict: JudgeVerdict = "pass" if verdict_match.group(1).upper() == "PASS" else "fail"
         reasoning = _extract_reason(result.text or "")
         return JudgeResult(
             verdict=verdict,

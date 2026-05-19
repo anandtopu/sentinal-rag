@@ -385,9 +385,7 @@ async def test_evaluation_service_start_run_maps_temporal_failure() -> None:
         FakeDb(),  # type: ignore[arg-type]
         temporal_client=FakeTemporal(fail=True),  # type: ignore[arg-type]
     )
-    service.datasets = SimpleNamespace(
-        get=lambda _id: _async_value(EvaluationDataset(id=uuid4()))
-    )
+    service.datasets = SimpleNamespace(get=lambda _id: _async_value(EvaluationDataset(id=uuid4())))
 
     with pytest.raises(TemporalUnavailableError):
         await service.start_run(

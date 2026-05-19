@@ -86,8 +86,7 @@ COMPARISONS: dict[str, ComparisonConfig] = {
     "prompt-v2-vs-v1": ComparisonConfig(
         name="prompt-v2-vs-v1",
         description=(
-            "Prompt v2 vs v1 (set the version IDs in "
-            "--before-prompt-id / --after-prompt-id)."
+            "Prompt v2 vs v1 (set the version IDs in --before-prompt-id / --after-prompt-id)."
         ),
         # The actual version IDs are wired via CLI flags so authors don't
         # bake them into source. See main() for the override threading.

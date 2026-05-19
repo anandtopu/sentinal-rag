@@ -60,9 +60,7 @@ class RetrievalCapabilitiesResponse(Contract):
     service_role: str = "diagnostic-wrapper"
     modes: list[str] = Field(default_factory=lambda: ["rrf_merge", "retrieve"])
     stages: list[str]
-    endpoints: list[str] = Field(
-        default_factory=lambda: ["/rrf-merge", "/v1/retrieve"]
-    )
+    endpoints: list[str] = Field(default_factory=lambda: ["/rrf-merge", "/v1/retrieve"])
     rrf: bool = True
     retrieval_backends: list[str] = Field(default_factory=list)
     rbac_at_retrieval_time: bool = False

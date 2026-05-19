@@ -73,6 +73,4 @@ class UserService:
             raise RoleNotFoundError()
         # IntegrityError → already assigned, swallow for idempotency.
         with contextlib.suppress(IntegrityError):
-            await self.repo.assign_role(
-                user_id=user_id, role_id=role_id, granted_by=granted_by
-            )
+            await self.repo.assign_role(user_id=user_id, role_id=role_id, granted_by=granted_by)

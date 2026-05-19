@@ -117,9 +117,7 @@ class TestReconcileOneTenant:
     async def test_no_drift_no_backfill(self) -> None:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(3)]
-        result, put_log = await self._run(
-            pg_events=events, s3_keys=[e.id for e in events]
-        )
+        result, put_log = await self._run(pg_events=events, s3_keys=[e.id for e in events])
         assert result.pg_count == 3
         assert result.s3_count == 3
         assert result.missing_in_s3 == 0
@@ -131,9 +129,7 @@ class TestReconcileOneTenant:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(4)]
         # Only 2 of the 4 are in S3.
-        result, put_log = await self._run(
-            pg_events=events, s3_keys=[events[0].id, events[1].id]
-        )
+        result, put_log = await self._run(pg_events=events, s3_keys=[events[0].id, events[1].id])
         assert result.missing_in_s3 == 2
         assert result.backfilled == 2
         assert set(put_log) == {events[2].id, events[3].id}
@@ -141,9 +137,7 @@ class TestReconcileOneTenant:
     async def test_max_backfill_caps_repair_count(self) -> None:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(10)]
-        result, put_log = await self._run(
-            pg_events=events, s3_keys=[], max_backfill=3
-        )
+        result, put_log = await self._run(pg_events=events, s3_keys=[], max_backfill=3)
         assert result.missing_in_s3 == 10
         assert result.backfilled == 3
         assert len(put_log) == 3
@@ -151,9 +145,7 @@ class TestReconcileOneTenant:
     async def test_backfill_disabled_reports_drift_but_does_not_repair(self) -> None:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(2)]
-        result, put_log = await self._run(
-            pg_events=events, s3_keys=[], backfill=False
-        )
+        result, put_log = await self._run(pg_events=events, s3_keys=[], backfill=False)
         assert result.missing_in_s3 == 2
         assert result.backfilled == 0
         assert put_log == []
@@ -162,9 +154,7 @@ class TestReconcileOneTenant:
         tenant = uuid4()
         in_pg = [_event(tenant)]
         orphan = uuid4()
-        result, put_log = await self._run(
-            pg_events=in_pg, s3_keys=[in_pg[0].id, orphan]
-        )
+        result, put_log = await self._run(pg_events=in_pg, s3_keys=[in_pg[0].id, orphan])
         # Orphan is reported, never touched — Object Lock makes deletion
         # impossible and the alarm is the right response.
         assert result.missing_in_pg == 1
@@ -175,17 +165,13 @@ class TestReconcileOneTenant:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(3)]
         # First run repairs everything.
-        first, first_log = await self._run(
-            pg_events=events, s3_keys=[events[0].id]
-        )
+        first, first_log = await self._run(pg_events=events, s3_keys=[events[0].id])
         assert first.backfilled == 2
         assert len(first_log) == 2
 
         # Second run with the now-repaired state — no drift, no puts.
         # Simulate "after repair" by including all event ids in s3_keys.
-        second, second_log = await self._run(
-            pg_events=events, s3_keys=[e.id for e in events]
-        )
+        second, second_log = await self._run(pg_events=events, s3_keys=[e.id for e in events])
         assert second.missing_in_s3 == 0
         assert second.backfilled == 0
         assert second_log == []
@@ -247,10 +233,6 @@ class TestAuditEventKeyHelpers:
 
     def test_day_prefix_excludes_other_days(self) -> None:
         tenant = uuid4()
-        prefix_day1 = AuditEvent.day_prefix(
-            tenant, datetime(2026, 4, 28, tzinfo=UTC)
-        )
-        event_day2 = _event(
-            tenant, created_at=datetime(2026, 4, 29, 12, 0, tzinfo=UTC)
-        )
+        prefix_day1 = AuditEvent.day_prefix(tenant, datetime(2026, 4, 28, tzinfo=UTC))
+        event_day2 = _event(tenant, created_at=datetime(2026, 4, 29, 12, 0, tzinfo=UTC))
         assert not event_day2.s3_key().startswith(prefix_day1)

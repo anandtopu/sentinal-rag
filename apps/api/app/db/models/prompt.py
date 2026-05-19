@@ -42,9 +42,7 @@ class PromptTemplate(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     task_type: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String, nullable=False, server_default=text("'active'")
-    )
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'active'"))
     created_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -90,9 +88,7 @@ class PromptVersion(Base):
         nullable=False,
         server_default=text("'{}'::jsonb"),
     )
-    is_default: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("false")
-    )
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

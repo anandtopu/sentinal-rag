@@ -68,9 +68,7 @@ class ObjectStorage(Protocol):
         """Fetch object metadata without downloading the body."""
         ...
 
-    def list_keys(
-        self, prefix: str, *, page_size: int = 1000
-    ) -> AsyncIterator[str]:
+    def list_keys(self, prefix: str, *, page_size: int = 1000) -> AsyncIterator[str]:
         """Yield object keys under ``prefix``. Pages internally.
 
         Used by the audit reconciliation workflow to enumerate the S3 partition

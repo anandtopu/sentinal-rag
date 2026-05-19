@@ -14,9 +14,7 @@ from app.db.base import Base
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_id_email"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_users_tenant_id_email"),)
 
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

@@ -58,10 +58,7 @@ async def _resolve_dev_auth_context(db: AsyncSession) -> AuthContext:
     user_repo = UserRepository(db)
     user = await user_repo.get(UUID(settings.dev_user_id))
     if user is None:
-        msg = (
-            "Dev token used but the demo user is not seeded. "
-            "Run `make seed` to create it."
-        )
+        msg = "Dev token used but the demo user is not seeded. Run `make seed` to create it."
         raise AuthInvalidError(msg)
     role_repo = RoleRepository(db)
     permissions = await role_repo.list_user_permission_codes(user.id)

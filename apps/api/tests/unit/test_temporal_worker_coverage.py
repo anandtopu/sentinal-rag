@@ -100,9 +100,7 @@ async def test_upsert_document_version_returns_existing_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     existing_version_id = uuid4()
-    session = FakeSession(
-        [FakeDbResult(first_row=(existing_version_id,))]
-    )
+    session = FakeSession([FakeDbResult(first_row=(existing_version_id,))])
 
     monkeypatch.setattr(
         ingestion_activities,

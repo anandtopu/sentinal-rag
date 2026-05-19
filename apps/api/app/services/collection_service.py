@@ -56,9 +56,7 @@ class CollectionService:
     async def list(self, *, limit: int = 50, offset: int = 0) -> list[Collection]:
         return await self.repo.list(limit=limit, offset=offset)
 
-    async def update(
-        self, collection_id: UUID, payload: CollectionUpdate
-    ) -> Collection:
+    async def update(self, collection_id: UUID, payload: CollectionUpdate) -> Collection:
         collection = await self.get(collection_id)
         if payload.description is not None:
             collection.description = payload.description
