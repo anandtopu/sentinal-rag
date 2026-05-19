@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 /**
  * Smoke specs — exercise paths that don't require seeded data.
  *
- * These run against a live `next dev` (default :3000). The backend at /api
+ * These run against a live `next dev` (default :3107). The backend at /api
  * doesn't need to be up for these specs; they only assert client-side
  * rendering and navigation. Specs that depend on the API live in their
  * own files and skip gracefully if /api/health is unreachable.

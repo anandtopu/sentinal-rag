@@ -7,7 +7,7 @@ export function Topbar() {
   const { data: session, status } = useSession();
   const email = session?.user?.email ?? null;
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4">
+    <header className="flex h-14 items-center justify-between border-b border-border bg-background px-6">
       <div className="text-sm font-medium text-muted-foreground">
         Multi-tenant, RBAC-aware, evaluation-driven enterprise RAG
       </div>

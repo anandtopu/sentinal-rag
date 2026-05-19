@@ -29,12 +29,14 @@ def _ctx(
     answer: str = "",
     chunks: list[str] | None = None,
     cited_chunk_ids: list[UUID] | None = None,
+    retrieved_chunk_ids: list[UUID] | None = None,
 ) -> EvalContext:
+    chunk_ids = retrieved_chunk_ids or [uuid4() for _ in (chunks or [])]
     return EvalContext(
         answer_text=answer,
         retrieved_chunks=[
-            {"chunk_id": str(uuid4()), "content": c}
-            for c in (chunks or [])
+            {"chunk_id": str(chunk_id), "content": c}
+            for chunk_id, c in zip(chunk_ids, chunks or [], strict=True)
         ],
         cited_chunk_ids=cited_chunk_ids or [],
         cited_quoted_texts=[],
@@ -53,17 +55,39 @@ class TestCitationAccuracy:
     async def test_full_overlap_scores_1(self) -> None:
         chunk_id = uuid4()
         case = _case(expected_citation_chunk_ids=[chunk_id])
-        ctx = _ctx(cited_chunk_ids=[chunk_id])
+        ctx = _ctx(
+            chunks=["kubernetes rollback"],
+            cited_chunk_ids=[chunk_id],
+            retrieved_chunk_ids=[chunk_id],
+        )
         out = await CitationAccuracyEvaluator().evaluate(case=case, context=ctx)
         assert out.score == 1.0
 
     async def test_partial_overlap_scores_proportionally(self) -> None:
         a, b, c = uuid4(), uuid4(), uuid4()
         case = _case(expected_citation_chunk_ids=[a, b, c])
-        ctx = _ctx(cited_chunk_ids=[a, b])  # 2 of 3 expected
+        ctx = _ctx(
+            chunks=["a", "b", "c"],
+            cited_chunk_ids=[a, b],
+            retrieved_chunk_ids=[a, b, c],
+        )  # 2 of 3 expected, no extras
         out = await CitationAccuracyEvaluator().evaluate(case=case, context=ctx)
         assert out.score is not None
-        assert abs(out.score - (2 / 3)) < 0.001
+        assert abs(out.score - ((2 / 3 + 1.0) / 2)) < 0.001
+
+    async def test_extra_or_unretrieved_citations_reduce_precision(self) -> None:
+        expected = uuid4()
+        extra = uuid4()
+        case = _case(expected_citation_chunk_ids=[expected])
+        ctx = _ctx(
+            chunks=["expected support"],
+            cited_chunk_ids=[expected, extra],
+            retrieved_chunk_ids=[expected],
+        )
+
+        out = await CitationAccuracyEvaluator().evaluate(case=case, context=ctx)
+
+        assert out.score == 0.75
 
 
 @pytest.mark.unit

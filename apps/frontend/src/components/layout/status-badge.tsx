@@ -17,5 +17,9 @@ const VARIANT: Record<string, BadgeProps['variant']> = {
 
 export function StatusBadge({ status }: { status: string }) {
   const variant: BadgeProps['variant'] = VARIANT[status?.toLowerCase()] ?? 'outline';
-  return <Badge variant={variant}>{status}</Badge>;
+  return (
+    <Badge variant={variant} dot={variant !== 'outline'}>
+      {status}
+    </Badge>
+  );
 }

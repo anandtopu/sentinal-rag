@@ -87,3 +87,11 @@ class BudgetExceededError(DomainError):
     code = ErrorCode.BUDGET_EXCEEDED
     http_status = 402
     default_message = "Tenant budget exceeded for the active period."
+
+
+class TemporalUnavailableError(DomainError):
+    """Temporal is required for durable async work but is not reachable."""
+
+    code = ErrorCode.TEMPORAL_UNAVAILABLE
+    http_status = 503
+    default_message = "Temporal is unavailable."

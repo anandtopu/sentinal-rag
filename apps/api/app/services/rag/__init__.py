@@ -1,0 +1,43 @@
+"""End-to-end RAG pipeline as a stages package.
+
+Public surface:
+
+- ``Orchestrator`` — coordinates the per-request pipeline.
+- ``QueryContext`` — mutable bag passed between stages.
+- ``RetrievalConfig`` / ``GenerationConfig`` / ``QueryOptions`` — request configs.
+- ``QueryResult`` / ``CitationOut`` — response shapes.
+- ``RetrievalClient`` / ``InProcessRetrievalClient`` — the seam R4 plugs the
+  HTTP impl into.
+"""
+
+from __future__ import annotations
+
+from app.services.rag.client import (
+    HttpRetrievalClient,
+    InProcessRetrievalClient,
+    RetrievalClient,
+    RetrievalClientError,
+)
+from app.services.rag.orchestrator import Orchestrator
+from app.services.rag.types import (
+    CitationOut,
+    GenerationConfig,
+    QueryContext,
+    QueryOptions,
+    QueryResult,
+    RetrievalConfig,
+)
+
+__all__ = [
+    "CitationOut",
+    "GenerationConfig",
+    "HttpRetrievalClient",
+    "InProcessRetrievalClient",
+    "Orchestrator",
+    "QueryContext",
+    "QueryOptions",
+    "QueryResult",
+    "RetrievalClient",
+    "RetrievalClientError",
+    "RetrievalConfig",
+]

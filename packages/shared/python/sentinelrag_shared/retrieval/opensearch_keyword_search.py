@@ -245,7 +245,10 @@ class OpenSearchKeywordSearch:
             }))
         body = "\n".join(lines) + "\n"
 
-        response = await self.client.bulk(body=body, refresh=str(refresh).lower())
+        response = await self.client.bulk(
+            body=body,
+            params={"refresh": str(refresh).lower()},
+        )
         if response.get("errors"):
             failed = sum(
                 1
@@ -274,7 +277,7 @@ class OpenSearchKeywordSearch:
         response = await self.client.delete_by_query(
             index=self.index_name,
             body=body,
-            refresh=True,
+            params={"refresh": "true"},
         )
         return int(response.get("deleted", 0))
 

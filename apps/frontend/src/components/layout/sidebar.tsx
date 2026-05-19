@@ -7,6 +7,7 @@ import {
   FileText,
   Folder,
   Gauge,
+  type LucideIcon,
   ScrollText,
   Settings,
   Sparkles,
@@ -16,7 +17,7 @@ import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
 
-const NAV: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Gauge },
   { href: '/collections', label: 'Collections', icon: Folder },
   { href: '/documents', label: 'Documents', icon: FileText },
@@ -54,7 +55,7 @@ export function Sidebar() {
                 active && 'bg-accent text-accent-foreground',
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" strokeWidth={1.75} />
               {item.label}
             </Link>
           );

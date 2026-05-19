@@ -34,7 +34,7 @@ This directory holds the architectural decisions for SentinelRAG. We use the [MA
 | [0018](0018-feature-flags-unleash.md) | Unleash self-hosted for feature flags | Accepted |
 | [0019](0019-evaluation-framework-ragas.md) | `ragas` + custom evaluators for evaluation | Accepted |
 | [0020](0020-multi-dim-embeddings.md) | Multi-dimension embeddings via per-dimension columns | Accepted |
-| [0021](0021-retrieval-embedded-v1.md) | Retrieval embedded in-process for v1; extract in Phase 7 | Accepted |
+| [0021](0021-retrieval-embedded-v1.md) | Retrieval embedded in-process for v1; extract in Phase 7 | Superseded by [0031](0031-retrieval-service-extraction.md) |
 | [0022](0022-cost-budgets-soft-hard-caps.md) | Per-tenant cost budgets with soft / hard caps | Accepted |
 | [0023](0023-helm-chart-shape.md) | Helm chart shape: single chart, in-template workload blocks, cloud switch | Accepted |
 | [0024](0024-terraform-layout.md) | Terraform layout: env-per-dir + shared modules, no Terragrunt | Accepted |
@@ -44,3 +44,10 @@ This directory holds the architectural decisions for SentinelRAG. We use the [MA
 | [0028](0028-disaster-recovery.md) | DR: tiered RPO/RTO commitments, active-passive cross-cloud, daily automated backup verification | Accepted |
 | [0029](0029-portfolio-polish.md) | Portfolio polish: Mermaid C4, harness-with-placeholder reports, README as the front door | Accepted |
 | [0030](0030-cluster-bootstrap.md) | Cluster bootstrap: values overlays + ArgoCD Application manifests, not bundled into the SentinelRAG chart | Accepted |
+| [0031](0031-retrieval-service-extraction.md) | Retrieval-service extracted to a real HTTP workload; supersedes [0021](0021-retrieval-embedded-v1.md) | Accepted |
+| [0032](0032-right-to-be-forgotten.md) | RTBF posture: pseudonymous audit (tombstone mapping) + per-user / per-tenant content purge via Temporal workflow | Accepted |
+| [0033](0033-zero-downtime-schema-migrations.md) | Expand → backfill → contract migrations; class A/B/B'/C taxonomy with CI gate | Accepted |
+| [0034](0034-prompt-injection-defense.md) | v1 prompt-injection defense: in-context system-prompt refusal + ADR-0010 cascade as outcome detector; no input scanner | Accepted |
+| [0035](0035-pii-redaction-at-ingestion.md) | Presidio rule-based redaction, per-tenant opt-in, between parse and chunk in the Temporal ingestion workflow | Accepted |
+| [0036](0036-vector-sharding-per-tenant-index.md) | Shared HNSW by default; partial per-tenant HNSW carve-out when chunks > 5M or recall@10 < 0.85 | Accepted |
+| [0037](0037-streaming-generation-response.md) | `POST /query/stream` returns SSE token / citation / grounding / usage / done frames; existing `/query` JSON contract unchanged | Accepted |

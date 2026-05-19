@@ -173,6 +173,10 @@ class EvaluationScore(Base):
     citation_accuracy_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'completed'")
+    )
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     judge_model: Mapped[str | None] = mapped_column(String, nullable=True)
     judge_reasoning: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

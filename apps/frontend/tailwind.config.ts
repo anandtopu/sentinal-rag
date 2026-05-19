@@ -37,10 +37,14 @@ const config: Config = {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
         },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+        },
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
+        lg: 'calc(var(--radius) + 4px)',
+        md: 'var(--radius)',
         sm: 'calc(var(--radius) - 4px)',
       },
     },

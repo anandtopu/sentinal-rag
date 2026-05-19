@@ -1,6 +1,8 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file is the canonical guide for Codex agents working in this
+repository. `CLAUDE.md` is kept only as a legacy compatibility file; when
+agent guidance differs, this file wins.
 
 ## Product
 
@@ -17,6 +19,29 @@ artifacts that produces (drill-recorded RTOs, real eval/cost numbers,
 live ledger is [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md).
 Always read both at the start of a session before doing planning or
 implementation.
+
+## Codex session checklist
+
+Use this order before making changes:
+
+1. Read [`PROGRESS.md`](PROGRESS.md) and
+   [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md).
+2. Run `git status --short` and preserve any user changes you did not make.
+3. Read [`docs/architecture/adr/README.md`](docs/architecture/adr/README.md)
+   plus any ADRs that govern the touched area.
+4. For feature work, read the relevant runbook in
+   [`docs/operations/runbooks/`](docs/operations/runbooks/), especially
+   [`testing-guide.md`](docs/operations/runbooks/testing-guide.md).
+5. Make the smallest change that satisfies the request, using existing
+   service boundaries and shared packages.
+6. Verify with the narrowest meaningful tests first, then broaden if the
+   change touches shared contracts, retrieval, auth/RLS, cost, audit, Helm,
+   Terraform, or deployment workflows.
+
+Update `PROGRESS.md` and `docs/architecture/PHASE_PLAN.md` only when the
+phase status, deployment readiness, verification baseline, or deferred
+scope changes. Do not hand-edit live eval or cost numbers; use the
+committed harnesses that generate those reports.
 
 ## Locked stack
 

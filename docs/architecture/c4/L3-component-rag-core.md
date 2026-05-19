@@ -51,7 +51,7 @@ C4Component
 
 ## Single-trace invariant
 
-Pillar #3 (`CLAUDE.md`): a single `query_session_id` joins query → retrieval results (per stage) → generated answer → citations → eval scores → usage records. The orchestrator writes all of these in one transaction (with the `usage_records` row keyed on the same `query_session_id`) so a partial failure either rolls back the whole chain or is fully re-traceable.
+Pillar #3 (`AGENTS.md`): a single `query_session_id` joins query → retrieval results (per stage) → generated answer → citations → eval scores → usage records. The orchestrator writes all of these in one transaction (with the `usage_records` row keyed on the same `query_session_id`) so a partial failure either rolls back the whole chain or is fully re-traceable.
 
 ## Decision points and the ADRs that pin them
 
@@ -60,7 +60,7 @@ Pillar #3 (`CLAUDE.md`): a single `query_session_id` joins query → retrieval r
 | `KeywordSearch` (Protocol) | Postgres FTS for v1; OpenSearch as second adapter | [0004](../adr/0004-postgres-fts-over-opensearch.md), [0026](../adr/0026-opensearch-reintroduction.md) |
 | `VectorSearch` | pgvector HNSW; multi-dim column dispatch | [0003](../adr/0003-pgvector-hnsw.md), [0020](../adr/0020-multi-dim-embeddings.md) |
 | `Reranker` | bge-reranker-v2-m3 default; Cohere as adapter | [0006](../adr/0006-bge-reranker.md) |
-| `AccessFilter` | RBAC at retrieval time, not post-mask | Pillar #1 in CLAUDE.md |
+| `AccessFilter` | RBAC at retrieval time, not post-mask | Pillar #1 in AGENTS.md |
 | `PromptService` | Prompts are versioned artifacts | Pillar #4 |
 | `CostService` | Soft / hard cap budgets | [0022](../adr/0022-cost-budgets-soft-hard-caps.md) |
 | `Grounding scorer` | Layered cascade (cheap → expensive) | [0010](../adr/0010-layered-hallucination-detection.md) |

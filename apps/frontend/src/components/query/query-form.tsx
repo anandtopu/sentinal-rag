@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Pill } from '@/components/ui/pill';
 import { Textarea } from '@/components/ui/textarea';
 import type { QueryRequest, QueryResponse } from '@/lib/api-types';
 import { useApiClient } from '@/lib/use-api-client';
@@ -75,22 +76,17 @@ export function QueryForm() {
                   {collections.data?.items.map((c) => {
                     const selected = collectionIds.includes(c.id);
                     return (
-                      <button
-                        type="button"
+                      <Pill
                         key={c.id}
+                        pressed={selected}
                         onClick={() =>
                           setCollectionIds((prev) =>
                             prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id],
                           )
                         }
-                        className={
-                          selected
-                            ? 'rounded-full border border-primary bg-primary px-3 py-1 text-xs text-primary-foreground'
-                            : 'rounded-full border border-border px-3 py-1 text-xs hover:bg-accent'
-                        }
                       >
                         {c.name}
-                      </button>
+                      </Pill>
                     );
                   })}
                   {!collections.data?.items.length && (

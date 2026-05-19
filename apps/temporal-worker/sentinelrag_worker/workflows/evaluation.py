@@ -77,8 +77,19 @@ class EvaluationRunWorkflow:
                     retry_policy=RetryPolicy(maximum_attempts=2),
                 )
                 cases_completed += 1
-            except Exception:
+            except Exception as exc:
                 cases_failed += 1
+                await workflow.execute_activity(
+                    activities.record_case_failure,
+                    args=[
+                        str(payload.evaluation_run_id),
+                        case_id,
+                        str(payload.tenant_id),
+                        str(exc),
+                    ],
+                    start_to_close_timeout=timedelta(seconds=15),
+                    retry_policy=_RETRY,
+                )
 
         final_status = "failed" if cases_failed else "completed"
         await workflow.execute_activity(

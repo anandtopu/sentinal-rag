@@ -1,0 +1,42 @@
+{{- if and .Values.retrieval.enabled .Values.networkPolicy.enabled -}}
+{{- $ctx := merge (dict "workload" "retrieval" "workloadKey" "retrieval") . -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelrag.workload.fullname" $ctx }}
+  labels:
+    {{- include "sentinelrag.workload.labels" $ctx | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sentinelrag.workload.selectorLabels" $ctx | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # R4.S5: only the API pod talks to retrieval. No public ingress, no
+    # other-workload traffic. The bearer-token guard in main.py is the
+    # second layer of defense; this NetworkPolicy is the first.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "sentinelrag.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: api
+      ports:
+        - protocol: TCP
+          port: {{ .Values.retrieval.containerPort }}
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow cluster-internal egress (Postgres, Ollama). Tightening to
+    # explicit pod selectors is deferred to the Phase 8 hardening pass
+    # — same trade-off the api NetworkPolicy already accepts.
+    - to: []
+{{- end -}}

@@ -55,7 +55,7 @@ class IngestionWorkflow:
 
         await workflow.execute_activity(
             activities.mark_job_running,
-            args=[str(payload.job_id), str(payload.tenant_id)],
+            args=[str(payload.job_id), str(payload.tenant_id), str(payload.document_id)],
             start_to_close_timeout=timedelta(seconds=15),
             retry_policy=_STANDARD_RETRY,
         )
@@ -82,9 +82,25 @@ class IngestionWorkflow:
 
             parse_result = await workflow.execute_activity(
                 activities.parse_document,
-                args=[payload.storage_uri, payload.mime_type, str(payload.tenant_id)],
+                args=[
+                    payload.storage_uri,
+                    payload.mime_type,
+                    str(payload.tenant_id),
+                    payload.parsing_strategy,
+                ],
                 start_to_close_timeout=timedelta(minutes=15),
                 retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+
+            await workflow.execute_activity(
+                activities.update_document_version_storage_uri,
+                args=[
+                    str(payload.tenant_id),
+                    version_id,
+                    parse_result["raw_text_uri"],
+                ],
+                start_to_close_timeout=timedelta(seconds=15),
+                retry_policy=_STANDARD_RETRY,
             )
 
             chunk_count: int = await workflow.execute_activity(
@@ -93,7 +109,7 @@ class IngestionWorkflow:
                     str(payload.tenant_id),
                     str(payload.document_id),
                     version_id,
-                    parse_result["elements_path"],
+                    parse_result["elements_uri"],
                     payload.chunking_strategy,
                 ],
                 start_to_close_timeout=timedelta(minutes=10),
@@ -133,7 +149,12 @@ class IngestionWorkflow:
         except Exception as exc:
             await workflow.execute_activity(
                 activities.mark_job_failed,
-                args=[str(payload.job_id), str(payload.tenant_id), str(exc)[:1000]],
+                args=[
+                    str(payload.job_id),
+                    str(payload.tenant_id),
+                    str(payload.document_id),
+                    str(exc)[:1000],
+                ],
                 start_to_close_timeout=timedelta(seconds=15),
                 retry_policy=RetryPolicy(maximum_attempts=3),
             )

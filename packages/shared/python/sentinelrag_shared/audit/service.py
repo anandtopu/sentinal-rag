@@ -19,12 +19,14 @@ Redis Streams into Phase 6's blast radius.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Iterable
 from typing import Protocol
 
 from sentinelrag_shared.audit.event import AuditEvent
 from sentinelrag_shared.audit.sinks import AuditSink, AuditSinkError
+from sentinelrag_shared.telemetry import record_audit_secondary_failure
 
 logger = logging.getLogger(__name__)
 
@@ -58,21 +60,32 @@ class DualWriteAuditService:
             task.add_done_callback(self._inflight.discard)
 
     async def _safe_write(self, sink: AuditSink, event: AuditEvent) -> None:
+        """Best-effort secondary write — never propagate to the caller.
+
+        Catches ``AuditSinkError`` (the wrapped failure mode) AND broader
+        ``Exception`` defensively — a misconfigured boto3 client can raise
+        ``ClientError`` not wrapped by ``AuditSinkError``, and leaking those
+        as an asyncio "Task exception was never retrieved" surprises
+        operators. The daily reconciliation Schedule (Phase 6.5) backfills
+        any missed rows; this counter is the early-warning signal.
+        """
+        sink_name = type(sink).__name__
         try:
             await sink.write(event)
-        except AuditSinkError as exc:
-            # Phase 6 (deferred): emit a metric so the reconciliation
-            # alarm has something to fire on. For now, log + drop —
-            # reconciliation rebuilds from Postgres anyway.
+        except Exception as exc:
             logger.warning(
                 "audit secondary sink failed",
                 extra={
                     "event_id": str(event.id),
                     "event_type": event.event_type,
-                    "sink": type(sink).__name__,
+                    "sink": sink_name,
                     "error": str(exc),
                 },
             )
+            # Telemetry may not be configured in unit tests; suppress so a
+            # missing OTel SDK never masks the original failure signal.
+            with contextlib.suppress(Exception):
+                record_audit_secondary_failure(sink=sink_name)
 
     async def drain(self) -> None:
         """Wait for in-flight async writes to settle.

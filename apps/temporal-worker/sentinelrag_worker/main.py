@@ -16,7 +16,6 @@ Run locally with:
 from __future__ import annotations
 
 import asyncio
-import os
 
 from sentinelrag_shared.logging import configure_logging, get_logger
 from sentinelrag_shared.telemetry import configure_telemetry
@@ -32,6 +31,7 @@ from sentinelrag_worker.activities.evaluation import (
 from sentinelrag_worker.activities.ingestion import (
     ALL_ACTIVITIES as INGESTION_ACTIVITIES,
 )
+from sentinelrag_worker.settings import load_worker_settings
 from sentinelrag_worker.workflows.audit_reconciliation import (
     AuditReconciliationWorkflow,
 )
@@ -40,18 +40,17 @@ from sentinelrag_worker.workflows.ingestion import IngestionWorkflow
 
 
 async def main() -> None:
-    log_level = os.environ.get("LOG_LEVEL", "INFO")
-    environment = os.environ.get("ENVIRONMENT", "local")
+    settings = load_worker_settings()
     configure_logging(
-        level=log_level,
-        json_output=environment != "local",
+        level=settings.log_level,
+        json_output=settings.environment != "local",
         service_name="sentinelrag-temporal-worker",
     )
     configure_telemetry(
         service_name="sentinelrag-temporal-worker",
         service_version="0.1.0",
-        environment=environment,
-        otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        environment=settings.environment,
+        otlp_endpoint=settings.otlp_endpoint,
     )
 
     log = get_logger(__name__)
@@ -64,26 +63,20 @@ async def main() -> None:
     except Exception as exc:
         log.warning("tiktoken.prewarm_failed", error=str(exc))
 
-    host = os.environ.get("TEMPORAL_HOST", "localhost:7233")
-    namespace = os.environ.get("TEMPORAL_NAMESPACE", "default")
-    ingestion_queue = os.environ.get("TEMPORAL_TASK_QUEUE_INGESTION", "ingestion")
-    evaluation_queue = os.environ.get("TEMPORAL_TASK_QUEUE_EVALUATION", "evaluation")
-    audit_queue = os.environ.get("TEMPORAL_TASK_QUEUE_AUDIT", "audit")
-
     log.info(
         "temporal_worker.starting",
-        host=host,
-        namespace=namespace,
-        ingestion_queue=ingestion_queue,
-        evaluation_queue=evaluation_queue,
-        audit_queue=audit_queue,
+        host=settings.temporal_host,
+        namespace=settings.temporal_namespace,
+        ingestion_queue=settings.ingestion_task_queue,
+        evaluation_queue=settings.evaluation_task_queue,
+        audit_queue=settings.audit_task_queue,
     )
 
-    client = await Client.connect(host, namespace=namespace)
+    client = await Client.connect(settings.temporal_host, namespace=settings.temporal_namespace)
 
     ingestion_worker = Worker(
         client,
-        task_queue=ingestion_queue,
+        task_queue=settings.ingestion_task_queue,
         workflows=[IngestionWorkflow],
         activities=INGESTION_ACTIVITIES,
         max_concurrent_activities=10,
@@ -92,7 +85,7 @@ async def main() -> None:
 
     evaluation_worker = Worker(
         client,
-        task_queue=evaluation_queue,
+        task_queue=settings.evaluation_task_queue,
         workflows=[EvaluationRunWorkflow],
         activities=EVALUATION_ACTIVITIES,
         max_concurrent_activities=4,  # eval activities are heavier (LLM calls)
@@ -101,7 +94,7 @@ async def main() -> None:
 
     audit_worker = Worker(
         client,
-        task_queue=audit_queue,
+        task_queue=settings.audit_task_queue,
         workflows=[AuditReconciliationWorkflow],
         activities=AUDIT_ACTIVITIES,
         max_concurrent_activities=4,

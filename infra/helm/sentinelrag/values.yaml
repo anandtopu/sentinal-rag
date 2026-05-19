@@ -137,6 +137,9 @@ api:
       - OBJECT_STORAGE_ACCESS_KEY
       - OBJECT_STORAGE_SECRET_KEY
       - UNLEASH_API_TOKEN
+      # R4.S5: shared bearer secret used by HttpRetrievalClient when
+      # RETRIEVAL_TRANSPORT=http. Empty when transport is in-process.
+      - RETRIEVAL_SERVICE_TOKEN
   # Non-sensitive config the API reads from a ConfigMap.
   envFromConfigMap:
     KEYCLOAK_AUDIENCE: sentinelrag-api
@@ -155,6 +158,74 @@ api:
     ENABLE_RERANKER: "false"
     UNLEASH_URL: http://unleash.unleash.svc.cluster.local:4242/api/
     UNLEASH_APP_NAME: sentinelrag-api
+    # R4.S3: the API service flips to HTTP transport when the retrieval
+    # workload below is enabled. Set ``RETRIEVAL_TRANSPORT=in-process``
+    # to skip the network hop and run retrieval in the API pod.
+    RETRIEVAL_TRANSPORT: http
+    RETRIEVAL_SERVICE_URL: http://sentinelrag-retrieval.sentinelrag.svc.cluster.local
+    RETRIEVAL_SERVICE_TIMEOUT_SECONDS: "5"
+
+# ----------------------------------------------------------------------------
+# Retrieval service (R4). When disabled, the API runs retrieval in-process
+# regardless of RETRIEVAL_TRANSPORT — the NetworkPolicy here is the only
+# thing that gates the HTTP path.
+# ----------------------------------------------------------------------------
+retrieval:
+  enabled: true
+  image:
+    name: sentinelrag-retrieval-service
+  replicaCount: 2
+  containerPort: 8000
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  serviceAccount:
+    create: true
+    annotations: {}
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # /healthz responds 200 even before the DB engine is opened — keeps
+  # the K8s liveness/readiness probes fast.
+  healthCheck:
+    path: /healthz
+    livenessInitialDelaySeconds: 15
+    readinessInitialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  env:
+    SERVICE_NAME: sentinelrag-retrieval-service
+  envFromSecret:
+    name: sentinelrag-retrieval-secrets
+    remoteKeys:
+      - DATABASE_URL
+      # Same shared bearer secret the API service receives, but under
+      # the retrieval-service's secret path so ESO maps each component's
+      # IRSA/WI to its own copy in the upstream store.
+      - SERVICE_TOKEN
+  envFromConfigMap:
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+    OLLAMA_BASE_URL: http://ollama.ollama.svc.cluster.local:11434
+    LOG_LEVEL: INFO
 
 # ----------------------------------------------------------------------------
 # Temporal worker.

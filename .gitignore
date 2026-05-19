@@ -19,6 +19,7 @@ coverage.xml
 .pytype/
 
 # uv / virtualenv
+.uv-cache/
 .venv/
 venv/
 .python-version
@@ -52,6 +53,8 @@ Thumbs.db
 
 # --- Env / secrets ---
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 .env.development

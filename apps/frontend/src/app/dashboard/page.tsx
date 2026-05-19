@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Stat } from '@/components/ui/stat';
 import { useApiClient } from '@/lib/use-api-client';
 
 export default function DashboardPage() {
@@ -37,33 +38,13 @@ export default function DashboardPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Tenant</CardDescription>
-            <CardTitle className="text-xl">{tenantName}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            <code>{tenantSlug}</code>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Collections</CardDescription>
-            <CardTitle className="text-xl">{collectionCount}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Active scopes for retrieval
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Evaluation runs</CardDescription>
-            <CardTitle className="text-xl">{evalCount}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Lifetime runs (ragas + custom)
-          </CardContent>
-        </Card>
+        <Stat
+          label="Tenant"
+          value={tenantName}
+          sub={<code className="font-mono">{tenantSlug}</code>}
+        />
+        <Stat label="Collections" value={collectionCount} sub="Active scopes for retrieval" />
+        <Stat label="Evaluation runs" value={evalCount} sub="Lifetime runs (ragas + custom)" />
       </div>
 
       <Card className="mt-6">

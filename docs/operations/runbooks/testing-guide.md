@@ -1,7 +1,7 @@
 # Feature testing guide
 
 How to verify every documented SentinelRAG feature works after a code
-change. This is the **canonical test matrix** — when CLAUDE.md or a
+change. This is the **canonical test matrix** — when AGENTS.md or a
 README quick-start disagrees with this file, this file wins.
 
 The guide is layered:
@@ -22,7 +22,7 @@ test should have caught a bug but didn't.
 ```bash
 # Unit tests — fast, no infra, run on every PR.
 uv run pytest -m unit
-# Expect: 75 passed, 1 pre-existing flake (test_dev_token_disabled_by_default).
+# Expect: 162 passed, 0 failures, 0 flakes.
 
 # Integration tests — testcontainers, needs Docker Desktop.
 uv run pytest -m integration
@@ -32,9 +32,10 @@ cd apps/frontend && npm run test
 # Expect: 5 passed (api client).
 
 # Frontend e2e — Playwright; the API-dependent specs auto-skip when
-# the backend isn't reachable.
+# the backend isn't reachable. Defaults to :3107 to avoid dev-server
+# collisions; set E2E_PORT or E2E_REUSE_SERVER=true when needed.
 cd apps/frontend && npm run test:e2e
-# Expect: 7 tests, smoke + query-playground + collections.
+# Expect: 15 tests total. Frontend-only: 11 passed, 4 skipped.
 
 # Lint + format + typecheck.
 uv run ruff check apps packages scripts tests   # → All checks passed!
@@ -68,7 +69,7 @@ defense in depth.
 | Manual | `make up && make seed`. Mint two demo tenants. From tenant A, `POST /query` against a collection in tenant B's namespace → expect 404 (collection not visible), not 403 (which would imply post-mask). |
 
 **Fail signal:** if a unit test mocks `AsyncSession`, the RLS bug surface
-is hidden. CLAUDE.md forbids this — see ADR-0008 + Pillar #2.
+is hidden. AGENTS.md forbids this — see ADR-0008 + Pillar #2.
 
 ---
 
@@ -201,7 +202,7 @@ playground with SSE-driven trace stream.
 | Layer | What to run |
 |---|---|
 | Unit | `cd apps/frontend && npm run test` — 5 vitest tests covering bearer auth forwarding, query serialization, error envelope unwrapping, multipart upload. |
-| E2E | `cd apps/frontend && npm run test:e2e` — 7 Playwright tests; API-dependent specs skip cleanly when backend not reachable. |
+| E2E | `cd apps/frontend && npm run test:e2e` — 15 Playwright tests; deterministic mocked-API specs cover the dashboard, collections, documents, query, prompts, evaluations, settings, audit, and usage surfaces. API-dependent specs skip cleanly when backend not reachable. |
 | Manual | `make up && make api && cd apps/frontend && npm run dev`. Open `http://localhost:3000`. Hit `/query-playground`. Submit a query — the trace pane should update in real time via SSE (look for `event: trace` frames in DevTools network panel). |
 
 **Fail signal:** the trace pane shows nothing → either SSE is buffering
@@ -349,4 +350,4 @@ RTO, surprises, follow-ups. (Directory created on first drill.)
 - [`tests/performance/k6/README.md`](../../../tests/performance/k6/README.md) — k6 details
 - [`tests/performance/evals/README.md`](../../../tests/performance/evals/README.md) — eval comparison harness
 - [`infra/chaos/README.md`](../../../infra/chaos/README.md) — Chaos Mesh experiment matrix
-- [`CLAUDE.md`](../../../CLAUDE.md) — locked stack, architectural pillars, footguns
+- [`AGENTS.md`](../../../AGENTS.md) — Codex session checklist, locked stack, architectural pillars, footguns

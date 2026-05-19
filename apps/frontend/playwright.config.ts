@@ -8,8 +8,9 @@ import { defineConfig, devices } from '@playwright/test';
  * skip when no backend is reachable.
  */
 
-const PORT = process.env.E2E_PORT ?? '3000';
+const PORT = process.env.E2E_PORT ?? '3107';
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
+const REUSE_SERVER = process.env.E2E_REUSE_SERVER === 'true';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -34,7 +35,7 @@ export default defineConfig({
   webServer: {
     command: `npx next dev --hostname 127.0.0.1 --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: REUSE_SERVER,
     timeout: 120_000,
   },
 });

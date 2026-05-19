@@ -19,10 +19,10 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 import litellm
+from litellm.exceptions import Timeout as LiteLLMTimeout
 from tenacity import (
     AsyncRetrying,
-    RetryError,
-    retry_if_exception_type,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
@@ -32,6 +32,15 @@ from sentinelrag_shared.llm.types import GenerationResult, UsageRecord
 
 class GeneratorError(Exception):
     """Raised when generation fails after retries."""
+
+
+class GeneratorTimeoutError(GeneratorError):
+    """Raised when the generator's per-call timeout fires (R3.S4).
+
+    Subclassing :class:`GeneratorError` keeps the existing
+    ``except GeneratorError`` paths working; callers that want to
+    distinguish timeout-vs-other can ``except GeneratorTimeoutError``.
+    """
 
 
 class Generator(Protocol):
@@ -108,7 +117,13 @@ class LiteLLMGenerator:
             async for attempt in AsyncRetrying(
                 stop=stop_after_attempt(self._max_retries),
                 wait=wait_exponential(multiplier=0.5, min=0.5, max=8),
-                retry=retry_if_exception_type(Exception),
+                # Don't retry timeouts (R3.S4) — if the provider is
+                # hung at 60s, three retries means 180s+ of blocking,
+                # well past any sane request budget. Other errors keep
+                # the retry-on-anything behavior.
+                retry=retry_if_not_exception_type(
+                    (LiteLLMTimeout, TimeoutError)
+                ),
                 reraise=True,
             ):
                 with attempt:
@@ -118,7 +133,12 @@ class LiteLLMGenerator:
                 # never reached because reraise=True; satisfy the type checker
                 msg = "litellm.acompletion returned no result."
                 raise GeneratorError(msg)
-        except RetryError as exc:
+        except (LiteLLMTimeout, TimeoutError) as exc:
+            msg = (
+                f"Generator {self.model_name!r} timed out after {self._timeout}s."
+            )
+            raise GeneratorTimeoutError(msg) from exc
+        except Exception as exc:
             msg = f"Generator {self.model_name!r} failed after {self._max_retries} attempts."
             raise GeneratorError(msg) from exc
 

@@ -1,6 +1,6 @@
 # SentinelRAG — Phase Plan
 
-This is the live phase plan for the SentinelRAG build. Update this file when a phase completes or when scope changes — future Claude instances read this at the start of every session to know where we are.
+This is the live phase plan for the SentinelRAG build. Update this file when a phase completes or when scope changes — future Codex instances read this at the start of every session to know where we are.
 
 ## Status legend
 
@@ -10,8 +10,57 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 ## Current phase
 
-**All 10 phases complete (code-side) — last update 2026-04-29 (deploy
-audit pass).** This session ran a full code review against the deploy
+**All 10 phases complete (code-side) — last update 2026-05-15 (frontend E2E
+coverage pass).** The latest session expanded Playwright coverage around the
+dashboard, settings, audit/usage pages, optional query traces, and mocked
+tenant/user context. The suite now has 15 frontend E2E tests: 11 deterministic
+frontend/mocked-API tests pass locally, and 4 live-backend specs skip cleanly
+when `/api/health` is unavailable.
+
+**Previous shared LLM wrapper coverage pass (2026-05-13).** Expanded unit
+coverage around the LiteLLM embedder/generator wrappers and local reranker
+adapter, and fixed retry failure wrapping so provider failures surface as the
+wrapper errors promised by the shared LLM API.
+
+**Previous backend coverage + retrieval-service hardening pass
+(2026-05-12).** The session restored the repo-local Python 3.12 environment,
+expanded backend unit coverage, and closed retrieval-service review findings:
+
+1. Query/RAG route coverage now exercises response citation options, trace
+   metadata coercion, trace streaming timeout/session edge cases,
+   cloud-model permission gates, and abstain option forwarding.
+2. Retrieval hardening now covers `AccessFilter`, pgvector `ef_search`,
+   pgvector vector formatting, RRF merge edge cases, and OpenSearch/Postgres
+   authorization-shape parity.
+3. Service-layer coverage now includes focused tests for `DocumentService`,
+   `PromptService`, `EvaluationService`, and tenant/user/role services.
+4. Temporal worker coverage now includes ingestion/evaluation failure paths
+   and idempotent activity behavior without replacing the DB-isolation
+   branches under test.
+5. Retrieval-service review fixes landed: OpenSearch `bulk` and
+   `delete_by_query` pass refresh through `params`, RRF merge is exposed as
+   public `merge_with_rrf`, the wrapper reports only its diagnostic
+   `/rrf-merge` capability, heavyweight unused wrapper deps were removed,
+   and wrapper coverage is 100%.
+
+**Verified after the latest pass:**
+- `uv run python --version` → **Python 3.12.13**.
+- `uv run pytest -m unit --cov=apps --cov=packages --cov-report=term-missing`
+  → **162 passed**, **70.80% Python coverage**.
+- `uv run pytest apps/api/tests/unit/test_retrieval_regressions.py apps/api/tests/unit/test_opensearch_keyword_search.py apps/retrieval-service/tests/unit -q`
+  → **32 passed**.
+- Retrieval-service coverage: **100%**.
+- Shared retrieval targeted coverage: **97%**.
+- `uv run ruff check` on touched retrieval paths → clean.
+- Targeted `pyright` on retrieval-service + shared retrieval → **0 errors**
+  with the existing strict-mode stub/unknown-type warnings only.
+
+**Environment note:** `pytest -m integration` is still blocked locally by
+Docker Desktop named-pipe permissions (`//./pipe/docker_engine` access denied).
+This is an operator/host permissions issue, not the Python tooling failure
+that was fixed in this session.
+
+**Previous deploy-audit pass (2026-04-29).** This session ran a full code review against the deploy
 path and fixed **6 deploy-blockers** that would have broken any first
 `terraform apply`+`helm install`:
 
@@ -115,7 +164,9 @@ Mesh, security CI, DR runbook). Phase 9 — 🟢 code-side (Mermaid C4,
 README overhaul, eval + cost harnesses, ADR-0029).
 
 **Verified this session:**
-- `uv run pytest -m unit` → 75 passed, 1 pre-existing flake.
+- `uv run pytest -m unit` → 75 passed, 1 pre-existing flake (historical
+  baseline from before the deploy-audit pass; current baseline is 76
+  passed, 0 flakes).
 - `uv run ruff check apps packages scripts tests` → clean.
 - `helm lint` against `values-dev.yaml`, `values-gcp-dev.yaml`,
   `values-prod.yaml`, `values-local.yaml` → clean.
@@ -137,7 +188,7 @@ incrementally rather than in a single sweep.
 
 ### Phase 0 — Foundations 🟢
 **Goal:** repo scaffolding, tooling, local dev stack, CI bones, ADR catalog.
-- 🟢 Update `CLAUDE.md` with locked stack and override notes.
+- 🟢 Update the agent guide with locked stack and override notes.
 - 🟢 Write ADR catalog (0000 template + 0001–0019).
 - 🟢 Bootstrap monorepo skeleton (directories + root config).
 - 🟢 `docker-compose.yml` for full local dev stack.
@@ -218,7 +269,7 @@ incrementally rather than in a single sweep.
 - 🟢 Hand-rolled shadcn-style primitives (Button, Card, Input, Textarea, Label, Badge, Table) + layout (Sidebar, Topbar, PageHeader, StatusBadge).
 - 🟢 Pages: `/dashboard`, `/collections` (with create form), `/documents` (with upload + ingestion-job polling), `/query-playground` (the headline — collections multiselect, model picker, top-k, SSE-driven trace viewer with polling fallback), `/evaluations`, `/prompts` (templates + versions), `/settings`. `/audit` + `/usage` are stub explainers pointing at Phase 6.
 - 🟢 Vitest suite (`tests/unit/api.test.ts`) covering bearer-auth forwarding, query serialization, error-envelope unwrapping, multipart upload — 5 tests.
-- 🟢 Playwright e2e — `playwright.config.ts` + 3 spec files (smoke, query-playground, collections) totaling 7 tests. API-dependent specs probe `/api/v1/health` and skip cleanly when the backend isn't reachable, so the suite passes in frontend-only CI and exercises the live backend once Phase 7 ships a deployed dev environment.
+- 🟢 Playwright e2e — `playwright.config.ts` + 4 spec files (smoke, query-playground, collections, feature-regression) totaling 15 tests. Deterministic mocked-API coverage exercises dashboard tenant stats, collection create, document upload/ingestion refresh, query answers/citations/trace, optional trace hiding, prompt versions, eval runs, settings identity context, and audit/usage navigation. API-dependent specs probe `/api/health` and skip cleanly when the backend isn't reachable, so the suite passes in frontend-only CI and exercises the live backend once Phase 7 ships a deployed dev environment.
 - 🟢 Streaming SSE for the trace viewer — `GET /api/v1/query/{id}/trace/stream` emits `event: trace` frames over `text/event-stream`; `useTraceStream` consumes via fetch+ReadableStream (so bearer auth still works) and falls back to polling if the first frame doesn't arrive within 4s (nginx-style buffering safety net).
 
 **Done when:** all major API features are usable through the UI. _(Done.)_
@@ -257,8 +308,9 @@ incrementally rather than in a single sweep.
   - `helm lint` clean against base + dev + prod + local overlays.
     `helm template` renders against all four (after `helm dependency build`
     + extracting tarballs — Helm 4 quirk noted in deployment runbook).
-- 🟢 Slice 2 — AWS Terraform: ADR-0024 + 7 modules (vpc, eks, rds,
-  elasticache, s3, secrets, iam) + dev environment wiring. RDS Postgres 16
+- 🟢 Slice 2 — AWS Terraform: ADR-0024 + 7 initially wired modules
+  (vpc, eks, rds, elasticache, s3, secrets, iam) + dev environment
+  wiring. RDS Postgres 16
   with pgvector parameter group; S3 audit bucket with Object Lock COMPLIANCE
   7y; Secrets Manager 3 parent secrets; IRSA roles wired to OIDC for api,
   worker, frontend, ESO; EKS 1.30 cluster access entry mode.

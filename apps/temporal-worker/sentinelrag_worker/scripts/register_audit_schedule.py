@@ -34,11 +34,13 @@ from temporalio.client import (
     ScheduleUpdateInput,
 )
 
+from sentinelrag_worker.settings import env_bool, env_int, load_worker_settings
+
 SCHEDULE_ID = "audit-reconciliation-daily"
 
 
 def _parse_tenant_ids(raw: str) -> list[UUID]:
-    ids = [UUID(s.strip()) for s in raw.split(",") if s.strip()]
+    ids = list(dict.fromkeys(UUID(s.strip()) for s in raw.split(",") if s.strip()))
     if not ids:
         raise ValueError(
             "AUDIT_RECON_TENANT_IDS is empty; "
@@ -55,6 +57,11 @@ def _build_schedule(
     backfill: bool,
     max_backfill: int,
 ) -> Schedule:
+    if interval_hours < 1:
+        raise ValueError("AUDIT_RECON_INTERVAL_HOURS must be >= 1.")
+    if max_backfill < 0:
+        raise ValueError("AUDIT_RECON_MAX_BACKFILL must be >= 0.")
+
     payload = AuditReconciliationInput(
         day=None,  # workflow derives yesterday-UTC each fire
         tenant_ids=tenant_ids,
@@ -77,22 +84,24 @@ def _build_schedule(
 
 
 async def main() -> None:
+    settings = load_worker_settings()
     configure_logging(
-        level=os.environ.get("LOG_LEVEL", "INFO"),
-        json_output=os.environ.get("ENVIRONMENT", "local") != "local",
+        level=settings.log_level,
+        json_output=settings.environment != "local",
         service_name="sentinelrag-audit-schedule-register",
     )
     log = get_logger(__name__)
 
-    host = os.environ.get("TEMPORAL_HOST", "localhost:7233")
-    namespace = os.environ.get("TEMPORAL_NAMESPACE", "default")
-    task_queue = os.environ.get("TEMPORAL_TASK_QUEUE_AUDIT", "audit")
-    interval_hours = int(os.environ.get("AUDIT_RECON_INTERVAL_HOURS", "24"))
-    backfill = os.environ.get("AUDIT_RECON_BACKFILL", "true").lower() == "true"
-    max_backfill = int(os.environ.get("AUDIT_RECON_MAX_BACKFILL", "500"))
+    task_queue = settings.audit_task_queue
+    interval_hours = env_int("AUDIT_RECON_INTERVAL_HOURS", default=24, minimum=1)
+    backfill = env_bool("AUDIT_RECON_BACKFILL", default=True)
+    max_backfill = env_int("AUDIT_RECON_MAX_BACKFILL", default=500, minimum=0)
     tenant_ids = _parse_tenant_ids(os.environ.get("AUDIT_RECON_TENANT_IDS", ""))
 
-    client = await Client.connect(host, namespace=namespace)
+    client = await Client.connect(
+        settings.temporal_host,
+        namespace=settings.temporal_namespace,
+    )
     schedule = _build_schedule(
         tenant_ids=tenant_ids,
         task_queue=task_queue,

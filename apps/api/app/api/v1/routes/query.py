@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
 from sentinelrag_shared.audit import (
     DualWriteAuditService,
@@ -23,7 +23,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import require_permission
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.dependencies import AuditStorageDep, RerankerDep
+from app.dependencies import (
+    AuditStorageDep,
+    BudgetReservationDep,
+    EmbedderDep,
+    IdempotencyDep,
+    RerankerDep,
+    RetrievalClientDep,
+)
 from app.schemas.query import (
     CitationRead,
     GeneratedAnswerSummary,
@@ -33,10 +40,12 @@ from app.schemas.query import (
     QueryUsage,
     RetrievalResultRead,
 )
-from app.services.rag_orchestrator import (
+from app.services.idempotency import IdempotencyService
+from app.services.rag import (
     GenerationConfig,
+    Orchestrator,
     QueryOptions,
-    RagOrchestrator,
+    QueryResult,
     RetrievalConfig,
 )
 
@@ -63,13 +72,42 @@ async def execute_query(
     db: Annotated[AsyncSession, Depends(get_db)],
     reranker: RerankerDep,
     audit_storage: AuditStorageDep,
+    idempotency: IdempotencyDep,
+    budget_reservations: BudgetReservationDep,
+    retrieval_client: RetrievalClientDep,
+    embedder: EmbedderDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> QueryResponse:
     settings = get_settings()
     requested_model = payload.generation.model or settings.default_generation_model
     if requires_cloud_model_permission(requested_model):
         ctx.require_permission("llm:cloud_models")
 
-    orchestrator = RagOrchestrator(
+    # R3.S2: namespace by tenant + hash the body so a malicious client
+    # can't reuse a key with a different payload and get the cached
+    # response of the old payload.
+    cache_key: str | None = None
+    if idempotency_key:
+        body_hash = IdempotencyService.body_hash(
+            payload.model_dump_json().encode("utf-8")
+        )
+        cache_key = IdempotencyService.cache_key(
+            tenant_id=ctx.tenant_id,
+            idempotency_key=idempotency_key,
+            body_hash=body_hash,
+        )
+        cached = await _resolve_idempotent_response(idempotency, cache_key)
+        if cached is not None:
+            return cached
+        claimed = await idempotency.try_claim(cache_key)
+        if not claimed:
+            # Couldn't claim — race with a leader that finished between
+            # our get and our claim. Read once more before giving up.
+            cached = await _resolve_idempotent_response(idempotency, cache_key)
+            if cached is not None:
+                return cached
+
+    orchestrator = Orchestrator(
         session=db,
         embedding_model=settings.default_embedding_model,
         ollama_base_url=settings.ollama_base_url,
@@ -78,37 +116,70 @@ async def execute_query(
             primary=PostgresAuditSink(db),
             secondaries=[ObjectStorageAuditSink(audit_storage)],
         ),
+        generation_timeout_seconds=settings.generation_timeout_seconds,
+        budget_reservations=budget_reservations,
+        retrieval_client=retrieval_client,
+        embedder=embedder,
     )
-    result = await orchestrator.run(
-        query=payload.query,
-        auth=ctx,
-        collection_ids=list(payload.collection_ids),
-        retrieval=RetrievalConfig(
-            mode=payload.retrieval.mode,
-            top_k_bm25=payload.retrieval.top_k_bm25,
-            top_k_vector=payload.retrieval.top_k_vector,
-            top_k_hybrid=payload.retrieval.top_k_hybrid,
-            top_k_rerank=payload.retrieval.top_k_rerank,
-            ef_search=payload.retrieval.ef_search,
-        ),
-        generation=GenerationConfig(
-            model=requested_model,
-            temperature=payload.generation.temperature,
-            max_tokens=payload.generation.max_tokens,
-        ),
-        options=QueryOptions(
-            include_debug_trace=payload.options.include_debug_trace,
-            abstain_if_unsupported=payload.options.abstain_if_unsupported,
-        ),
-    )
+    try:
+        result = await orchestrator.run(
+            query=payload.query,
+            auth=ctx,
+            collection_ids=list(payload.collection_ids),
+            retrieval=RetrievalConfig(
+                mode=payload.retrieval.mode,
+                top_k_bm25=payload.retrieval.top_k_bm25,
+                top_k_vector=payload.retrieval.top_k_vector,
+                top_k_hybrid=payload.retrieval.top_k_hybrid,
+                top_k_rerank=payload.retrieval.top_k_rerank,
+                ef_search=payload.retrieval.ef_search,
+            ),
+            generation=GenerationConfig(
+                model=requested_model,
+                temperature=payload.generation.temperature,
+                max_tokens=payload.generation.max_tokens,
+            ),
+            options=QueryOptions(
+                include_debug_trace=payload.options.include_debug_trace,
+                abstain_if_unsupported=payload.options.abstain_if_unsupported,
+            ),
+        )
+    except Exception:
+        # R3.S2: orchestrator failure → free the pending claim so a
+        # retry isn't forced to wait the full pending TTL.
+        if cache_key is not None:
+            await idempotency.release_claim(cache_key)
+        raise
 
-    return QueryResponse(
-        query_session_id=result.query_session_id,
-        answer=result.answer,
-        confidence_score=result.confidence_score,
-        grounding_score=result.grounding_score,
-        hallucination_risk_score=result.hallucination_risk_score,
-        citations=[
+    response = _to_query_response(
+        result,
+        include_citations=payload.options.include_citations,
+    )
+    if cache_key is not None:
+        await idempotency.store_result(cache_key, response.model_dump_json())
+    return response
+
+
+async def _resolve_idempotent_response(
+    idempotency: IdempotencyService, cache_key: str
+) -> QueryResponse | None:
+    """Return the cached response (if any), waiting briefly for a pending leader."""
+    cached = await idempotency.get_cached(cache_key)
+    if cached is None:
+        return None
+    if "__pending__" in cached:
+        cached = await idempotency.wait_for_result(cache_key)
+        if cached is None or "__pending__" in cached:
+            return None
+    return QueryResponse.model_validate(cached)
+
+
+def _to_query_response(
+    result: QueryResult, *, include_citations: bool = True
+) -> QueryResponse:
+    citations: list[CitationRead] = []
+    if include_citations:
+        citations = [
             CitationRead(
                 citation_id=c.citation_id,
                 document_id=c.document_id,
@@ -120,7 +191,17 @@ async def execute_query(
                 relevance_score=c.relevance_score,
             )
             for c in result.citations
-        ],
+        ]
+
+    return QueryResponse(
+        query_session_id=result.query_session_id,
+        answer=result.answer,
+        confidence_score=result.confidence_score,
+        grounding_score=result.grounding_score,
+        hallucination_risk_score=result.hallucination_risk_score,
+        nli_verdict=result.nli_verdict,
+        judge_verdict=result.judge_verdict,
+        citations=citations,
         usage=QueryUsage(
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
@@ -166,7 +247,7 @@ async def _build_trace(
             text(
                 "SELECT model_name, prompt_version_id, input_tokens, output_tokens, "
                 "       cost_usd, grounding_score, hallucination_risk_score, "
-                "       confidence_score "
+                "       confidence_score, nli_verdict, judge_verdict "
                 "FROM generated_answers WHERE query_session_id = :id"
             ),
             {"id": str(query_session_id)},
@@ -185,7 +266,7 @@ async def _build_trace(
                 stage=r.retrieval_stage,
                 rank=r.rank,
                 score=float(r.score),
-                metadata=r.metadata if isinstance(r.metadata, dict) else {},
+                metadata=_coerce_metadata(r.metadata),
             )
             for r in retrieval_rows
         ],
@@ -199,11 +280,25 @@ async def _build_trace(
                 grounding_score=gen_row.grounding_score,
                 hallucination_risk_score=gen_row.hallucination_risk_score,
                 confidence_score=gen_row.confidence_score,
+                nli_verdict=gen_row.nli_verdict,
+                judge_verdict=gen_row.judge_verdict,
             )
             if gen_row is not None
             else None
         ),
     )
+
+
+def _coerce_metadata(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 @router.get("/{query_session_id}/trace", response_model=QueryTraceResponse)

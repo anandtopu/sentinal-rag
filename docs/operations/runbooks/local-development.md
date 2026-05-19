@@ -11,7 +11,7 @@ tenant. This runbook covers everything beyond that:
 - Working with Temporal (task queues, workflow inspection, retries)
 - Adding a new dependency (workspace-aware)
 
-When this runbook contradicts CLAUDE.md or the README quick-start, **the
+When this runbook contradicts AGENTS.md or the README quick-start, **the
 runbook wins** — it's the canonical local-dev procedure.
 
 ---
@@ -226,7 +226,7 @@ cd apps/frontend && npm run test:e2e            # Playwright e2e
 
 The integration suite uses testcontainers; it spins up Postgres+pgvector
 for each test class to give RLS bugs nowhere to hide. Don't try to mock
-your way around it — see CLAUDE.md "Things NOT to do."
+your way around it — see AGENTS.md "Things NOT to do."
 
 ## Database workflow
 
@@ -351,5 +351,5 @@ helm template release-test . -f values-local.yaml | yq 'select(.kind == "Deploym
 - [`testing-guide.md`](testing-guide.md) — feature-by-feature verification matrix
 - [`deployment-aws.md`](deployment-aws.md) / [`deployment-gcp.md`](deployment-gcp.md) — getting to a real cluster after local works
 - [`disaster-recovery.md`](disaster-recovery.md) — recovery once you're deployed
-- [`CLAUDE.md`](../../../CLAUDE.md) — architectural pillars, footguns, "things NOT to do"
+- [`AGENTS.md`](../../../AGENTS.md) — architectural pillars, footguns, "things NOT to do"
 - [`README.md`](../../../README.md) — repo tour + quick-start

@@ -10,6 +10,7 @@ from sentinelrag_shared.audit import (
     DualWriteAuditService,
     InMemoryAuditSink,
 )
+from sentinelrag_shared.audit import service as audit_service_module
 from sentinelrag_shared.audit.sinks import AuditSinkError
 
 
@@ -64,6 +65,38 @@ class TestDualWriteAuditService:
             await svc.record(_event())
         # Secondary must NOT see the event when the primary write failed.
         assert secondary.records == []
+
+    async def test_secondary_unexpected_exception_is_isolated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A secondary raising something other than AuditSinkError must not leak.
+
+        Defensive R1.S4 widening: a misconfigured boto3 client raises
+        ``ClientError`` not wrapped by ``AuditSinkError`` — the dual-write
+        service swallows it and increments the meter.
+        """
+
+        class _BoomSink:
+            async def write(self, event: AuditEvent) -> None:
+                _ = event
+                raise RuntimeError("boto3 ClientError surrogate")
+
+        # Capture meter calls without depending on OTel SDK config.
+        calls: list[str] = []
+        monkeypatch.setattr(
+            audit_service_module,
+            "record_audit_secondary_failure",
+            lambda *, sink: calls.append(sink),
+        )
+
+        primary = InMemoryAuditSink()
+        svc = DualWriteAuditService(primary=primary, secondaries=(_BoomSink(),))
+
+        await svc.record(_event())  # must NOT raise
+        await svc.drain()
+
+        assert len(primary.records) == 1
+        assert calls == ["_BoomSink"]
 
 
 @pytest.mark.unit

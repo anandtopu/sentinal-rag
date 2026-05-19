@@ -19,6 +19,7 @@ from sentinelrag_shared.errors.exceptions import (
     DomainError,
     NotFoundError,
     RBACDeniedError,
+    TemporalUnavailableError,
     ValidationFailedError,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "ErrorCode",
     "NotFoundError",
     "RBACDeniedError",
+    "TemporalUnavailableError",
     "ValidationFailedError",
 ]

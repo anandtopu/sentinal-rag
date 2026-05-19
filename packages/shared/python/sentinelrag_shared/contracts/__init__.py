@@ -26,14 +26,34 @@ from sentinelrag_shared.contracts.ingestion import (
     IngestionWorkflowInput,
     IngestionWorkflowResult,
 )
+from sentinelrag_shared.contracts.retrieval import (
+    AuthContextDTO,
+    EmbeddingUsageDTO,
+    RetrievalCandidateInput,
+    RetrievalCandidateOutput,
+    RetrievalCapabilitiesResponse,
+    RetrieveRequest,
+    RetrieveResponse,
+    RrfMergeRequest,
+    RrfMergeResponse,
+)
 
 __all__ = [
     "AuditReconciliationInput",
     "AuditReconciliationResult",
+    "AuthContextDTO",
     "Contract",
+    "EmbeddingUsageDTO",
     "EvaluationRunWorkflowInput",
     "EvaluationRunWorkflowResult",
     "IngestionWorkflowInput",
     "IngestionWorkflowResult",
+    "RetrievalCandidateInput",
+    "RetrievalCandidateOutput",
+    "RetrievalCapabilitiesResponse",
+    "RetrieveRequest",
+    "RetrieveResponse",
+    "RrfMergeRequest",
+    "RrfMergeResponse",
     "TenantDriftReport",
 ]

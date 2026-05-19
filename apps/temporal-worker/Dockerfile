@@ -1,45 +1,29 @@
-# Build context: repo root
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential curl \
-    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# 1. Install build backend first
-RUN pip install --no-cache-dir hatchling
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Install shared package (sentinelrag-shared)
-COPY packages/shared/python /packages/shared/python
-RUN pip install --no-cache-dir /packages/shared/python
+RUN pip install --no-cache-dir hatchling uv
 
-# 3. Install api package (sentinelrag-api) — worker depends on it
-COPY apps/api /packages/api
-RUN pip install --no-cache-dir --no-deps /packages/api
+COPY packages /app/packages
+COPY apps/api /app/apps/api
+COPY apps/temporal-worker /app/apps/temporal-worker
 
-# 4. Copy worker source and install deps
-COPY apps/temporal-worker /app
-RUN pip install --no-cache-dir \
-    "temporalio>=1.8" \
-    "pydantic>=2.9" \
-    "pydantic-settings>=2.5" \
-    "sqlalchemy[asyncio]>=2.0.36" \
-    "asyncpg>=0.30" \
-    "httpx>=0.27" \
-    "structlog>=24.4" \
-    "tiktoken>=0.8"
+RUN pip install --no-cache-dir /app/packages/shared/python
+RUN if [ -d /app/packages/sentinelrag-sdk/python ]; then pip install --no-cache-dir /app/packages/sentinelrag-sdk/python; fi
+RUN pip install --no-cache-dir /app/apps/api
+RUN pip install --no-cache-dir -e /app/apps/temporal-worker
 
-# 5. Install the worker package itself (registers sentinelrag_worker module)
-RUN pip install --no-cache-dir --no-deps -e .
+RUN useradd -m -u 10001 appuser
+USER appuser
 
-RUN adduser --disabled-password --gecos "" --uid 1001 appuser \
-    && chown -R appuser /app
-USER 1001
+WORKDIR /app/apps/temporal-worker
 
 CMD ["python", "-m", "sentinelrag_worker.main"]

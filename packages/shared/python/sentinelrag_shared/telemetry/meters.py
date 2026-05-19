@@ -58,6 +58,22 @@ def llm_cost_usd_total() -> metrics.Counter:
 
 
 @lru_cache(maxsize=1)
+def audit_secondary_failures_total() -> metrics.Counter:
+    """Secondary-sink failures inside the dual-write path.
+
+    Attributes: ``sink`` (sink class name, e.g. ``ObjectStorageAuditSink``).
+    Used by the audit-drift alarm; the daily reconciliation Schedule
+    backfills any missed rows so this counter is an early-warning signal
+    rather than a data-loss alarm.
+    """
+    return _meter().create_counter(
+        "sentinelrag_audit_secondary_failures_total",
+        unit="1",
+        description="Audit dual-write secondary-sink failures (ADR-0016)",
+    )
+
+
+@lru_cache(maxsize=1)
 def audit_reconciliation_drift() -> metrics.Counter:
     """Audit drift counts per reconciliation run.
 
@@ -95,6 +111,21 @@ def grounding_score() -> metrics.Histogram:
     )
 
 
+@lru_cache(maxsize=1)
+def hallucination_layer_latency_ms() -> metrics.Histogram:
+    """Per-layer latency for the hallucination cascade (ADR-0010).
+
+    Attributes: ``layer`` (``overlap``|``nli``|``judge``). No tenant_id —
+    keeping cardinality bounded so Prometheus storage doesn't blow up
+    when the cascade fans out across tens of thousands of tenants.
+    """
+    return _meter().create_histogram(
+        "sentinelrag_hallucination_layer_latency_ms",
+        unit="ms",
+        description="Latency per layer of the hallucination cascade",
+    )
+
+
 # Helpers ---------------------------------------------------------------------
 
 def record_query_completed(*, status: str, latency_ms: int) -> None:
@@ -128,3 +159,15 @@ def record_audit_drift(*, side: str, count: int) -> None:
     if count <= 0:
         return
     audit_reconciliation_drift().add(count, {"side": side})
+
+
+def record_audit_secondary_failure(*, sink: str) -> None:
+    """Increment when a dual-write secondary sink fails. ``sink`` = class name."""
+    audit_secondary_failures_total().add(1, {"sink": sink})
+
+
+def record_hallucination_layer_latency(*, layer: str, latency_ms: int) -> None:
+    """``layer`` ∈ {overlap, nli, judge}. Negative latencies are dropped."""
+    if latency_ms < 0:
+        return
+    hallucination_layer_latency_ms().record(latency_ms, {"layer": layer})

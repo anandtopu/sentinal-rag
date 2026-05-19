@@ -34,6 +34,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from temporalio import activity
 
+from sentinelrag_worker.settings import get_database_url
+
 # DB engine cache (separate from ingestion's because process isolation is
 # nice but not strictly required).
 _engine: AsyncEngine | None = None
@@ -43,10 +45,7 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     global _engine, _session_factory  # noqa: PLW0603
     if _session_factory is None:
-        dsn = os.environ.get(
-            "DATABASE_URL",
-            "postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag",
-        )
+        dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
         _session_factory = async_sessionmaker(
             bind=_engine, expire_on_commit=False, autoflush=False
@@ -131,15 +130,15 @@ async def score_case(
 ) -> dict[str, Any]:
     """Run a single eval case end-to-end and persist the score row.
 
-    This activity is the natural place to import the API service's
-    RagOrchestrator. We import lazily to avoid loading FastAPI at module
+    This activity is the natural place to import the API service's RAG
+    orchestrator. We import lazily to avoid loading FastAPI at module
     init in the worker.
     """
     # Lazy import — keeps the worker startup light.
-    from app.services.rag_orchestrator import (  # noqa: PLC0415
+    from app.services.rag import (  # noqa: PLC0415
         GenerationConfig,
+        Orchestrator,
         QueryOptions,
-        RagOrchestrator,
         RetrievalConfig,
     )
     from sentinelrag_shared.auth import AuthContext  # noqa: PLC0415
@@ -205,7 +204,7 @@ async def score_case(
             ),
         )
 
-        orchestrator = RagOrchestrator(
+        orchestrator = Orchestrator(
             session=session,
             embedding_model=model_config.get(
                 "embedding_model",
@@ -290,9 +289,20 @@ async def score_case(
                 "(tenant_id, evaluation_run_id, evaluation_case_id, "
                 " query_session_id, context_relevance_score, "
                 " faithfulness_score, answer_correctness_score, "
-                " citation_accuracy_score, latency_ms, cost_usd) "
+                " citation_accuracy_score, latency_ms, cost_usd, "
+                " status, error_message) "
                 "VALUES (:tid, :rid, :cid, :qs, :ctx, :faith, :ans, :cite, "
-                "        :lat, :cost)"
+                "        :lat, :cost, 'completed', NULL) "
+                "ON CONFLICT (evaluation_run_id, evaluation_case_id) DO UPDATE "
+                "SET query_session_id = EXCLUDED.query_session_id, "
+                "    context_relevance_score = EXCLUDED.context_relevance_score, "
+                "    faithfulness_score = EXCLUDED.faithfulness_score, "
+                "    answer_correctness_score = EXCLUDED.answer_correctness_score, "
+                "    citation_accuracy_score = EXCLUDED.citation_accuracy_score, "
+                "    latency_ms = EXCLUDED.latency_ms, "
+                "    cost_usd = EXCLUDED.cost_usd, "
+                "    status = 'completed', "
+                "    error_message = NULL"
             ),
             {
                 "tid": str(tid),
@@ -316,6 +326,40 @@ async def score_case(
 
 
 @activity.defn
+async def record_case_failure(
+    run_id: str,
+    case_id: str,
+    tenant_id: str,
+    error_message: str,
+) -> None:
+    async with _session_for_tenant(_as_uuid(tenant_id)) as session:
+        await session.execute(
+            text(
+                "INSERT INTO evaluation_scores "
+                "(tenant_id, evaluation_run_id, evaluation_case_id, status, "
+                " error_message) "
+                "VALUES (:tid, :rid, :cid, 'failed', :error) "
+                "ON CONFLICT (evaluation_run_id, evaluation_case_id) DO UPDATE "
+                "SET status = 'failed', "
+                "    error_message = EXCLUDED.error_message, "
+                "    query_session_id = NULL, "
+                "    context_relevance_score = NULL, "
+                "    faithfulness_score = NULL, "
+                "    answer_correctness_score = NULL, "
+                "    citation_accuracy_score = NULL, "
+                "    latency_ms = NULL, "
+                "    cost_usd = NULL"
+            ),
+            {
+                "tid": str(_as_uuid(tenant_id)),
+                "rid": str(_as_uuid(run_id)),
+                "cid": str(_as_uuid(case_id)),
+                "error": error_message[:1000],
+            },
+        )
+
+
+@activity.defn
 async def finalize_run(run_id: str, tenant_id: str, status: str = "completed") -> None:
     async with _session_for_tenant(_as_uuid(tenant_id)) as session:
         result = await session.execute(
@@ -330,4 +374,10 @@ async def finalize_run(run_id: str, tenant_id: str, status: str = "completed") -
             raise RuntimeError(msg)
 
 
-ALL_ACTIVITIES = [mark_run_running, list_case_ids, score_case, finalize_run]
+ALL_ACTIVITIES = [
+    mark_run_running,
+    list_case_ids,
+    score_case,
+    record_case_failure,
+    finalize_run,
+]

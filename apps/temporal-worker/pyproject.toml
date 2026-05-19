@@ -13,6 +13,7 @@ dependencies = [
     "asyncpg>=0.30",
     "httpx>=0.27",
     "structlog>=24.4",
+    "unstructured[all-docs]>=0.16",
     "sentinelrag-api",
     "sentinelrag-shared",
 ]

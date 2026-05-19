@@ -92,6 +92,19 @@ COMPARISONS: dict[str, ComparisonConfig] = {
         # The actual version IDs are wired via CLI flags so authors don't
         # bake them into source. See main() for the override threading.
     ),
+    "retrieval-transport": ComparisonConfig(
+        name="retrieval-transport",
+        description=(
+            "Retrieval-service transport delta (R4.S6 — ADR-0031). The two "
+            "request bodies are identical; the difference lives on the "
+            "server (RETRIEVAL_TRANSPORT=in-process vs =http). Operator "
+            "must supply --before-base-url + --after-base-url pointing at "
+            "two API deployments configured differently. Quality scores "
+            "should be near-identical; the real comparison data is the k6 "
+            "latency report from tests/performance/k6/transport-compare.js."
+        ),
+        # No request-body overrides — the transport is server-side.
+    ),
 }
 
 
@@ -366,6 +379,27 @@ async def _run(args: argparse.Namespace) -> int:
             after_overrides={"options": {"prompt_version_id": args.after_prompt_id}},
         )
 
+    # R4.S6: retrieval-transport requires two distinct base URLs because
+    # the transport selector is a server-side env (RETRIEVAL_TRANSPORT).
+    # Request bodies stay identical between sides.
+    if args.compare == "retrieval-transport":
+        if not (args.before_base_url and args.after_base_url):
+            print(
+                "--before-base-url and --after-base-url are required for "
+                "retrieval-transport (point them at two API deployments "
+                "with RETRIEVAL_TRANSPORT=in-process and =http respectively).",
+                file=sys.stderr,
+            )
+            return 2
+        before_api = APIClient(base_url=args.before_base_url, token=args.token)
+        after_api = APIClient(base_url=args.after_base_url, token=args.token)
+    else:
+        if not args.base_url:
+            print("--base-url is required for this comparison.", file=sys.stderr)
+            return 2
+        before_api = APIClient(base_url=args.base_url, token=args.token)
+        after_api = before_api
+
     cases = _load_fixture_cases(Path(args.fixture)) if args.dataset_id is None else []
     if args.dataset_id is not None:
         # Real datasets live in Postgres; fetching them is out-of-scope for
@@ -380,7 +414,6 @@ async def _run(args: argparse.Namespace) -> int:
         )
         return 2
 
-    api = APIClient(base_url=args.base_url, token=args.token)
     evaluators: list[Evaluator] = [
         ContextRelevanceEvaluator(),
         FaithfulnessEvaluator(),
@@ -390,7 +423,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     async with httpx.AsyncClient() as client:
         before = await _run_one_side(
-            api=api,
+            api=before_api,
             cases=cases,
             collection_ids=args.collection_ids,
             overrides=comparison.before_overrides,
@@ -398,7 +431,7 @@ async def _run(args: argparse.Namespace) -> int:
             client=client,
         )
         after = await _run_one_side(
-            api=api,
+            api=after_api,
             cases=cases,
             collection_ids=args.collection_ids,
             overrides=comparison.after_overrides,
@@ -429,8 +462,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--base-url",
-        required=True,
-        help="API base URL, e.g. https://api.dev.sentinelrag.example.com",
+        default="",
+        help=(
+            "API base URL, e.g. https://api.dev.sentinelrag.example.com. "
+            "Required for every comparison EXCEPT retrieval-transport, "
+            "which uses --before-base-url + --after-base-url instead."
+        ),
+    )
+    p.add_argument(
+        "--before-base-url",
+        default="",
+        help=(
+            "API base URL for the 'before' side of retrieval-transport "
+            "(typically the RETRIEVAL_TRANSPORT=in-process deployment)."
+        ),
+    )
+    p.add_argument(
+        "--after-base-url",
+        default="",
+        help=(
+            "API base URL for the 'after' side of retrieval-transport "
+            "(typically the RETRIEVAL_TRANSPORT=http deployment)."
+        ),
     )
     p.add_argument(
         "--token", required=True, help="Bearer token (Keycloak access token, or 'dev' for local)."

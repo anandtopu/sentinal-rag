@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Legacy compatibility guide for Claude Code. The canonical agent guide for
+this repository is [`AGENTS.md`](AGENTS.md); when this file and
+`AGENTS.md` differ, `AGENTS.md` wins.
 
 ## Product
 
@@ -88,7 +90,7 @@ These are enforced design rules. Violating them in a PR is a blocker:
 5. **Cost is observed before it's optimized.** Every LLM call routes through the LiteLLM gateway; usage is double-entry recorded to `usage_records` with `query_session_id` linkage.
 6. **Audit is immutable.** `audit_events` rows are append-only at app level AND mirrored to S3 with Object Lock. Never write a `DELETE` or `UPDATE` against `audit_events`.
 
-## Working notes for future Claude instances
+## Working notes for future agent instances
 
 - **Read the current ADR catalog first.** `docs/architecture/adr/README.md` has the index. ADRs are the source of truth for "why is it like this."
 - **Prefer extending the contracts package over duplicating types.** Pydantic models for cross-service messages live in `packages/shared/python/contracts/`.
