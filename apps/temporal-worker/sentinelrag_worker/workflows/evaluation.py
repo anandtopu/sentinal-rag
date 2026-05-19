@@ -1,7 +1,7 @@
 """EvaluationRunWorkflow — drives per-case scoring sequentially.
 
 For each case in the dataset:
-    1. score_case (which runs the orchestrator + evaluators + persists)
+1. score_case (which runs the orchestrator + evaluators + persists)
 
 Sequential by default — eval workloads aren't latency-sensitive and
 sequential simplifies tenant-context binding. Phase 6 may parallelize via
@@ -23,7 +23,6 @@ with workflow.unsafe.imports_passed_through():
     )
 
     from sentinelrag_worker.activities import evaluation as activities
-
 
 _RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=2),
@@ -55,24 +54,21 @@ class EvaluationRunWorkflow:
 
         cases_completed = 0
         cases_failed = 0
+
         for case_id in case_ids:
             try:
                 await workflow.execute_activity(
                     activities.score_case,
-                    kwargs={
-                        "run_id": str(payload.evaluation_run_id),
-                        "case_id": case_id,
-                        "tenant_id": str(payload.tenant_id),
-                        "actor_user_id": str(payload.actor_user_id)
-                        if payload.actor_user_id
-                        else None,
-                        "collection_ids": [str(c) for c in payload.collection_ids],
-                        "prompt_version_id": str(payload.prompt_version_id)
-                        if payload.prompt_version_id
-                        else None,
-                        "model_config": payload.model_config_,
-                        "retrieval_config": payload.retrieval_config,
-                    },
+                    args=[
+                        str(payload.evaluation_run_id),
+                        case_id,
+                        str(payload.tenant_id),
+                        str(payload.actor_user_id) if payload.actor_user_id else None,
+                        [str(c) for c in payload.collection_ids],
+                        str(payload.prompt_version_id) if payload.prompt_version_id else None,
+                        payload.model_config_,
+                        payload.retrieval_config,
+                    ],
                     start_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RetryPolicy(maximum_attempts=2),
                 )
@@ -92,6 +88,7 @@ class EvaluationRunWorkflow:
                 )
 
         final_status = "failed" if cases_failed else "completed"
+
         await workflow.execute_activity(
             activities.finalize_run,
             args=[str(payload.evaluation_run_id), str(payload.tenant_id), final_status],
