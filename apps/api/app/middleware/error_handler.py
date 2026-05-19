@@ -1,4 +1,3 @@
-# pyright: reportUnusedFunction=false
 """Error-handler middleware translating DomainError → JSON envelope.
 
 Envelope shape per Enterprise_RAG_Database_Design.md §24:
@@ -46,7 +45,7 @@ def _envelope(
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
-    async def __handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
+    async def _handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
         log.info(
             "request.domain_error",
             code=str(exc.code),
@@ -58,7 +57,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def __handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+    async def _handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
             content=_envelope(
@@ -69,7 +68,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def __handle_unexpected(_: Request, exc: Exception) -> JSONResponse:
+    async def _handle_unexpected(_: Request, exc: Exception) -> JSONResponse:
         # Don't leak internal details. Log them; return generic message.
         log.exception("request.unexpected_error", exc_class=type(exc).__name__)
         return JSONResponse(

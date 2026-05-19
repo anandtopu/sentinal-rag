@@ -82,14 +82,10 @@ class GroundingStage:
         )
 
         if cascade.nli_enabled:
-            nli = await self._nli.classify(
-                answer=ctx.answer_text, context=ctx.context_text
-            )
+            nli = await self._nli.classify(answer=ctx.answer_text, context=ctx.context_text)
             ctx.nli_verdict = nli.verdict
             if nli.latency_ms is not None:
-                record_hallucination_layer_latency(
-                    layer="nli", latency_ms=nli.latency_ms
-                )
+                record_hallucination_layer_latency(layer="nli", latency_ms=nli.latency_ms)
 
         if not cascade.judge_enabled:
             return
@@ -105,9 +101,7 @@ class GroundingStage:
         ctx.judge_verdict = judgment.verdict
         ctx.judge_reasoning = judgment.reasoning
         if judgment.latency_ms is not None:
-            record_hallucination_layer_latency(
-                layer="judge", latency_ms=judgment.latency_ms
-            )
+            record_hallucination_layer_latency(layer="judge", latency_ms=judgment.latency_ms)
 
     @staticmethod
     def _should_short_circuit(ctx: QueryContext) -> bool:
@@ -120,9 +114,7 @@ class GroundingStage:
         # against; their verdicts would be uninformative.
         return not ctx.context_text.strip()
 
-    def _should_judge(
-        self, nli_verdict: str | None, sample_rate: float
-    ) -> bool:
+    def _should_judge(self, nli_verdict: str | None, sample_rate: float) -> bool:
         """Judge runs on high-risk verdicts OR on a sampled fraction."""
         if nli_verdict in {"neutral", "contradict", "skipped"}:
             return True

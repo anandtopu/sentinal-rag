@@ -27,6 +27,7 @@ def _meter() -> metrics.Meter:
 
 # Counters --------------------------------------------------------------------
 
+
 @lru_cache(maxsize=1)
 def queries_total() -> metrics.Counter:
     """Number of /query calls. Attributes: ``status`` (completed|abstained|failed)."""
@@ -91,6 +92,7 @@ def audit_reconciliation_drift() -> metrics.Counter:
 
 # Histograms ------------------------------------------------------------------
 
+
 @lru_cache(maxsize=1)
 def stage_latency_ms() -> metrics.Histogram:
     """Per-stage latency. ``stage`` ∈ {bm25, vector, hybrid_merge, rerank, generation, total}."""
@@ -127,6 +129,7 @@ def hallucination_layer_latency_ms() -> metrics.Histogram:
 
 
 # Helpers ---------------------------------------------------------------------
+
 
 def record_query_completed(*, status: str, latency_ms: int) -> None:
     """One-shot helper for the orchestrator's terminal-state emission."""

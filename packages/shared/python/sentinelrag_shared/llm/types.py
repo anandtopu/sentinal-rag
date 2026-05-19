@@ -1,50 +1,51 @@
+"""Shared result + usage types for the LLM gateway."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
-
-type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
-
-
-def _json_dict() -> dict[str, JsonValue]:
-    return {}
 
 
 @dataclass(slots=True)
 class UsageRecord:
-    usage_type: str = "llm"
-    provider: str | None = None
-    model_name: str | None = None
+    """Token + cost accounting for a single LLM call.
+
+    Mirrors the columns of the ``usage_records`` table; the cost service
+    persists these via repository calls.
+    """
+
+    usage_type: str  # 'embedding' | 'completion' | 'rerank' | 'evaluation'
+    provider: str
+    model_name: str
     input_tokens: int = 0
     output_tokens: int = 0
-    total_tokens: int = 0
+    unit_cost_usd: Decimal | None = None
     total_cost_usd: Decimal | None = None
     latency_ms: int | None = None
-    extra: dict[str, JsonValue] = field(default_factory=_json_dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass(slots=True)
 class EmbeddingResult:
+    """Result of a single embedder call (one or many vectors)."""
+
     vectors: list[list[float]]
     model_name: str
     dimension: int
-    provider: str | None = None
-    usage: UsageRecord = field(default_factory=UsageRecord)
+    usage: UsageRecord
 
 
 @dataclass(slots=True)
 class GenerationResult:
     text: str
-    model_name: str
-    provider: str | None = None
-    finish_reason: str | None = None
-    usage: UsageRecord = field(default_factory=UsageRecord)
-    raw_response: dict[str, JsonValue] = field(default_factory=_json_dict)
+    finish_reason: str | None
+    usage: UsageRecord
 
 
 @dataclass(slots=True)
 class RerankResult:
-    document: str
-    score: float
-    index: int
-    metadata: dict[str, JsonValue] = field(default_factory=_json_dict)
+    indices: list[int]  # original positions of reranked candidates
+    scores: list[float]  # parallel to ``indices``
+    model_name: str
+    usage: UsageRecord

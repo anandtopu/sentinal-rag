@@ -98,25 +98,29 @@ async def health() -> HealthResponse:
 async def capabilities(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> RetrievalCapabilitiesResponse:
-    return RetrievalCapabilitiesResponse(
-        service_role="real-retrieval",
-        modes=["bm25", "vector", "hybrid", "rrf_merge"],
-        stages=[stage.value for stage in RetrievalStage],
-        endpoints=["/rrf-merge", "/v1/retrieve"],
-        retrieval_backends=["postgres_fts", "pgvector_hnsw"],
-        rbac_at_retrieval_time=True,
-        rrf=True,
-    ) if settings.service_token else RetrievalCapabilitiesResponse(
-        # Without a service token configured we expose the diagnostic
-        # surface only — refuse to advertise capabilities we'd refuse
-        # to serve.
-        service_role="diagnostic-wrapper",
-        modes=["rrf_merge"],
-        stages=[stage.value for stage in RetrievalStage],
-        endpoints=["/rrf-merge"],
-        retrieval_backends=[],
-        rbac_at_retrieval_time=False,
-        rrf=True,
+    return (
+        RetrievalCapabilitiesResponse(
+            service_role="real-retrieval",
+            modes=["bm25", "vector", "hybrid", "rrf_merge"],
+            stages=[stage.value for stage in RetrievalStage],
+            endpoints=["/rrf-merge", "/v1/retrieve"],
+            retrieval_backends=["postgres_fts", "pgvector_hnsw"],
+            rbac_at_retrieval_time=True,
+            rrf=True,
+        )
+        if settings.service_token
+        else RetrievalCapabilitiesResponse(
+            # Without a service token configured we expose the diagnostic
+            # surface only — refuse to advertise capabilities we'd refuse
+            # to serve.
+            service_role="diagnostic-wrapper",
+            modes=["rrf_merge"],
+            stages=[stage.value for stage in RetrievalStage],
+            endpoints=["/rrf-merge"],
+            retrieval_backends=[],
+            rbac_at_retrieval_time=False,
+            rrf=True,
+        )
     )
 
 
@@ -242,9 +246,7 @@ async def _run_retrieval(
     embedding_result: EmbeddingResult | None,
 ) -> RetrieveResponse:
     access_filter = AccessFilter()
-    keyword_search = PostgresFtsKeywordSearch(
-        session=session, access_filter=access_filter
-    )
+    keyword_search = PostgresFtsKeywordSearch(session=session, access_filter=access_filter)
 
     if payload.mode == "bm25":
         bm25 = await keyword_search.search(
@@ -283,9 +285,7 @@ async def _run_retrieval(
             top_k=payload.top_k_vector,
             ef_search=payload.ef_search,
         )
-        merged = _restage(
-            vector[: payload.top_k_hybrid], RetrievalStage.HYBRID_MERGE
-        )
+        merged = _restage(vector[: payload.top_k_hybrid], RetrievalStage.HYBRID_MERGE)
         return _build_response(
             bm25_candidates=[],
             vector_candidates=vector,
@@ -294,9 +294,7 @@ async def _run_retrieval(
             embedding_usage=embedding_result.usage,
         )
 
-    hybrid = HybridRetriever(
-        keyword_search=keyword_search, vector_search=vector_search
-    )
+    hybrid = HybridRetriever(keyword_search=keyword_search, vector_search=vector_search)
     result: HybridRetrievalResult = await hybrid.retrieve(
         query=payload.query,
         auth=auth,
@@ -396,5 +394,3 @@ class _PrecomputedEmbedder:
             )
             raise RuntimeError(msg)
         return self._result
-
-

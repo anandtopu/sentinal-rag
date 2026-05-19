@@ -25,9 +25,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # --- DB ---
-    database_url: str = (
-        "postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag"
-    )
+    database_url: str = "postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag"
 
     # --- Embedding (must match the API's default so the chunk_embeddings
     # rows are usable). ADR-0020 supports 768/1024/1536 in v1. ---

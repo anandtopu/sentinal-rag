@@ -121,9 +121,7 @@ class LiteLLMGenerator:
                 # hung at 60s, three retries means 180s+ of blocking,
                 # well past any sane request budget. Other errors keep
                 # the retry-on-anything behavior.
-                retry=retry_if_not_exception_type(
-                    (LiteLLMTimeout, TimeoutError)
-                ),
+                retry=retry_if_not_exception_type((LiteLLMTimeout, TimeoutError)),
                 reraise=True,
             ):
                 with attempt:
@@ -134,9 +132,7 @@ class LiteLLMGenerator:
                 msg = "litellm.acompletion returned no result."
                 raise GeneratorError(msg)
         except (LiteLLMTimeout, TimeoutError) as exc:
-            msg = (
-                f"Generator {self.model_name!r} timed out after {self._timeout}s."
-            )
+            msg = f"Generator {self.model_name!r} timed out after {self._timeout}s."
             raise GeneratorTimeoutError(msg) from exc
         except Exception as exc:
             msg = f"Generator {self.model_name!r} failed after {self._max_retries} attempts."

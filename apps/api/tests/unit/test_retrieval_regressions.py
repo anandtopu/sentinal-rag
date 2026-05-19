@@ -31,9 +31,7 @@ def _auth() -> AuthContext:
     )
 
 
-def _candidate(
-    stage: RetrievalStage, rank: int = 1, *, chunk_id: UUID | None = None
-) -> Candidate:
+def _candidate(stage: RetrievalStage, rank: int = 1, *, chunk_id: UUID | None = None) -> Candidate:
     return Candidate(
         chunk_id=chunk_id or uuid4(),
         document_id=uuid4(),
@@ -168,9 +166,7 @@ def test_access_filter_tenant_visibility_only_grants_read() -> None:
 
     assert read_predicate.params["min_access_rank"] == 1
     assert write_predicate.params["min_access_rank"] == 2
-    assert "(c.visibility = 'tenant' AND :min_access_rank <= 1)" in (
-        write_predicate.cte_sql or ""
-    )
+    assert "(c.visibility = 'tenant' AND :min_access_rank <= 1)" in (write_predicate.cte_sql or "")
 
 
 @pytest.mark.unit

@@ -37,7 +37,5 @@ async def capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
         parsing_strategies=["fast", "hi_res", "ocr_only", "auto"],
         chunking_strategies=[strategy.value for strategy in ChunkingStrategy],
-        source_connectors=[
-            connector.name for connector in build_default_registry().connectors
-        ],
+        source_connectors=[connector.name for connector in build_default_registry().connectors],
     )

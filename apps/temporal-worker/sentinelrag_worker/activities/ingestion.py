@@ -46,9 +46,7 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
-        _session_factory = async_sessionmaker(
-            bind=_engine, expire_on_commit=False, autoflush=False
-        )
+        _session_factory = async_sessionmaker(bind=_engine, expire_on_commit=False, autoflush=False)
     return _session_factory
 
 
@@ -88,10 +86,7 @@ async def mark_job_running(job_id: str, tenant_id: str, document_id: str) -> Non
     tid = _as_uuid(tenant_id)
     async with _session_for_tenant(tid) as session:
         await session.execute(
-            text(
-                "UPDATE ingestion_jobs SET status='running', started_at=now() "
-                "WHERE id=:id"
-            ),
+            text("UPDATE ingestion_jobs SET status='running', started_at=now() WHERE id=:id"),
             {"id": str(_as_uuid(job_id))},
         )
         await session.execute(
@@ -101,9 +96,7 @@ async def mark_job_running(job_id: str, tenant_id: str, document_id: str) -> Non
 
 
 @activity.defn
-async def mark_job_failed(
-    job_id: str, tenant_id: str, document_id: str, error: str
-) -> None:
+async def mark_job_failed(job_id: str, tenant_id: str, document_id: str, error: str) -> None:
     tid = _as_uuid(tenant_id)
     async with _session_for_tenant(tid) as session:
         await session.execute(
@@ -150,10 +143,7 @@ async def upsert_document_version(
     did = _as_uuid(document_id)
     async with _session_for_tenant(tid) as session:
         existing = await session.execute(
-            text(
-                "SELECT id FROM document_versions "
-                "WHERE document_id=:did AND content_hash=:h"
-            ),
+            text("SELECT id FROM document_versions WHERE document_id=:did AND content_hash=:h"),
             {"did": str(did), "h": content_hash},
         )
         row = existing.first()
@@ -216,9 +206,7 @@ async def parse_document(
         )
         await storage.put(
             elements_uri,
-            json.dumps([_element_to_dict(e) for e in elements], default=str).encode(
-                "utf-8"
-            ),
+            json.dumps([_element_to_dict(e) for e in elements], default=str).encode("utf-8"),
             content_type="application/json",
             custom_metadata={"tenant_id": tenant_id},
         )
@@ -310,9 +298,7 @@ async def chunk_and_persist(
 
 
 @activity.defn
-async def embed_chunks(
-    tenant_id: str, version_id: str, embedding_model: str
-) -> int:
+async def embed_chunks(tenant_id: str, version_id: str, embedding_model: str) -> int:
     """Embed all chunks for the given version and persist chunk_embeddings."""
     from sentinelrag_shared.llm import LiteLLMEmbedder  # noqa: PLC0415
 
