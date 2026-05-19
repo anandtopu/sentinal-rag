@@ -87,8 +87,6 @@ select = [
     "RUF", # ruff-specific
 ]
 ignore = [
-    "ANN101", # missing type for self
-    "ANN102", # missing type for cls
     "ANN401", # disallow Any (we sometimes need it at boundaries)
     "PLR0913", # too many arguments — services have legitimate reasons
     "S101",   # assert in pytest is fine
