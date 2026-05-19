@@ -35,9 +35,7 @@ class RerankStage:
             candidates=ctx.reranked,
         )
 
-    def _rerank(
-        self, *, query: str, merged: list[Candidate], top_k: int
-    ) -> list[Candidate]:
+    def _rerank(self, *, query: str, merged: list[Candidate], top_k: int) -> list[Candidate]:
         if not merged:
             return []
         if top_k <= 0:
@@ -55,13 +53,9 @@ class RerankStage:
                 )
                 for rank, c in enumerate(merged, start=1)
             ]
-        rerank_inputs = [
-            RerankCandidate(chunk_id=str(c.chunk_id), text=c.content) for c in merged
-        ]
+        rerank_inputs = [RerankCandidate(chunk_id=str(c.chunk_id), text=c.content) for c in merged]
         try:
-            result = self._reranker.rerank(
-                query=query, candidates=rerank_inputs, top_k=top_k
-            )
+            result = self._reranker.rerank(query=query, candidates=rerank_inputs, top_k=top_k)
         except RerankerError:
             return [
                 Candidate(

@@ -31,9 +31,11 @@ KID = "test-kid-1"
 
 
 def _b64(n: int) -> str:
-    return base64.urlsafe_b64encode(
-        n.to_bytes((n.bit_length() + 7) // 8, "big")
-    ).rstrip(b"=").decode("ascii")
+    return (
+        base64.urlsafe_b64encode(n.to_bytes((n.bit_length() + 7) // 8, "big"))
+        .rstrip(b"=")
+        .decode("ascii")
+    )
 
 
 def _generate_rsa_keypair() -> tuple[Any, dict[str, Any]]:
@@ -61,9 +63,7 @@ def _sign(payload: dict[str, Any], private_key: Any) -> str:
 
 def _stub_jwks(jwk: dict[str, Any]) -> None:
     """Register the JWKS route with respx. Call inside an @respx.mock test."""
-    respx.get(JWKS_URL).mock(
-        return_value=httpx.Response(200, json={"keys": [jwk]})
-    )
+    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, json={"keys": [jwk]}))
 
 
 def _verifier() -> JWTVerifier:
@@ -140,9 +140,7 @@ class TestJWTVerifier:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_missing_tenant_claim_rejected(
-        self, keypair_and_jwks, base_claims
-    ) -> None:
+    async def test_missing_tenant_claim_rejected(self, keypair_and_jwks, base_claims) -> None:
         priv, jwk = keypair_and_jwks
         _stub_jwks(jwk)
         verifier = _verifier()
@@ -155,9 +153,7 @@ class TestJWTVerifier:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_tampered_signature_rejected(
-        self, keypair_and_jwks, base_claims
-    ) -> None:
+    async def test_tampered_signature_rejected(self, keypair_and_jwks, base_claims) -> None:
         priv, jwk = keypair_and_jwks
         _stub_jwks(jwk)
         verifier = _verifier()

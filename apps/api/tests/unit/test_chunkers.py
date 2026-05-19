@@ -14,10 +14,7 @@ from sentinelrag_shared.parsing.elements import ElementType, ParsedElement
 
 
 def _make_elements(parts: list[tuple[ElementType, str]]) -> list[ParsedElement]:
-    return [
-        ParsedElement(text=text, element_type=t, page_number=1)
-        for t, text in parts
-    ]
+    return [ParsedElement(text=text, element_type=t, page_number=1) for t, text in parts]
 
 
 @pytest.mark.unit
@@ -70,12 +67,8 @@ class TestSemanticChunker:
 @pytest.mark.unit
 class TestSlidingWindowChunker:
     def test_produces_overlapping_windows(self) -> None:
-        elements = _make_elements(
-            [(ElementType.NARRATIVE_TEXT, " ".join(["word"] * 1000))]
-        )
-        chunks = SlidingWindowChunker(target_tokens=200, overlap_tokens=50).chunk(
-            elements
-        )
+        elements = _make_elements([(ElementType.NARRATIVE_TEXT, " ".join(["word"] * 1000))])
+        chunks = SlidingWindowChunker(target_tokens=200, overlap_tokens=50).chunk(elements)
         assert len(chunks) >= 4  # 1000 / (200 - 50) ≈ 6.7 windows
         for c in chunks:
             assert c.token_count <= 200
@@ -138,12 +131,6 @@ class TestStructureAwareChunker:
 @pytest.mark.unit
 class TestChunkerFactory:
     def test_factory_dispatches_correctly(self) -> None:
-        assert isinstance(
-            get_chunker(ChunkingStrategy.SEMANTIC), SemanticChunker
-        )
-        assert isinstance(
-            get_chunker(ChunkingStrategy.SLIDING_WINDOW), SlidingWindowChunker
-        )
-        assert isinstance(
-            get_chunker(ChunkingStrategy.STRUCTURE_AWARE), StructureAwareChunker
-        )
+        assert isinstance(get_chunker(ChunkingStrategy.SEMANTIC), SemanticChunker)
+        assert isinstance(get_chunker(ChunkingStrategy.SLIDING_WINDOW), SlidingWindowChunker)
+        assert isinstance(get_chunker(ChunkingStrategy.STRUCTURE_AWARE), StructureAwareChunker)

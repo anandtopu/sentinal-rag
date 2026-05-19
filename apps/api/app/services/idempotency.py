@@ -77,9 +77,7 @@ class IdempotencyService:
         if self._client is None:
             return True  # no redis → every caller is the leader
         try:
-            claimed = await self._client.set(
-                key, _PENDING_VALUE, nx=True, ex=_PENDING_TTL_SECONDS
-            )
+            claimed = await self._client.set(key, _PENDING_VALUE, nx=True, ex=_PENDING_TTL_SECONDS)
             return bool(claimed)
         except Exception as exc:
             _log.warning(

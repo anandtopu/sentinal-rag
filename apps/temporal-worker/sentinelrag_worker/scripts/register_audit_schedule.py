@@ -43,8 +43,7 @@ def _parse_tenant_ids(raw: str) -> list[UUID]:
     ids = list(dict.fromkeys(UUID(s.strip()) for s in raw.split(",") if s.strip()))
     if not ids:
         raise ValueError(
-            "AUDIT_RECON_TENANT_IDS is empty; "
-            "set it to a comma-separated list of tenant UUIDs"
+            "AUDIT_RECON_TENANT_IDS is empty; set it to a comma-separated list of tenant UUIDs"
         )
     return ids
 
@@ -76,9 +75,7 @@ def _build_schedule(
             task_queue=task_queue,
         ),
         spec=ScheduleSpec(
-            intervals=[
-                ScheduleIntervalSpec(every=timedelta(hours=interval_hours))
-            ],
+            intervals=[ScheduleIntervalSpec(every=timedelta(hours=interval_hours))],
         ),
     )
 

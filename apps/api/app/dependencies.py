@@ -91,10 +91,6 @@ TemporalClientDep = Annotated[TemporalClient, Depends(get_temporal_client)]
 RerankerDep = Annotated[Reranker, Depends(get_reranker)]
 RedisDep = Annotated["Redis | None", Depends(get_redis)]
 IdempotencyDep = Annotated[IdempotencyService, Depends(get_idempotency_service)]
-BudgetReservationDep = Annotated[
-    BudgetReservationService, Depends(get_budget_reservation_service)
-]
-RetrievalClientDep = Annotated[
-    "RetrievalClient | None", Depends(get_retrieval_client)
-]
+BudgetReservationDep = Annotated[BudgetReservationService, Depends(get_budget_reservation_service)]
+RetrievalClientDep = Annotated["RetrievalClient | None", Depends(get_retrieval_client)]
 EmbedderDep = Annotated[LiteLLMEmbedder, Depends(get_embedder)]

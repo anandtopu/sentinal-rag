@@ -79,9 +79,7 @@ class BudgetStage:
         record_budget_decision(action=decision.action.value)
 
         if decision.action != BudgetAction.ALLOW:
-            await self._record_audit(
-                ctx=ctx, decision_estimate_usd=estimate
-            )
+            await self._record_audit(ctx=ctx, decision_estimate_usd=estimate)
 
         downgrade_target = enforce_or_raise(decision)
         ctx.effective_model = downgrade_target or ctx.generation_cfg.model
@@ -109,9 +107,7 @@ class BudgetStage:
         assert ctx.query_session_id is not None
         decision = ctx.budget_decision
         event_type = (
-            "budget.denied"
-            if decision.action == BudgetAction.DENY
-            else "budget.downgraded"
+            "budget.denied" if decision.action == BudgetAction.DENY else "budget.downgraded"
         )
         await self._audit_service.record(
             AuditEvent(

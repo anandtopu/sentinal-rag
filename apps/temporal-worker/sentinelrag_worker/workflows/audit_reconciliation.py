@@ -47,9 +47,7 @@ class AuditReconciliationWorkflow:
 
         # Recurring Schedule shape: day omitted → reconcile yesterday-UTC,
         # derived from workflow.now() so replay stays deterministic.
-        day = payload.day or (
-            workflow.now().astimezone(UTC).date() - timedelta(days=1)
-        )
+        day = payload.day or (workflow.now().astimezone(UTC).date() - timedelta(days=1))
 
         # Sorted iteration so workflow history is deterministic across
         # re-queues regardless of caller-side ordering.

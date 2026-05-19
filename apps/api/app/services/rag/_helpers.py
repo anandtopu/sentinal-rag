@@ -71,22 +71,16 @@ def token_overlap_score(answer: str, context: str) -> float | None:
     """
     if not answer.strip():
         return None
-    answer_tokens = {
-        t.lower() for t in re.findall(r"\w+", answer) if len(t) >= _MIN_TOKEN_LEN
-    }
+    answer_tokens = {t.lower() for t in re.findall(r"\w+", answer) if len(t) >= _MIN_TOKEN_LEN}
     if not answer_tokens:
         return None
-    context_tokens = {
-        t.lower() for t in re.findall(r"\w+", context) if len(t) >= _MIN_TOKEN_LEN
-    }
+    context_tokens = {t.lower() for t in re.findall(r"\w+", context) if len(t) >= _MIN_TOKEN_LEN}
     if not context_tokens:
         return 0.0
     return round(len(answer_tokens & context_tokens) / len(answer_tokens), 4)
 
 
-def restage_candidates(
-    candidates: list[Candidate], stage: RetrievalStage
-) -> list[Candidate]:
+def restage_candidates(candidates: list[Candidate], stage: RetrievalStage) -> list[Candidate]:
     """Re-emit ``candidates`` carrying a new ``stage`` + re-numbered ``rank``.
 
     Used by the bm25-only and vector-only modes when synthesizing a

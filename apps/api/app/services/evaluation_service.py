@@ -74,9 +74,7 @@ class EvaluationService:
         await self.db.flush()
         return ds
 
-    async def list_datasets(
-        self, *, limit: int = 50, offset: int = 0
-    ) -> list[EvaluationDataset]:
+    async def list_datasets(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationDataset]:
         return await self.datasets.list_recent(limit=limit, offset=offset)
 
     async def add_case(
@@ -170,9 +168,7 @@ class EvaluationService:
             raise NotFoundError("Evaluation run not found.")
         return run
 
-    async def aggregate_run(
-        self, run_id: UUID
-    ) -> tuple[EvaluationRun, dict[str, Any]]:
+    async def aggregate_run(self, run_id: UUID) -> tuple[EvaluationRun, dict[str, Any]]:
         run = await self.get_run(run_id)
         agg = await self.scores.aggregate_for_run(run_id)
         cases_total = await self.cases.count_for_dataset(run.dataset_id)

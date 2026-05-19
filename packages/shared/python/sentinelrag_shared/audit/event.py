@@ -63,9 +63,4 @@ class AuditEvent(BaseModel):
     def day_prefix(tenant_id: UUID, day: datetime) -> str:
         """Prefix that lists every event for ``tenant_id`` on ``day`` (UTC)."""
         d = day.astimezone(UTC)
-        return (
-            f"tenant_id={tenant_id}/"
-            f"year={d.year:04d}/"
-            f"month={d.month:02d}/"
-            f"day={d.day:02d}/"
-        )
+        return f"tenant_id={tenant_id}/year={d.year:04d}/month={d.month:02d}/day={d.day:02d}/"

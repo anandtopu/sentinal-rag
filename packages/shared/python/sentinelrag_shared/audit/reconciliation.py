@@ -43,9 +43,7 @@ class TenantReconcileResult:
     backfilled: int
 
 
-def diff_event_sets(
-    pg_ids: Iterable[UUID], s3_ids: Iterable[UUID]
-) -> DriftCounts:
+def diff_event_sets(pg_ids: Iterable[UUID], s3_ids: Iterable[UUID]) -> DriftCounts:
     """Sorted set-difference. Sorted so workflow output is deterministic."""
 
     pg_set = set(pg_ids)

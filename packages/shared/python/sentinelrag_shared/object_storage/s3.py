@@ -128,9 +128,7 @@ class S3Storage(ObjectStorage):
             custom_metadata=response.get("Metadata", {}),
         )
 
-    async def list_keys(
-        self, prefix: str, *, page_size: int = 1000
-    ) -> AsyncIterator[str]:
+    async def list_keys(self, prefix: str, *, page_size: int = 1000) -> AsyncIterator[str]:
         async with self._session.client("s3", **self._client_kwargs()) as s3:
             paginator = s3.get_paginator("list_objects_v2")
             async for page in paginator.paginate(

@@ -78,9 +78,7 @@ async def session_factory(engine) -> async_sessionmaker[AsyncSession]:
 
 
 @pytest_asyncio.fixture
-async def admin_session(
-    cleanup_db, session_factory
-) -> AsyncIterator[AsyncSession]:
+async def admin_session(cleanup_db, session_factory) -> AsyncIterator[AsyncSession]:
     """Session that does NOT bind tenant context. Bypasses RLS as table owner.
 
     Tests must ``await admin_session.commit()`` after seeding so concurrent
@@ -97,9 +95,7 @@ async def admin_session(
             await session.rollback()
 
 
-async def _bind_tenant_role(
-    session: AsyncSession, tenant_id: UUID | None
-) -> None:
+async def _bind_tenant_role(session: AsyncSession, tenant_id: UUID | None) -> None:
     """Bind a transaction to the runtime role + tenant context.
 
     Tests connect as the testcontainer's ``sentinel`` superuser, which bypasses
@@ -202,9 +198,7 @@ async def minio_with_bucket(minio_endpoint: str) -> str:
     # Create bucket if it doesn't exist (S3 ``CreateBucket`` is idempotent
     # with the right error handling, but we just call it best-effort).
     try:
-        async with storage._session.client(
-            "s3", **storage._client_kwargs()
-        ) as s3:
+        async with storage._session.client("s3", **storage._client_kwargs()) as s3:
             with contextlib.suppress(Exception):  # already exists is fine
                 await s3.create_bucket(Bucket="sentinelrag-documents")
     finally:

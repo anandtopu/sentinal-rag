@@ -118,10 +118,10 @@ class TestSearch:
                         {
                             "_score": 4.2,
                             "_source": {
-                                "chunk_id":      str(chunk_id),
-                                "document_id":   str(doc_id),
-                                "content":       "kubernetes rolling update guide",
-                                "page_number":   3,
+                                "chunk_id": str(chunk_id),
+                                "document_id": str(doc_id),
+                                "content": "kubernetes rolling update guide",
+                                "page_number": 3,
                                 "section_title": "Rollouts",
                             },
                         }
@@ -177,7 +177,8 @@ class TestSearch:
 
         # OpenSearch query terms-match only the intersection.
         terms = next(
-            f for f in client.search.await_args.kwargs["body"]["query"]["bool"]["filter"]
+            f
+            for f in client.search.await_args.kwargs["body"]["query"]["bool"]["filter"]
             if "terms" in f
         )
         assert terms["terms"]["collection_id"] == [str(cid_a)]
@@ -334,5 +335,5 @@ class TestDeleteByDocument:
         body = client.delete_by_query.await_args.kwargs["body"]
         assert client.delete_by_query.await_args.kwargs["params"] == {"refresh": "true"}
         filters = body["query"]["bool"]["filter"]
-        assert {"term": {"tenant_id":   str(tenant_id)}} in filters
+        assert {"term": {"tenant_id": str(tenant_id)}} in filters
         assert {"term": {"document_id": str(doc_id)}} in filters

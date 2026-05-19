@@ -45,7 +45,7 @@ class GenerationResult:
 
 @dataclass(slots=True)
 class RerankResult:
-    indices: list[int]            # original positions of reranked candidates
-    scores: list[float]           # parallel to ``indices``
+    indices: list[int]  # original positions of reranked candidates
+    scores: list[float]  # parallel to ``indices``
     model_name: str
     usage: UsageRecord
