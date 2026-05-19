@@ -59,16 +59,22 @@ class EvaluationRunWorkflow:
             try:
                 await workflow.execute_activity(
                     activities.score_case,
-                    args=[
-                        str(payload.evaluation_run_id),
-                        case_id,
-                        str(payload.tenant_id),
-                        str(payload.actor_user_id) if payload.actor_user_id else None,
-                        [str(c) for c in payload.collection_ids],
-                        str(payload.prompt_version_id) if payload.prompt_version_id else None,
-                        payload.model_config_,
-                        payload.retrieval_config,
-                    ],
+                    kwargs={
+                        "evaluation_run_id": str(payload.evaluation_run_id),
+                        "case_id": case_id,
+                        "tenant_id": str(payload.tenant_id),
+                        "actor_user_id": (
+                            str(payload.actor_user_id) if payload.actor_user_id else None
+                        ),
+                        "collection_ids": [str(c) for c in payload.collection_ids],
+                        "prompt_version_id": (
+                            str(payload.prompt_version_id)
+                            if payload.prompt_version_id
+                            else None
+                        ),
+                        "model_config": payload.model_config_,
+                        "retrieval_config": payload.retrieval_config,
+                    },
                     start_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RetryPolicy(maximum_attempts=2),
                 )

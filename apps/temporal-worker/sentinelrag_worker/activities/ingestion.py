@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID

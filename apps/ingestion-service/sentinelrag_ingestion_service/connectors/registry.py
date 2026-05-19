@@ -17,7 +17,9 @@ from sentinelrag_ingestion_service.connectors.object_storage import ObjectStorag
 
 class ConnectorRegistry:
     def __init__(self, connectors: Sequence[SourceConnector] | None = None) -> None:
-        self._connectors: list[SourceConnector] = list(connectors) if connectors is not None else []
+        self._connectors: list[SourceConnector] = (
+            list(connectors) if connectors is not None else []
+        )
 
     def register(self, connector: SourceConnector) -> None:
         self._connectors.append(connector)
@@ -55,7 +57,7 @@ class ConnectorRegistry:
 
         raise UnsupportedSourceError(f"No connector registered for source URI: {source_uri}")
 
-    async def fetch(self, source_uri: str):
+    async def fetch(self, source_uri: str) -> object:
         connector = self.get_connector(source_uri)
         return await connector.fetch(source_uri)
 
@@ -68,9 +70,9 @@ def build_default_registry(
         [
             InlineTextConnector(),
             HttpConnector(),
-            LocalFileConnector(),
         ],
     )
     if object_storage is not None:
         connectors.append(cast(SourceConnector, ObjectStorageConnector(object_storage)))
+    connectors.append(LocalFileConnector())
     return ConnectorRegistry(connectors)
