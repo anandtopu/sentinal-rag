@@ -1,31 +1,51 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+import litellm
+from collections.abc import Mapping, Sequence
 from time import perf_counter
-from typing import Any, Protocol, cast
-
-from litellm import aembedding as litellm_aembedding
+from typing import Any
 
 from sentinelrag_shared.llm.types import EmbeddingResult, UsageRecord
 
 
-class _EmbeddingDataItem(Protocol):
-    embedding: Sequence[float]
+class EmbedderError(RuntimeError):
+    """Base embedder error."""
 
 
-class _EmbeddingUsage(Protocol):
-    prompt_tokens: int | None
-    total_tokens: int | None
+class Embedder:
+    async def embed(self, texts: Sequence[str]) -> EmbeddingResult:  # pragma: no cover
+        raise NotImplementedError
 
 
-class _EmbeddingResponse(Protocol):
-    data: Sequence[_EmbeddingDataItem]
-    model: str | None
-    usage: _EmbeddingUsage | None
+def _infer_provider(model_name: str, provider: str | None) -> str | None:
+    if provider:
+        return provider
+    if "/" in model_name:
+        return model_name.split("/", 1)[0]
+    return None
 
 
-class Embedder(Protocol):
-    async def embed(self, texts: Sequence[str]) -> EmbeddingResult: ...
+def _default_dimension(model_name: str) -> int:
+    lowered = model_name.lower()
+    if "nomic-embed-text" in lowered:
+        return 768
+    if "bge-m3" in lowered:
+        return 1024
+    return 768
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    if hasattr(value, "model_dump"):
+        dumped = value.model_dump()
+        if isinstance(dumped, Mapping):
+            return dumped
+    if hasattr(value, "__dict__"):
+        data = vars(value)
+        if isinstance(data, Mapping):
+            return data
+    return {}
 
 
 class LiteLLMEmbedder:
@@ -35,47 +55,89 @@ class LiteLLMEmbedder:
         *,
         provider: str | None = None,
         batch_size: int = 32,
+        max_batch_size: int | None = None,
         **kwargs: Any,
     ) -> None:
         self.model_name = model_name
-        self.provider = provider
-        self.batch_size = batch_size
+        self.provider = _infer_provider(model_name, provider)
+        self.batch_size = max_batch_size or batch_size
         self.kwargs: dict[str, Any] = dict(kwargs)
 
-    async def _embed_once(self, chunk: Sequence[str]) -> _EmbeddingResponse:
-        response = await cast(Any, litellm_aembedding)(
-            model=self.model_name,
-            input=list(chunk),
-            **self.kwargs,
-        )
-        return cast(_EmbeddingResponse, response)
-
     async def embed(self, texts: Sequence[str]) -> EmbeddingResult:
-        started = perf_counter()
+        if not texts:
+            return EmbeddingResult(
+                vectors=[],
+                model_name=self.model_name,
+                dimension=_default_dimension(self.model_name),
+                provider=self.provider,
+                usage=UsageRecord(
+                    usage_type="embedding",
+                    provider=self.provider,
+                    model_name=self.model_name,
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    total_cost_usd=0.0,
+                    latency_ms=0,
+                ),
+            )
 
-        all_vectors: list[list[float]] = []
+        started = perf_counter()
+        vectors: list[list[float]] = []
         total_input_tokens = 0
         total_tokens = 0
+        total_cost = 0.0
         resolved_model = self.model_name
 
         for i in range(0, len(texts), self.batch_size):
-            chunk = texts[i : i + self.batch_size]
-            response = await self._embed_once(chunk)
-            resolved_model = response.model or resolved_model
+            chunk = list(texts[i : i + self.batch_size])
+            try:
+                raw_response = await litellm.aembedding(
+                    model=self.model_name,
+                    input=chunk,
+                    **self.kwargs,
+                )
+            except Exception as exc:
+                raise EmbedderError(str(exc)) from exc
 
-            for item in response.data:
-                all_vectors.append([float(x) for x in item.embedding])
+            response = _as_mapping(raw_response)
 
-            usage = response.usage
-            if usage is not None:
-                total_input_tokens += usage.prompt_tokens or 0
-                total_tokens += usage.total_tokens or 0
+            response_model = response.get("model")
+            if isinstance(response_model, str) and response_model:
+                resolved_model = response_model
 
+            data = response.get("data", [])
+            if not isinstance(data, Sequence):
+                data = []
+
+            for item in data:
+                item_map = _as_mapping(item)
+                embedding = item_map.get("embedding", [])
+                if isinstance(embedding, Sequence):
+                    vectors.append([float(x) for x in embedding])
+
+            usage = _as_mapping(response.get("usage"))
+            prompt_tokens = usage.get("prompt_tokens", 0)
+            total_input_tokens += (
+                int(prompt_tokens) if isinstance(prompt_tokens, int | float) else 0
+            )
+
+            total_tok = usage.get("total_tokens")
+            if isinstance(total_tok, int | float):
+                total_tokens += int(total_tok)
+            else:
+                total_tokens += int(prompt_tokens) if isinstance(prompt_tokens, int | float) else 0
+
+            hidden = _as_mapping(response.get("_hidden_params"))
+            response_cost = hidden.get("response_cost", 0.0)
+            if isinstance(response_cost, int | float):
+                total_cost += float(response_cost)
+
+        dimension = len(vectors[0]) if vectors else _default_dimension(self.model_name)
         latency_ms = int((perf_counter() - started) * 1000)
-        dimension = len(all_vectors[0]) if all_vectors else 0
 
         return EmbeddingResult(
-            vectors=all_vectors,
+            vectors=vectors,
             model_name=resolved_model,
             dimension=dimension,
             provider=self.provider,
@@ -86,6 +148,7 @@ class LiteLLMEmbedder:
                 input_tokens=total_input_tokens,
                 output_tokens=0,
                 total_tokens=total_tokens,
+                total_cost_usd=total_cost,
                 latency_ms=latency_ms,
             ),
         )
