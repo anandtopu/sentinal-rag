@@ -36,14 +36,14 @@ resource "google_sql_database_instance" "this" {
     }
 
     insights_config {
-      query_insights_enabled = true
-      query_string_length    = 1024
+      query_insights_enabled  = true
+      query_string_length     = 1024
       record_application_tags = true
       record_client_address   = false
     }
 
     maintenance_window {
-      day          = 7   # Sunday
+      day          = 7 # Sunday
       hour         = 4
       update_track = "stable"
     }

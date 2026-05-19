@@ -46,16 +46,16 @@ resource "aws_elasticache_parameter_group" "this" {
 }
 
 resource "aws_elasticache_replication_group" "this" {
-  replication_group_id       = "${var.name}-redis"
-  description                = "SentinelRAG ${var.name} cache."
-  engine                     = "redis"
-  engine_version             = var.engine_version
-  node_type                  = var.node_type
-  port                       = 6379
-  parameter_group_name       = aws_elasticache_parameter_group.this.name
+  replication_group_id = "${var.name}-redis"
+  description          = "SentinelRAG ${var.name} cache."
+  engine               = "redis"
+  engine_version       = var.engine_version
+  node_type            = var.node_type
+  port                 = 6379
+  parameter_group_name = aws_elasticache_parameter_group.this.name
 
-  subnet_group_name          = aws_elasticache_subnet_group.this.name
-  security_group_ids         = [aws_security_group.this.id]
+  subnet_group_name  = aws_elasticache_subnet_group.this.name
+  security_group_ids = [aws_security_group.this.id]
 
   automatic_failover_enabled = var.num_node_groups > 1 || var.replicas_per_node_group > 0
   multi_az_enabled           = var.multi_az
@@ -66,11 +66,11 @@ resource "aws_elasticache_replication_group" "this" {
   transit_encryption_enabled = true
   auth_token                 = var.auth_token
 
-  snapshot_retention_limit   = var.snapshot_retention_days
-  snapshot_window            = "02:00-03:00"
-  maintenance_window         = "sun:03:30-sun:04:30"
+  snapshot_retention_limit = var.snapshot_retention_days
+  snapshot_window          = "02:00-03:00"
+  maintenance_window       = "sun:03:30-sun:04:30"
 
-  apply_immediately          = var.apply_immediately
+  apply_immediately = var.apply_immediately
 
   tags = merge(var.tags, { Name = "${var.name}-redis" })
 
