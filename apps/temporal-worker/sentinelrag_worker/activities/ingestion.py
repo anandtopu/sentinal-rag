@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
@@ -51,7 +51,7 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 @asynccontextmanager
-async def _session_for_tenant(tenant_id: UUID) -> AsyncIterator[AsyncSession]:
+async def _session_for_tenant(tenant_id: UUID) -> AsyncGenerator[AsyncSession]:
     factory = _get_session_factory()
     async with factory() as session, session.begin():
         await session.execute(
@@ -311,7 +311,7 @@ async def embed_chunks(tenant_id: str, version_id: str, embedding_model: str) ->
         if embedding_model.startswith("ollama/")
         else None,
     )
-    dim = embedder.dimension
+    dim = 1024 if "1024" in embedding_model else 1536 if "1536" in embedding_model else 768
     if dim not in {768, 1024, 1536}:
         raise ValueError(f"Unsupported embedding dimension: {dim}")
     column = f"embedding_{dim}"
@@ -430,7 +430,7 @@ def _element_from_dict(item: dict[str, Any]) -> ParsedElement:
         if isinstance(item.get("section_title"), str)
         else None,
         table_html=item.get("table_html") if isinstance(item.get("table_html"), str) else None,
-        metadata=item.get("metadata") if isinstance(item.get("metadata"), dict) else {},
+        metadata=dict(item["metadata"]) if isinstance(item.get("metadata"), dict) else {},
     )
 
 
