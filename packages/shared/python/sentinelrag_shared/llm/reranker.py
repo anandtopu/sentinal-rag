@@ -1,180 +1,51 @@
-# pyright: reportMissingImports=false
-
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
-from sentinelrag_shared.llm.types import RerankResult, UsageRecord
+from sentence_transformers import (
+    CrossEncoder as SentenceTransformersCrossEncoder,  # pyright: ignore[reportMissingImports]
+)
+
+from sentinelrag_shared.llm.types import RerankResult
 
 
-class RerankerError(Exception):
-    """Raised when reranking fails irrecoverably."""
-
-
-@dataclass(slots=True)
-class RerankCandidate:
-    chunk_id: str
-    text: str
+class _CrossEncoderLike(Protocol):
+    def predict(self, sentences: Sequence[tuple[str, str]]) -> Sequence[float]: ...
 
 
 class Reranker(Protocol):
-    model_name: str
-
-    def rerank(
-        self,
-        *,
-        query: str,
-        candidates: Sequence[RerankCandidate],
-        top_k: int,
-    ) -> RerankResult: ...
+    def rerank(self, query: str, documents: Sequence[str]) -> list[RerankResult]: ...
 
 
-class NoOpReranker:
-    model_name = "noop"
-
-    def rerank(
-        self,
-        *,
-        query: str,
-        candidates: Sequence[RerankCandidate],
-        top_k: int,
-    ) -> RerankResult:
-        del query
-        n = min(top_k, len(candidates))
-        return RerankResult(
-            indices=list(range(n)),
-            scores=[1.0 - i * 0.01 for i in range(n)],
-            model_name=self.model_name,
-            usage=UsageRecord(
-                usage_type="rerank",
-                provider="local",
-                model_name=self.model_name,
-            ),
-        )
-
-
-_bge_lock = threading.Lock()
-_bge_model: Any | None = None
-_bge_model_name: str | None = None
-
-
-class BgeReranker:
-    def __init__(
-        self,
-        *,
-        model_name: str = "BAAI/bge-reranker-v2-m3",
-        use_fp16: bool = True,
-        max_length: int = 512,
-        batch_size: int = 32,
-    ) -> None:
+class SentenceTransformerReranker:
+    def __init__(self, model_name: str = "BAAI/bge-reranker-base") -> None:
         self.model_name = model_name
-        self._use_fp16 = use_fp16
-        self._max_length = max_length
-        self._batch_size = batch_size
+        self._model: _CrossEncoderLike | None = None
 
-    def _ensure_model(self) -> Any:
-        global _bge_model, _bge_model_name  # noqa: PLW0603
-
-        if _bge_model is not None and self.model_name == _bge_model_name:
-            return _bge_model
-
-        with _bge_lock:
-            if _bge_model is not None and self.model_name == _bge_model_name:
-                return _bge_model
-
-            flag_reranker_cls: Any | None = None
+    def _get_model(self) -> _CrossEncoderLike:
+        if self._model is None:
             try:
-                from FlagEmbedding import FlagReranker as flag_reranker_cls  # noqa: PLC0415
-            except ImportError:
-                pass
-
-            if flag_reranker_cls is not None:
-                try:
-                    _bge_model = flag_reranker_cls(
-                        self.model_name,
-                        use_fp16=self._use_fp16,
-                    )
-                    _bge_model_name = self.model_name
-                    return _bge_model
-                except Exception as exc:
-                    raise RerankerError(
-                        f"FlagReranker failed to load {self.model_name}: {exc}"
-                    ) from exc
-
-            try:
-                from sentence_transformers import CrossEncoder  # noqa: PLC0415
-
-                _bge_model = CrossEncoder(self.model_name, max_length=self._max_length)
-                _bge_model_name = self.model_name
-                return _bge_model
+                self._model = cast(
+                    _CrossEncoderLike,
+                    SentenceTransformersCrossEncoder(self.model_name),
+                )
             except Exception as exc:
-                raise RerankerError(
-                    "Neither FlagEmbedding nor sentence-transformers could load "
-                    f"{self.model_name!r}: {exc}"
+                raise RuntimeError(
+                    "sentence-transformers is required at runtime for "
+                    "SentenceTransformerReranker, but it is not available in this "
+                    "environment."
                 ) from exc
+        return self._model
 
-    def rerank(
-        self,
-        *,
-        query: str,
-        candidates: Sequence[RerankCandidate],
-        top_k: int,
-    ) -> RerankResult:
-        if not candidates:
-            return RerankResult(
-                indices=[],
-                scores=[],
-                model_name=self.model_name,
-                usage=UsageRecord(
-                    usage_type="rerank",
-                    provider="local",
-                    model_name=self.model_name,
-                ),
-            )
+    def rerank(self, query: str, documents: Sequence[str]) -> list[RerankResult]:
+        model = self._get_model()
+        pairs = [(query, document) for document in documents]
+        scores = model.predict(pairs)
 
-        model = self._ensure_model()
-        pairs = [(query, c.text) for c in candidates]
-
-        start = time.perf_counter()
-        scores = self._score(model, pairs)
-        latency_ms = int((time.perf_counter() - start) * 1000)
-
-        indexed = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
-        kept = indexed[: max(top_k, 0)]
-
-        return RerankResult(
-            indices=[i for i, _ in kept],
-            scores=[float(score) for _, score in kept],
-            model_name=self.model_name,
-            usage=UsageRecord(
-                usage_type="rerank",
-                provider="local",
-                model_name=self.model_name,
-                latency_ms=latency_ms,
-            ),
-        )
-
-    def _score(self, model: Any, pairs: list[tuple[str, str]]) -> list[float]:
-        if hasattr(model, "compute_score"):
-            raw = model.compute_score(
-                pairs,
-                normalize=True,
-                batch_size=self._batch_size,
-            )
-            if isinstance(raw, list):
-                return [float(score) for score in raw]
-            return [float(cast(float, raw))]
-
-        if hasattr(model, "predict"):
-            raw = model.predict(
-                pairs,
-                batch_size=self._batch_size,
-                show_progress_bar=False,
-            )
-            return [float(score) for score in raw]
-
-        raise RerankerError("Loaded model has neither compute_score nor predict.")
+        results = [
+            RerankResult(document=document, score=float(score), index=index)
+            for index, (document, score) in enumerate(zip(documents, scores, strict=False))
+        ]
+        results.sort(key=lambda item: item.score, reverse=True)
+        return results

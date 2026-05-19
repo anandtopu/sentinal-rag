@@ -1,82 +1,117 @@
-# pyright: reportMissingImports=false
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from time import perf_counter
 from typing import Any, Protocol, cast
 
-from litellm import acompletion
+from litellm import acompletion as litellm_acompletion
 
-from sentinelrag_shared.llm.types import GenerateResult, UsageRecord
+from sentinelrag_shared.llm.types import GenerationResult, JsonValue, UsageRecord
+
+
+class _Message(Protocol):
+    content: str | None
+
+
+class _Choice(Protocol):
+    message: _Message
+    finish_reason: str | None
+
+
+class _CompletionUsage(Protocol):
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
+
+
+class _CompletionResponse(Protocol):
+    choices: Sequence[_Choice]
+    model: str | None
+    usage: _CompletionUsage | None
+
+    def model_dump(self) -> dict[str, Any]: ...
 
 
 class Generator(Protocol):
-    model_name: str
+    async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult: ...
 
-    async def generate(
-        self,
-        *,
-        system_prompt: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        temperature: float = 0.0,
-        max_tokens: int = 512,
-    ) -> GenerateResult: ...
+
+def _coerce_json_value(value: object) -> JsonValue:
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    if isinstance(value, list):
+        return [_coerce_json_value(item) for item in value]
+    if isinstance(value, dict):
+        result: dict[str, JsonValue] = {}
+        for key, item in value.items():
+            result[str(key)] = _coerce_json_value(item)
+        return result
+    return str(value)
+
+
+def _coerce_json_dict(value: Mapping[str, object]) -> dict[str, JsonValue]:
+    result: dict[str, JsonValue] = {}
+    for key, item in value.items():
+        result[str(key)] = _coerce_json_value(item)
+    return result
 
 
 class LiteLLMGenerator:
-    def __init__(self, *, model_name: str) -> None:
-        self.model_name = model_name
-
-    async def generate(
+    def __init__(
         self,
+        model_name: str,
         *,
-        system_prompt: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        temperature: float = 0.0,
-        max_tokens: int = 512,
-    ) -> GenerateResult:
-        payload: list[dict[str, Any]] = []
+        provider: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.model_name = model_name
+        self.provider = provider
+        self.kwargs: dict[str, Any] = dict(kwargs)
 
-        if system_prompt:
-            payload.append({"role": "system", "content": system_prompt})
+    async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult:
+        started = perf_counter()
 
-        payload.extend(dict(message) for message in messages)
-
-        response_obj = await acompletion(
-            model=self.model_name,
-            messages=payload,
-            temperature=temperature,
-            max_tokens=max_tokens,
+        response = cast(
+            _CompletionResponse,
+            await cast(Any, litellm_acompletion)(
+                model=self.model_name,
+                messages=list(messages),
+                **self.kwargs,
+            ),
         )
 
-        response = cast(dict[str, Any], cast(Any, response_obj))
+        first_choice = response.choices[0]
+        text = first_choice.message.content or ""
+        finish_reason = first_choice.finish_reason
+        resolved_model = response.model or self.model_name
 
-        choices = cast(list[dict[str, Any]], response.get("choices", []))
-        first_choice = choices[0] if choices else {}
-        message = cast(dict[str, Any], first_choice.get("message", {}))
-        text = cast(str, message.get("content", "") or "")
-        finish_reason = cast(str | None, first_choice.get("finish_reason"))
+        input_tokens = 0
+        output_tokens = 0
+        total_tokens = 0
+        usage = response.usage
+        if usage is not None:
+            input_tokens = usage.prompt_tokens or 0
+            output_tokens = usage.completion_tokens or 0
+            total_tokens = usage.total_tokens or (input_tokens + output_tokens)
 
-        usage_obj = cast(dict[str, Any], response.get("usage", {}))
-        input_tokens = int(cast(int | float, usage_obj.get("prompt_tokens", 0) or 0))
-        output_tokens = int(cast(int | float, usage_obj.get("completion_tokens", 0) or 0))
+        latency_ms = int((perf_counter() - started) * 1000)
 
-        hidden = cast(dict[str, Any], response.get("_hidden_params", {}))
-        response_cost = hidden.get("response_cost")
-        reasoning_tokens = (
-            int(cast(int | float | str, response_cost)) if response_cost is not None else None
-        )
+        raw_dump = cast(Mapping[str, object], response.model_dump())
+        raw_response = _coerce_json_dict(raw_dump)
 
-        return GenerateResult(
+        return GenerationResult(
             text=text,
+            model_name=resolved_model,
+            provider=self.provider,
             finish_reason=finish_reason,
-            model_name=self.model_name,
             usage=UsageRecord(
                 usage_type="generation",
-                provider="litellm",
-                model_name=self.model_name,
+                provider=self.provider,
+                model_name=resolved_model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                reasoning_tokens=reasoning_tokens,
+                total_tokens=total_tokens,
+                latency_ms=latency_ms,
             ),
+            raw_response=raw_response,
         )
