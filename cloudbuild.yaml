@@ -1,12 +1,27 @@
+substitutions:
+  _AR_REGION: us-central1
+  _AR_REPO: sentinal-rag
+  _IMAGE_NAME: sentinal-rag-backend
+  _TAG: latest
+
 steps:
-  - name: gcr.io/cloud-builders/docker
+  - name: "gcr.io/cloud-builders/docker"
+    id: Build
     args:
-      - build
-      - -f
-      - apps/api/Dockerfile
-      - -t
-      - us-central1-docker.pkg.dev/sentinelrag/sentinel-registry/sentinelrag-api:latest
-      - .
+      [
+        "build",
+        "-t",
+        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:${_TAG}",
+        "."
+      ]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: Push
+    args:
+      [
+        "push",
+        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:${_TAG}"
+      ]
 
 images:
-  - us-central1-docker.pkg.dev/sentinelrag/sentinel-registry/sentinelrag-api:latest
+  - "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:${_TAG}"
