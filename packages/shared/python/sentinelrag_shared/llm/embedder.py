@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import litellm
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from time import perf_counter
 from typing import Any
+
+import litellm
 
 from sentinelrag_shared.llm.types import EmbeddingResult, UsageRecord
 
@@ -140,7 +141,8 @@ class LiteLLMEmbedder:
                     vector = [float(x) for x in embedding]
                     if len(vector) != self.expected_dimension:
                         raise EmbedderError(
-                            f"{self.model_name} returned dim={len(vector)} expected dim={self.expected_dimension}"
+                            f"{self.model_name} returned dim={len(vector)} "
+                            f"expected dim={self.expected_dimension}"
                         )
                     vectors.append(vector)
 
@@ -159,7 +161,6 @@ class LiteLLMEmbedder:
             hidden = _as_mapping(response.get("_hidden_params"))
             total_cost += _as_decimal(hidden.get("response_cost", 0))
 
-        dimension = len(vectors[0]) if vectors else _default_dimension(self.model_name)
         latency_ms = int((perf_counter() - started) * 1000)
 
         return EmbeddingResult(

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-import litellm
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from time import perf_counter
 from typing import Any, Protocol
+
+import litellm
 
 from sentinelrag_shared.llm.types import GenerationResult, JsonValue, UsageRecord
 
 
 class GeneratorError(RuntimeError):
     """Base generator error."""
+
+class GeneratorTimeoutError(GeneratorError):
+    """Raised when generation times out."""
+
 
 
 class Generator(Protocol):
