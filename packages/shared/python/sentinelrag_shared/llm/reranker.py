@@ -3,10 +3,11 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Protocol
 
-from sentinelrag_shared.llm.types import RerankResult, UsageRecord
+from sentinelrag_shared.llm.types import UsageRecord
 
 
 class RerankerError(Exception):
@@ -17,6 +18,14 @@ class RerankerError(Exception):
 class RerankCandidate:
     chunk_id: str
     text: str
+
+
+@dataclass(slots=True)
+class RerankResult:
+    indices: list[int]
+    scores: list[float]
+    model_name: str
+    usage: UsageRecord = field(default_factory=UsageRecord)
 
 
 class Reranker(Protocol):
@@ -44,16 +53,16 @@ class NoOpReranker:
         top_k: int,
     ) -> RerankResult:
         del query
-        ranked_candidates = list(candidates[: max(top_k, 0)])
-        scores = [1.0 - (i * 0.01) for i in range(len(ranked_candidates))]
+        n = min(max(top_k, 0), len(candidates))
         return RerankResult(
-            candidates=ranked_candidates,
-            scores=scores,
+            indices=list(range(n)),
+            scores=[1.0 - (i * 0.01) for i in range(n)],
             model_name=self.model_name,
             usage=UsageRecord(
                 usage_type="rerank",
                 provider="local",
                 model_name=self.model_name,
+                total_cost_usd=Decimal("0"),
             ),
         )
 
@@ -122,13 +131,14 @@ class BgeReranker:
     ) -> RerankResult:
         if not candidates:
             return RerankResult(
-                candidates=[],
+                indices=[],
                 scores=[],
                 model_name=self.model_name,
                 usage=UsageRecord(
                     usage_type="rerank",
                     provider="local",
                     model_name=self.model_name,
+                    total_cost_usd=Decimal("0"),
                 ),
             )
 
@@ -141,13 +151,15 @@ class BgeReranker:
         ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[: max(top_k, 0)]
 
         return RerankResult(
-            candidates=[candidates[i] for i, _ in ranked],
+            indices=[i for i, _ in ranked],
             scores=[float(s) for _, s in ranked],
             model_name=self.model_name,
             usage=UsageRecord(
                 usage_type="rerank",
                 provider="local",
                 model_name=self.model_name,
+                total_tokens=len(candidates),
+                total_cost_usd=Decimal("0"),
                 latency_ms=latency_ms,
             ),
         )
