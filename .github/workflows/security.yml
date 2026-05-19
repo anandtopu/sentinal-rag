@@ -52,13 +52,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install bandit
-        run: pip install "bandit[sarif]==1.7.10" "toml>=0.10.2" "toml>=0.10.2" "toml>=0.10.2"
+        run: pip install "bandit[sarif,toml]==1.7.10"
 
       - name: Run bandit
         run: |
           bandit \
             -r apps packages \
-             \
+            -ll \
             --severity-level medium \
             -x "**/tests/**,**/__pycache__/**" \
             -f sarif \
@@ -66,19 +66,9 @@ jobs:
         # `|| true` because bandit exits non-zero on findings; we surface
         # them via SARIF and let the security tab gate.
 
-      - name: Check Bandit SARIF exists
-        id: bandit_sarif
-        shell: bash
-        run: |
-          if [ -f bandit.sarif ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Upload SARIF
-        if: steps.bandit_sarif.outputs.exists == 'true'
         uses: github/codeql-action/upload-sarif@v4
+        if: always()
         with:
           sarif_file: bandit.sarif
           category: bandit
