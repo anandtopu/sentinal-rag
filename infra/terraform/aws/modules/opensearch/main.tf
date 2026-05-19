@@ -43,9 +43,9 @@ resource "aws_opensearch_domain" "this" {
   engine_version = var.engine_version
 
   cluster_config {
-    instance_type            = var.instance_type
-    instance_count           = var.instance_count
-    zone_awareness_enabled   = var.zone_awareness_enabled
+    instance_type          = var.instance_type
+    instance_count         = var.instance_count
+    zone_awareness_enabled = var.zone_awareness_enabled
     dynamic "zone_awareness_config" {
       for_each = var.zone_awareness_enabled ? [1] : []
       content {
@@ -83,8 +83,8 @@ resource "aws_opensearch_domain" "this" {
   }
 
   domain_endpoint_options {
-    enforce_https           = true
-    tls_security_policy     = "Policy-Min-TLS-1-2-PFS-2023-10"
+    enforce_https       = true
+    tls_security_policy = "Policy-Min-TLS-1-2-PFS-2023-10"
   }
 
   advanced_security_options {

@@ -7,14 +7,14 @@
 
 locals {
   account_id = data.aws_caller_identity.current.account_id
-  oidc_url   = var.oidc_provider_url           # e.g. oidc.eks.us-east-1.amazonaws.com/id/ABCDEF
+  oidc_url   = var.oidc_provider_url # e.g. oidc.eks.us-east-1.amazonaws.com/id/ABCDEF
   oidc_arn   = var.oidc_provider_arn
 
-  api_sa_full        = "system:serviceaccount:${var.namespace}:${var.api_sa_name}"
-  worker_sa_full     = "system:serviceaccount:${var.namespace}:${var.worker_sa_name}"
-  frontend_sa_full   = "system:serviceaccount:${var.namespace}:${var.frontend_sa_name}"
-  eso_sa_full        = "system:serviceaccount:${var.eso_namespace}:${var.eso_sa_name}"
-  alb_sa_full        = "system:serviceaccount:${var.alb_namespace}:${var.alb_sa_name}"
+  api_sa_full      = "system:serviceaccount:${var.namespace}:${var.api_sa_name}"
+  worker_sa_full   = "system:serviceaccount:${var.namespace}:${var.worker_sa_name}"
+  frontend_sa_full = "system:serviceaccount:${var.namespace}:${var.frontend_sa_name}"
+  eso_sa_full      = "system:serviceaccount:${var.eso_namespace}:${var.eso_sa_name}"
+  alb_sa_full      = "system:serviceaccount:${var.alb_namespace}:${var.alb_sa_name}"
 }
 
 data "aws_caller_identity" "current" {}

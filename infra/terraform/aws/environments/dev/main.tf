@@ -20,7 +20,7 @@ module "vpc" {
   name               = var.name_prefix
   cidr_block         = var.vpc_cidr
   cluster_name       = var.name_prefix
-  single_nat_gateway = true       # dev cost saver
+  single_nat_gateway = true # dev cost saver
   enable_flow_logs   = true
   tags               = local.common_tags
 }
@@ -49,11 +49,11 @@ module "rds" {
   private_subnet_ids       = module.vpc.private_subnet_ids
   client_security_group_id = module.eks.node_security_group_id
 
-  instance_class           = var.rds_instance_class
-  multi_az                 = false # dev
-  master_password          = var.rds_master_password
-  deletion_protection      = false # dev
-  skip_final_snapshot      = true  # dev
+  instance_class      = var.rds_instance_class
+  multi_az            = false # dev
+  master_password     = var.rds_master_password
+  deletion_protection = false # dev
+  skip_final_snapshot = true  # dev
 
   tags = local.common_tags
 }
@@ -67,8 +67,8 @@ module "redis" {
   private_subnet_ids       = module.vpc.private_subnet_ids
   client_security_group_id = module.eks.node_security_group_id
 
-  node_type   = var.redis_node_type
-  auth_token  = var.redis_auth_token
+  node_type  = var.redis_node_type
+  auth_token = var.redis_auth_token
 
   tags = local.common_tags
 }
@@ -123,15 +123,15 @@ module "iam" {
   oidc_provider_url = module.eks.oidc_provider_url
   oidc_provider_arn = module.eks.oidc_provider_arn
 
-  namespace         = var.k8s_namespace
+  namespace = var.k8s_namespace
   # Helm's `sentinelrag.fullname` collapses the release name when it
   # contains the chart name, so the rendered SA names are
   # `<release>-<workload>` — NOT `<release>-sentinelrag-<workload>`.
   # The trust policies below MUST match the K8s SA the chart produces,
   # or AssumeRoleWithWebIdentity (IRSA) will fail.
-  api_sa_name       = "${var.name_prefix}-api"
-  worker_sa_name    = "${var.name_prefix}-temporal-worker"
-  frontend_sa_name  = "${var.name_prefix}-frontend"
+  api_sa_name      = "${var.name_prefix}-api"
+  worker_sa_name   = "${var.name_prefix}-temporal-worker"
+  frontend_sa_name = "${var.name_prefix}-frontend"
 
   documents_bucket_arn = module.s3.documents_bucket_arn
   audit_bucket_arn     = module.s3.audit_bucket_arn
