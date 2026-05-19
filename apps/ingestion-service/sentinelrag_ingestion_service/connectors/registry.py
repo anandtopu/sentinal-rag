@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import cast
 
 from sentinelrag_shared.object_storage.interface import ObjectStorage
+
 from sentinelrag_ingestion_service.connectors.base import (
     SourceConnector,
     UnsupportedSourceError,
@@ -20,6 +21,13 @@ class ConnectorRegistry:
 
     def register(self, connector: SourceConnector) -> None:
         self._connectors.append(connector)
+
+    def extend(self, connectors: Iterable[SourceConnector]) -> None:
+        self._connectors.extend(connectors)
+
+    @property
+    def connectors(self) -> Sequence[SourceConnector]:
+        return tuple(self._connectors)
 
     def get_connector(self, source_uri: str) -> SourceConnector:
         if source_uri.startswith("inline:"):
