@@ -74,6 +74,8 @@ class LiteLLMEmbedder:
         self.batch_size = max_batch_size or batch_size
         self.kwargs: dict[str, Any] = dict(kwargs)
         self.expected_dimension = _default_dimension(model_name)
+        retries = self.kwargs.pop("max_retries", None)
+        self.max_retries = int(retries) if isinstance(retries, int | float) else 1
 
     async def embed(self, texts: Sequence[str]) -> EmbeddingResult:
         if not texts:
@@ -103,14 +105,23 @@ class LiteLLMEmbedder:
 
         for i in range(0, len(texts), self.batch_size):
             chunk = list(texts[i : i + self.batch_size])
-            try:
-                raw_response = await litellm.aembedding(
-                    model=self.model_name,
-                    input=chunk,
-                    **self.kwargs,
-                )
-            except Exception as exc:
-                raise EmbedderError(str(exc)) from exc
+            raw_response = None
+            last_exc: Exception | None = None
+            for _attempt in range(self.max_retries):
+                try:
+                    raw_response = await litellm.aembedding(
+                        model=self.model_name,
+                        input=chunk,
+                        max_retries=self.max_retries,
+                        **self.kwargs,
+                    )
+                    break
+                except Exception as exc:
+                    last_exc = exc
+            if raw_response is None:
+                raise EmbedderError(
+                    f"failed after {self.max_retries} attempts: {last_exc}"
+                ) from last_exc
 
             response = _as_mapping(raw_response)
 
