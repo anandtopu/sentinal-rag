@@ -1,4 +1,3 @@
-# pyright: reportMissingImports=false
 """UnstructuredParser — wraps ``unstructured.partition.auto.partition``.
 
 Maps unstructured's Element classes to our :class:`ElementType` so the
@@ -62,7 +61,7 @@ class UnstructuredParser(Parser):
         # has it as a runtime dep. Importing at module level would slow down
         # other consumers of the package.
         try:
-            from unstructured.partition.auto import partition as _partition
+            from unstructured.partition.auto import partition as _partition  # noqa: PLC0415
 
             partition = cast("Callable[..., list[Any]]", _partition)
         except ImportError as exc:
