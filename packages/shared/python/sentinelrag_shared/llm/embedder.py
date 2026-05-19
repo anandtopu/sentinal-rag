@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import litellm
 from collections.abc import Mapping, Sequence
+from decimal import Decimal
 from time import perf_counter
 from typing import Any
 
@@ -48,6 +49,16 @@ def _as_mapping(value: Any) -> Mapping[str, Any]:
     return {}
 
 
+def _as_decimal(value: Any) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, int | str):
+        return Decimal(str(value))
+    if isinstance(value, float):
+        return Decimal(str(value))
+    return Decimal("0")
+
+
 class LiteLLMEmbedder:
     def __init__(
         self,
@@ -77,7 +88,7 @@ class LiteLLMEmbedder:
                     input_tokens=0,
                     output_tokens=0,
                     total_tokens=0,
-                    total_cost_usd=0.0,
+                    total_cost_usd=Decimal("0"),
                     latency_ms=0,
                 ),
             )
@@ -86,7 +97,7 @@ class LiteLLMEmbedder:
         vectors: list[list[float]] = []
         total_input_tokens = 0
         total_tokens = 0
-        total_cost = 0.0
+        total_cost = Decimal("0")
         resolved_model = self.model_name
 
         for i in range(0, len(texts), self.batch_size):
@@ -129,9 +140,7 @@ class LiteLLMEmbedder:
                 total_tokens += int(prompt_tokens) if isinstance(prompt_tokens, int | float) else 0
 
             hidden = _as_mapping(response.get("_hidden_params"))
-            response_cost = hidden.get("response_cost", 0.0)
-            if isinstance(response_cost, int | float):
-                total_cost += float(response_cost)
+            total_cost += _as_decimal(hidden.get("response_cost", 0))
 
         dimension = len(vectors[0]) if vectors else _default_dimension(self.model_name)
         latency_ms = int((perf_counter() - started) * 1000)
