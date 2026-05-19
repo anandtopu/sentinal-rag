@@ -9,6 +9,10 @@ from litellm import acompletion as litellm_acompletion
 from sentinelrag_shared.llm.types import GenerationResult, JsonValue, UsageRecord
 
 
+class GeneratorError(RuntimeError):
+    """Base generator error."""
+
+
 class _Message(Protocol):
     content: str | None
 
@@ -71,14 +75,17 @@ class LiteLLMGenerator:
     async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult:
         started = perf_counter()
 
-        response = cast(
-            _CompletionResponse,
-            await cast(Any, litellm_acompletion)(
-                model=self.model_name,
-                messages=list(messages),
-                **self.kwargs,
-            ),
-        )
+        try:
+            response = cast(
+                _CompletionResponse,
+                await cast(Any, litellm_acompletion)(
+                    model=self.model_name,
+                    messages=list(messages),
+                    **self.kwargs,
+                ),
+            )
+        except Exception as exc:
+            raise GeneratorError(str(exc)) from exc
 
         first_choice = response.choices[0]
         text = first_choice.message.content or ""

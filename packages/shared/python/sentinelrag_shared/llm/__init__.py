@@ -1,6 +1,12 @@
-from sentinelrag_shared.llm.embedder import Embedder, LiteLLMEmbedder
-from sentinelrag_shared.llm.generator import Generator, LiteLLMGenerator
-from sentinelrag_shared.llm.reranker import Reranker, SentenceTransformerReranker
+from sentinelrag_shared.llm.embedder import Embedder, EmbedderError, LiteLLMEmbedder
+from sentinelrag_shared.llm.generator import Generator, GeneratorError, LiteLLMGenerator
+from sentinelrag_shared.llm.reranker import (
+    BgeReranker,
+    NoOpReranker,
+    RerankCandidate,
+    Reranker,
+    RerankerError,
+)
 from sentinelrag_shared.llm.types import (
     EmbeddingResult,
     GenerationResult,
@@ -11,14 +17,19 @@ from sentinelrag_shared.llm.types import (
 
 __all__ = [
     "Embedder",
+    "EmbedderError",
+    "LiteLLMEmbedder",
+    "Generator",
+    "GeneratorError",
+    "LiteLLMGenerator",
+    "Reranker",
+    "RerankCandidate",
+    "RerankerError",
+    "NoOpReranker",
+    "BgeReranker",
     "EmbeddingResult",
     "GenerationResult",
-    "Generator",
     "JsonValue",
-    "LiteLLMEmbedder",
-    "LiteLLMGenerator",
     "RerankResult",
-    "Reranker",
-    "SentenceTransformerReranker",
     "UsageRecord",
 ]
