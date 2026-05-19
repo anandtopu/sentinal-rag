@@ -17,6 +17,7 @@ env:
 permissions:
   contents: read
   pull-requests: read
+  security-events: write
 
 jobs:
   python-quality:
@@ -72,7 +73,7 @@ jobs:
   frontend-quality:
     name: Frontend lint + typecheck + tests + build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/frontend
@@ -125,6 +126,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
       - uses: azure/setup-helm@v4
       - name: Helm lint
         shell: bash
@@ -141,6 +143,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
       - uses: hashicorp/setup-terraform@v3
       - name: Terraform fmt
         shell: bash
@@ -159,6 +162,188 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bandit:
+    name: Bandit Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bandit
+        run: pip install "bandit[sarif]==1.7.10" "toml>=0.10.2" "toml>=0.10.2" "toml>=0.10.2"
+
+      - name: Run bandit
+        shell: bash
+        run: |
+          mkdir -p reports
+          bandit -r apps packages \
+      --severity-level medium \
+      -x tests,__pycache__,.venv,venv,node_modules \
+      -f sarif \
+      -o reports/bandit.sarif || true
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: reports/bandit.sarif
+          category: bandit
+
+  tfsec:
+    name: tfsec Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tfsec when Terraform exists
+        shell: bash
+        run: |
+          if [ -d infra/terraform ] && find infra/terraform -name '*.tf' -print -quit | grep -q .; then
+            docker run --rm \
+              -v "$PWD:/src" \
+              aquasec/tfsec:latest \
+              /src/infra/terraform \
+              --soft-fail \
+              --format sarif \
+              --out /src/tfsec.sarif
+          else
+            echo '{"version":"2.1.0","runs":[]}' > tfsec.sarif
+          fi
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: tfsec.sarif
+          category: tfsec
+
+  trivy-fs-iac:
+    name: Trivy filesystem + IaC
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: misconfig,secret,vuln
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  trivy-image-api:
+    name: Trivy Docker image api
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t sentinelrag-api:ci .
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sentinelrag-api:ci
+          format: sarif
+          output: trivy-api.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-api.sarif
+          category: trivy-api
+
+  trivy-image-frontend:
+    name: Trivy Docker image frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend image
+        run: docker build -f apps/frontend/Dockerfile -t sentinelrag-frontend:ci apps/frontend
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sentinelrag-frontend:ci
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+  trivy-image-temporal-worker:
+    name: Trivy Docker image temporal-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build temporal-worker image
+        run: docker build -f apps/temporal-worker/Dockerfile -t sentinelrag-temporal-worker:ci .
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sentinelrag-temporal-worker:ci
+          format: sarif
+          output: trivy-temporal-worker.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-temporal-worker.sarif
+          category: trivy-temporal-worker
