@@ -73,13 +73,14 @@ class LiteLLMEmbedder:
         self.provider = _infer_provider(model_name, provider)
         self.batch_size = max_batch_size or batch_size
         self.kwargs: dict[str, Any] = dict(kwargs)
+        self.expected_dimension = _default_dimension(model_name)
 
     async def embed(self, texts: Sequence[str]) -> EmbeddingResult:
         if not texts:
             return EmbeddingResult(
                 vectors=[],
                 model_name=self.model_name,
-                dimension=_default_dimension(self.model_name),
+                dimension=self.expected_dimension,
                 provider=self.provider,
                 usage=UsageRecord(
                     usage_type="embedding",
@@ -125,10 +126,15 @@ class LiteLLMEmbedder:
                 item_map = _as_mapping(item)
                 embedding = item_map.get("embedding", [])
                 if isinstance(embedding, Sequence):
-                    vectors.append([float(x) for x in embedding])
+                    vector = [float(x) for x in embedding]
+                    if len(vector) != self.expected_dimension:
+                        raise EmbedderError(
+                            f"{self.model_name} returned dim={len(vector)} expected dim={self.expected_dimension}"
+                        )
+                    vectors.append(vector)
 
             usage = _as_mapping(response.get("usage"))
-            prompt_tokens = usage.get("prompt_tokens", 0)
+            prompt_tokens = usage.get("prompt_tokens", usage.get("input_tokens", 0))
             total_input_tokens += (
                 int(prompt_tokens) if isinstance(prompt_tokens, int | float) else 0
             )
@@ -148,7 +154,7 @@ class LiteLLMEmbedder:
         return EmbeddingResult(
             vectors=vectors,
             model_name=resolved_model,
-            dimension=dimension,
+            dimension=self.expected_dimension,
             provider=self.provider,
             usage=UsageRecord(
                 usage_type="embedding",
