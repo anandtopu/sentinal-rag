@@ -13,27 +13,15 @@ class GeneratorError(RuntimeError):
     """Base generator error."""
 
 
-class _Message(Protocol):
-    content: str | None
-
-
-class _Choice(Protocol):
-    message: _Message
-    finish_reason: str | None
-
-
-class _CompletionUsage(Protocol):
-    prompt_tokens: int | None
-    completion_tokens: int | None
-    total_tokens: int | None
-
-
 class Generator(Protocol):
-    async def generate(
+    async def complete(
         self,
         *,
-        prompt: str,
         system_prompt: str | None = None,
+        user_prompt: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        stop: Sequence[str] | None = None,
         metadata: Mapping[str, JsonValue] | None = None,
     ) -> GenerationResult: ...
 
@@ -86,11 +74,14 @@ class LiteLLMGenerator:
         self.max_tokens = max_tokens
         self.kwargs: dict[str, Any] = dict(kwargs)
 
-    async def generate(
+    async def complete(
         self,
         *,
-        prompt: str,
         system_prompt: str | None = None,
+        user_prompt: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        stop: Sequence[str] | None = None,
         metadata: Mapping[str, JsonValue] | None = None,
     ) -> GenerationResult:
         started = perf_counter()
@@ -98,16 +89,21 @@ class LiteLLMGenerator:
         messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        request_kwargs = dict(self.kwargs)
+        request_kwargs["temperature"] = self.temperature if temperature is None else temperature
+        request_kwargs["max_tokens"] = self.max_tokens if max_tokens is None else max_tokens
+        if stop is not None:
+            request_kwargs["stop"] = list(stop)
+        if metadata is not None:
+            request_kwargs["metadata"] = dict(metadata)
 
         try:
             raw_response = await litellm.acompletion(
                 model=self.model_name,
                 messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                metadata=dict(metadata or {}),
-                **self.kwargs,
+                **request_kwargs,
             )
         except Exception as exc:
             raise GeneratorError(str(exc)) from exc
@@ -152,4 +148,17 @@ class LiteLLMGenerator:
                 latency_ms=latency_ms,
                 extra={"metadata": dict(metadata or {})},
             ),
+        )
+
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        system_prompt: str | None = None,
+        metadata: Mapping[str, JsonValue] | None = None,
+    ) -> GenerationResult:
+        return await self.complete(
+            system_prompt=system_prompt,
+            user_prompt=prompt,
+            metadata=metadata,
         )
