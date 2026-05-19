@@ -73,6 +73,8 @@ class LiteLLMGenerator:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.kwargs: dict[str, Any] = dict(kwargs)
+        retries = self.kwargs.pop("max_retries", None)
+        self.max_retries = int(retries) if isinstance(retries, int | float) else 1
 
     async def complete(
         self,
@@ -99,14 +101,23 @@ class LiteLLMGenerator:
         if metadata is not None:
             request_kwargs["metadata"] = dict(metadata)
 
-        try:
-            raw_response = await litellm.acompletion(
-                model=self.model_name,
-                messages=messages,
-                **request_kwargs,
-            )
-        except Exception as exc:
-            raise GeneratorError(str(exc)) from exc
+        raw_response = None
+        last_exc: Exception | None = None
+        for _attempt in range(self.max_retries):
+            try:
+                raw_response = await litellm.acompletion(
+                    model=self.model_name,
+                    messages=messages,
+                    max_retries=self.max_retries,
+                    **request_kwargs,
+                )
+                break
+            except Exception as exc:
+                last_exc = exc
+        if raw_response is None:
+            raise GeneratorError(
+                f"failed after {self.max_retries} attempts: {last_exc}"
+            ) from last_exc
 
         response = _as_mapping(raw_response)
         choices = response.get("choices", [])
