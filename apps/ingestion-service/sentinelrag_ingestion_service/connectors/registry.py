@@ -60,7 +60,9 @@ class ConnectorRegistry:
         return await connector.fetch(source_uri)
 
 
-def build_default_registry(object_storage: ObjectStorage | None = None) -> ConnectorRegistry:
+def build_default_registry(
+    object_storage: ObjectStorage | None = None,
+) -> ConnectorRegistry:
     connectors = cast(
         list[SourceConnector],
         [
