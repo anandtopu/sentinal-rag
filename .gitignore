@@ -113,6 +113,9 @@ temp/
 .local/
 docker-volumes/
 
+# --- Homelab generated state (never commit) ---
+homelabsetup/.homelab-credentials
+
 #---- claude --
 CLAUDE.md
 # --- OpenAPI generated client ---

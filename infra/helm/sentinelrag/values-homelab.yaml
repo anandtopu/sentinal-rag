@@ -1,0 +1,427 @@
+# SentinelRAG homelab overlay — K3s 3-node cluster.
+#
+# Adapted from values-local.yaml (kind/minikube) with the K3s-specific
+# tweaks that bit us during TestLookup deploys:
+#   - storageClass: local-path  (K3s default; Bitnami subcharts default to "")
+#   - ingressClass: traefik     (K3s ships Traefik, not nginx)
+#   - image.registry: registry.local:30500 (local self-hosted registry)
+#   - replicaCount: 1           (3 small nodes; no benefit from > 1 replica
+#                                except for HA, which the homelab isn't)
+#   - networkPolicy.enabled=false (K3s default CNI is flannel; no NP support)
+#   - podSecurityContext.fsGroup tweaked for local-path PVC compatibility
+#   - migrations.command anchored to /app (the API Dockerfile's WORKDIR),
+#     not /workspace (default in values.yaml that doesn't exist in image).
+#
+# Bitnami subcharts (postgresql, redis, minio, keycloak, unleash) install
+# into the same `sentinelrag` namespace as the release, so service DNS is
+# <release>-<chart>.sentinelrag.svc.cluster.local. The chart's `unleash`
+# value points at the local Unleash chart's helm-chart-published name;
+# the others use Bitnami's standard names.
+#
+# Ollama is NOT a Helm dependency — bootstrap-homelab.sh deploys it as a
+# standalone manifest in the sentinelrag namespace because no first-party
+# Bitnami chart exists and the upstream one drags in a GPU operator.
+#
+# Temporal lives in its own `temporal` namespace, deployed by
+# bootstrap-homelab.sh from the upstream chart via the values overlay at
+# infra/bootstrap/temporal/values.yaml. The api + worker reach it via
+# temporal-frontend.temporal.svc.cluster.local:7233.
+
+cloud: local
+
+image:
+  registry: registry.local:30500
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  # Overwritten per-deploy by the deploy script to the immutable build tag.
+  tag: BUILD_TAG_PLACEHOLDER
+
+sharedEnv:
+  ENVIRONMENT: homelab
+  LOG_LEVEL: INFO
+  # Bootstrap script does NOT deploy an OTel collector in v1. The SDK noops
+  # on connection failure, so this URL just needs to be syntactically valid
+  # and unreachable. If you bolt observability on later, point this at the
+  # collector's ClusterIP service.
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+
+externalSecrets:
+  enabled: false  # No ESO on the homelab; we use plain Secrets seeded by deploy script.
+
+# ----------------------------------------------------------------------------
+# API
+# ----------------------------------------------------------------------------
+api:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      # Force HTTP entrypoint only — the homelab cert story is "don't bother".
+      traefik.ingress.kubernetes.io/router.entrypoints: web
+    hosts:
+      - host: api.sentinelrag.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      cpu: 750m
+      memory: 1Gi
+  env:
+    API_BASE_PATH: /api/v1
+    # Homelab is NOT `local` — the dev-token bypass MUST stay off per
+    # CLAUDE.md (the rule is tested in tests/unit/test_dev_token_disabled_in_prod.py).
+    AUTH_ALLOW_DEV_TOKEN: "false"
+  envFromSecret:
+    name: sentinelrag-api-secrets
+    # remoteKeys is ignored when externalSecrets.enabled=false; left for
+    # symmetry with cloud overlays so a future ArgoCD-of-homelab can flip
+    # the flag without re-templating.
+    remoteKeys:
+      - DATABASE_URL
+      - REDIS_URL
+      - KEYCLOAK_ISSUER_URL
+      - KEYCLOAK_AUDIENCE
+      - KEYCLOAK_JWKS_URL
+      - OBJECT_STORAGE_ACCESS_KEY
+      - OBJECT_STORAGE_SECRET_KEY
+      - UNLEASH_API_TOKEN
+      - RETRIEVAL_SERVICE_TOKEN
+  envFromConfigMap:
+    KEYCLOAK_AUDIENCE: sentinelrag-api
+    JWT_ALGORITHM: RS256
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    TEMPORAL_TASK_QUEUE_INGESTION: ingestion
+    TEMPORAL_TASK_QUEUE_EVALUATION: evaluation
+    OBJECT_STORAGE_PROVIDER: minio
+    OBJECT_STORAGE_ENDPOINT: http://sentinelrag-minio.sentinelrag.svc.cluster.local:9000
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+    DEFAULT_GENERATION_MODEL: ollama/llama3.1:8b
+    DEFAULT_RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+    ENABLE_RERANKER: "false"
+    UNLEASH_URL: http://sentinelrag-unleash.sentinelrag.svc.cluster.local:4242/api/
+    UNLEASH_APP_NAME: sentinelrag-api
+    # Retrieval runs as its own workload — HTTP transport across the cluster
+    # network is the realistic shape (R4.S5).
+    RETRIEVAL_TRANSPORT: http
+    RETRIEVAL_SERVICE_URL: http://sentinelrag-retrieval.sentinelrag.svc.cluster.local
+    RETRIEVAL_SERVICE_TIMEOUT_SECONDS: "5"
+
+# ----------------------------------------------------------------------------
+# Retrieval service (R4)
+# ----------------------------------------------------------------------------
+retrieval:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      cpu: 750m
+      memory: 1Gi
+  envFromSecret:
+    name: sentinelrag-retrieval-secrets
+    remoteKeys:
+      - DATABASE_URL
+      - SERVICE_TOKEN
+  envFromConfigMap:
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+    OLLAMA_BASE_URL: http://ollama.sentinelrag.svc.cluster.local:11434
+    LOG_LEVEL: INFO
+
+# ----------------------------------------------------------------------------
+# Temporal worker
+# ----------------------------------------------------------------------------
+temporalWorker:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+  envFromSecret:
+    name: sentinelrag-worker-secrets
+    remoteKeys:
+      - DATABASE_URL
+      - REDIS_URL
+      - OBJECT_STORAGE_ACCESS_KEY
+      - OBJECT_STORAGE_SECRET_KEY
+  envFromConfigMap:
+    TEMPORAL_HOST: temporal-frontend.temporal.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: default
+    OBJECT_STORAGE_PROVIDER: minio
+    OBJECT_STORAGE_ENDPOINT: http://sentinelrag-minio.sentinelrag.svc.cluster.local:9000
+    OBJECT_STORAGE_BUCKET_DOCUMENTS: sentinelrag-documents
+    OBJECT_STORAGE_BUCKET_AUDIT: sentinelrag-audit
+    OBJECT_STORAGE_REGION: us-east-1
+    DEFAULT_EMBEDDING_MODEL: ollama/nomic-embed-text
+
+# ----------------------------------------------------------------------------
+# Frontend
+# ----------------------------------------------------------------------------
+frontend:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: web
+    hosts:
+      - host: app.sentinelrag.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+  env:
+    NODE_ENV: production
+    NEXTAUTH_URL: http://app.sentinelrag.local
+    NEXT_PUBLIC_API_URL: http://api.sentinelrag.local
+    # Same logic as AUTH_ALLOW_DEV_TOKEN — homelab proves the real auth flow.
+    AUTH_DEV_BYPASS: "false"
+  envFromSecret:
+    name: sentinelrag-frontend-secrets
+    remoteKeys:
+      - NEXTAUTH_SECRET
+      - KEYCLOAK_CLIENT_ID
+      - KEYCLOAK_CLIENT_SECRET
+  envFromConfigMap:
+    KEYCLOAK_ISSUER: http://auth.sentinelrag.local/realms/sentinelrag
+
+# ----------------------------------------------------------------------------
+# Migrations
+#
+# The API Dockerfile uses WORKDIR /app and copies the migrations dir into
+# /app/migrations/. The default values.yaml's `cd /workspace` is incorrect
+# for that layout (the path never existed in the image), so we override.
+# ----------------------------------------------------------------------------
+migrations:
+  enabled: true
+  image:
+    name: sentinelrag-api
+  command:
+    - sh
+    - -c
+    - cd /app && alembic -c migrations/alembic.ini upgrade head
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+
+# ----------------------------------------------------------------------------
+# Pod-level security — readOnlyRootFilesystem stays false (FastAPI writes
+# to /tmp). fsGroup matches the Dockerfile's uid so PVCs the API mounts
+# are writable.
+# ----------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: false  # K3s default flannel CNI doesn't enforce NetworkPolicy.
+
+# ----------------------------------------------------------------------------
+# Bitnami chart global override.
+#
+# Bitnami's Postgres chart refuses non-Bitnami images by default (it
+# substitutes them for its own and prints a warning). We deliberately use
+# the upstream pgvector/pgvector image so the .so for pgvector is present
+# without a custom build, so we opt into the unverified-images path.
+# ----------------------------------------------------------------------------
+global:
+  security:
+    allowInsecureImages: true
+
+# ----------------------------------------------------------------------------
+# In-cluster dependencies (Bitnami sub-charts, plus Unleash).
+# Each is sized for a 3-node homelab — small but not unusable.
+# ----------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  # Bitnami's image doesn't ship pgvector. The deploy script applies a
+  # one-shot Job that runs `CREATE EXTENSION vector` against the running
+  # primary AFTER this chart's primary is ready — see deploy-homelab.sh
+  # step "Install pgvector extension".
+  #
+  # We pin the image to the pgvector-shipped variant so the extension
+  # lives in the binary and only needs CREATE EXTENSION at the SQL layer.
+  image:
+    registry: docker.io
+    repository: pgvector/pgvector
+    tag: pg16
+  auth:
+    username: sentinel
+    password: sentinel-homelab-change-me
+    database: sentinelrag
+  primary:
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 750m
+        memory: 1Gi
+    initdb:
+      scripts:
+        00-pgvector.sql: |
+          CREATE EXTENSION IF NOT EXISTS vector;
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+minio:
+  enabled: true
+  mode: standalone
+  auth:
+    rootUser: minioadmin
+    rootPassword: minioadmin-homelab-change-me
+  defaultBuckets: "sentinelrag-documents,sentinelrag-audit"
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+keycloak:
+  enabled: true
+  auth:
+    adminUser: admin
+    adminPassword: admin-homelab-change-me
+  # Keycloak's startup imports any realm-export.json mounted under
+  # /opt/keycloak/data/import. The deploy script creates a ConfigMap from
+  # scripts/local/keycloak/realm-export.json and mounts it here.
+  extraVolumes:
+    - name: realm-import
+      configMap:
+        name: sentinelrag-keycloak-realm
+  extraVolumeMounts:
+    - name: realm-import
+      mountPath: /opt/keycloak/data/import
+      readOnly: true
+  extraStartupArgs: "--import-realm"
+  proxyHeaders: xforwarded
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: auth.sentinelrag.local
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: web
+    tls: false
+  postgresql:
+    enabled: true
+    auth:
+      username: keycloak
+      password: keycloak-homelab-change-me
+      database: keycloak
+    primary:
+      persistence:
+        enabled: true
+        storageClass: local-path
+        size: 5Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 768Mi
+    limits:
+      cpu: 1500m
+      memory: 1.5Gi
+
+unleash:
+  enabled: true
+  # The Unleash chart accepts a Postgres URL. We let it bring up its own
+  # bundled Postgres for simplicity (homelab footprint is already big).
+  postgresql:
+    enabled: true
+    auth:
+      username: unleash
+      password: unleash-homelab-change-me
+      database: unleash
+    primary:
+      persistence:
+        enabled: true
+        storageClass: local-path
+        size: 2Gi
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi

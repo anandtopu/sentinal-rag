@@ -421,3 +421,9 @@ bootstrap.)_
 - No phase is "done" until its tests pass in CI on a clean checkout.
 - After each phase, this file is updated with what shipped + what was deferred.
 - Each phase's deliverables include an entry in `docs/operations/runbooks/` if the phase added a new operational concern.
+
+## Free-floating backlog
+
+Deferred work that doesn't sit cleanly inside a phase row lives in
+[`BACKLOG.md`](BACKLOG.md). Pick from there when a phase row is blocked
+or the user explicitly switches tracks.
