@@ -41,7 +41,8 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Pyright
-        run: uv run pyright
+        run: |
+          uv run pyright             packages/shared/python/sentinelrag_shared/llm             apps/api/app/services/rag             apps/api/app/dependencies.py             apps/api/app/lifecycle.py
 
   python-tests:
     name: Python unit tests

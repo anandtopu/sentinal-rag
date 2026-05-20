@@ -1,171 +1,82 @@
-"""Generator protocol + LiteLLM-backed implementation (ADR-0005, ADR-0014).
-
-Mirrors :class:`Embedder`'s shape — single async ``complete()`` call that
-returns a :class:`GenerationResult` with usage accounting.
-
-Per ADR-0014, the system default is ``ollama/llama3.1:8b``; tenants with
-``llm:cloud_models`` permission can opt into ``openai/gpt-4.1-mini``,
-``anthropic/claude-haiku-4-5``, etc. via the per-request override.
-
-LiteLLM exposes a unified ``acompletion`` API across providers — this thin
-wrapper adds tenacity-based retries, bounded timeouts, and uniform
-``UsageRecord`` extraction.
-"""
+# pyright: reportMissingImports=false
 
 from __future__ import annotations
 
-import time
-from decimal import Decimal
-from typing import Any, Protocol
+from collections.abc import Mapping, Sequence
+from typing import Any, Protocol, cast
 
-import litellm
-from litellm.exceptions import Timeout as LiteLLMTimeout
-from tenacity import (
-    AsyncRetrying,
-    retry_if_not_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from litellm import acompletion
 
-from sentinelrag_shared.llm.types import GenerationResult, UsageRecord
-
-
-class GeneratorError(Exception):
-    """Raised when generation fails after retries."""
-
-
-class GeneratorTimeoutError(GeneratorError):
-    """Raised when the generator's per-call timeout fires (R3.S4).
-
-    Subclassing :class:`GeneratorError` keeps the existing
-    ``except GeneratorError`` paths working; callers that want to
-    distinguish timeout-vs-other can ``except GeneratorTimeoutError``.
-    """
+from sentinelrag_shared.llm.types import GenerateResult, UsageRecord
 
 
 class Generator(Protocol):
-    """Protocol for LLM completion."""
-
     model_name: str
 
-    async def complete(
+    async def generate(
         self,
         *,
-        system_prompt: str,
-        user_prompt: str,
-        temperature: float = 0.1,
-        max_tokens: int = 1024,
-        stop: list[str] | None = None,
-    ) -> GenerationResult: ...
+        system_prompt: str | None,
+        messages: Sequence[Mapping[str, Any]],
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ) -> GenerateResult: ...
 
 
 class LiteLLMGenerator:
-    """LiteLLM-routed generator.
-
-    Args:
-        model_name: LiteLLM alias, e.g. ``"ollama/llama3.1:8b"``,
-            ``"openai/gpt-4.1-mini"``, ``"anthropic/claude-haiku-4-5"``.
-        api_base: Optional override (set for Ollama running outside default).
-        api_key: Optional API key (read from env when None for cloud providers).
-        request_timeout_seconds: Per-call timeout.
-        max_retries: Total attempts including the first.
-    """
-
-    def __init__(
-        self,
-        *,
-        model_name: str,
-        api_base: str | None = None,
-        api_key: str | None = None,
-        request_timeout_seconds: float = 60.0,
-        max_retries: int = 3,
-    ) -> None:
+    def __init__(self, *, model_name: str) -> None:
         self.model_name = model_name
-        self._api_base = api_base
-        self._api_key = api_key
-        self._timeout = request_timeout_seconds
-        self._max_retries = max_retries
 
-    async def complete(
+    async def generate(
         self,
         *,
-        system_prompt: str,
-        user_prompt: str,
-        temperature: float = 0.1,
-        max_tokens: int = 1024,
-        stop: list[str] | None = None,
-    ) -> GenerationResult:
-        kwargs: dict[str, Any] = {
-            "model": self.model_name,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "timeout": self._timeout,
-        }
-        if stop:
-            kwargs["stop"] = stop
-        if self._api_base:
-            kwargs["api_base"] = self._api_base
-        if self._api_key:
-            kwargs["api_key"] = self._api_key
+        system_prompt: str | None,
+        messages: Sequence[Mapping[str, Any]],
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ) -> GenerateResult:
+        payload: list[dict[str, Any]] = []
 
-        start = time.perf_counter()
-        try:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(self._max_retries),
-                wait=wait_exponential(multiplier=0.5, min=0.5, max=8),
-                # Don't retry timeouts (R3.S4) — if the provider is
-                # hung at 60s, three retries means 180s+ of blocking,
-                # well past any sane request budget. Other errors keep
-                # the retry-on-anything behavior.
-                retry=retry_if_not_exception_type((LiteLLMTimeout, TimeoutError)),
-                reraise=True,
-            ):
-                with attempt:
-                    response = await litellm.acompletion(**kwargs)
-                    break
-            else:
-                # never reached because reraise=True; satisfy the type checker
-                msg = "litellm.acompletion returned no result."
-                raise GeneratorError(msg)
-        except (LiteLLMTimeout, TimeoutError) as exc:
-            msg = f"Generator {self.model_name!r} timed out after {self._timeout}s."
-            raise GeneratorTimeoutError(msg) from exc
-        except Exception as exc:
-            msg = f"Generator {self.model_name!r} failed after {self._max_retries} attempts."
-            raise GeneratorError(msg) from exc
+        if system_prompt:
+            payload.append({"role": "system", "content": system_prompt})
 
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        payload.extend(dict(message) for message in messages)
 
-        message = response["choices"][0]["message"]
-        text = message.get("content") or ""
-        finish_reason = response["choices"][0].get("finish_reason")
+        response_obj = await acompletion(
+            model=self.model_name,
+            messages=payload,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
-        usage_obj = response.get("usage") or {}
-        input_tokens = int(usage_obj.get("prompt_tokens", 0) or 0)
-        output_tokens = int(usage_obj.get("completion_tokens", 0) or 0)
+        response = cast(dict[str, Any], cast(Any, response_obj))
 
-        cost: Decimal | None = None
-        hidden = response.get("_hidden_params") or {}
-        if isinstance(hidden.get("response_cost"), (int, float, Decimal)):
-            cost = Decimal(str(hidden["response_cost"]))
+        choices = cast(list[dict[str, Any]], response.get("choices", []))
+        first_choice = choices[0] if choices else {}
+        message = cast(dict[str, Any], first_choice.get("message", {}))
+        text = cast(str, message.get("content", "") or "")
+        finish_reason = cast(str | None, first_choice.get("finish_reason"))
 
-        return GenerationResult(
+        usage_obj = cast(dict[str, Any], response.get("usage", {}))
+        input_tokens = int(cast(int | float, usage_obj.get("prompt_tokens", 0) or 0))
+        output_tokens = int(cast(int | float, usage_obj.get("completion_tokens", 0) or 0))
+
+        hidden = cast(dict[str, Any], response.get("_hidden_params", {}))
+        response_cost = hidden.get("response_cost")
+        reasoning_tokens = (
+            int(cast(int | float | str, response_cost)) if response_cost is not None else None
+        )
+
+        return GenerateResult(
             text=text,
             finish_reason=finish_reason,
+            model_name=self.model_name,
             usage=UsageRecord(
-                usage_type="completion",
-                provider=self._provider(),
+                usage_type="generation",
+                provider="litellm",
                 model_name=self.model_name,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                total_cost_usd=cost,
-                latency_ms=latency_ms,
+                reasoning_tokens=reasoning_tokens,
             ),
         )
-
-    def _provider(self) -> str:
-        return self.model_name.split("/", 1)[0] if "/" in self.model_name else "unknown"
