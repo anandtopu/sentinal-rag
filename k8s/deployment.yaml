@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinal-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentinal-rag
+  template:
+    metadata:
+      labels:
+        app: sentinal-rag
+    spec:
+      containers:
+        - name: backend
+          image: us-central1-docker.pkg.dev/PROJECT_ID/sentinal-rag/sentinal-rag-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: APP_VERSION
+              value: "latest"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3

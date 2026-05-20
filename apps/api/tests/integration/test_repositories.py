@@ -57,9 +57,7 @@ class TestPhase1Services:
         # 3. Assign role.
         async for sess in get_tenant_session():
             user_svc = UserService(sess)
-            await user_svc.assign_role(
-                user_id=user_id, role_id=role_id, granted_by=user_id
-            )
+            await user_svc.assign_role(user_id=user_id, role_id=role_id, granted_by=user_id)
 
         # 4. Resolve permissions for the user.
         async for sess in get_tenant_session():

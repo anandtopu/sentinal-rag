@@ -42,8 +42,8 @@ class PromptVersionRepository(BaseRepository[PromptVersion]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get(self, version_id: UUID) -> PromptVersion | None:
-        return await super().get(version_id)
+    async def get(self, entity_id: UUID) -> PromptVersion | None:
+        return await super().get(entity_id)
 
     async def list_for_template(self, template_id: UUID) -> list[PromptVersion]:
         stmt = (

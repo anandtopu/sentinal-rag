@@ -47,9 +47,7 @@ class EvaluationCaseRepository(BaseRepository[EvaluationCase]):
         return list(result.scalars().all())
 
     async def count_for_dataset(self, dataset_id: UUID) -> int:
-        stmt = select(func.count(EvaluationCase.id)).where(
-            EvaluationCase.dataset_id == dataset_id
-        )
+        stmt = select(func.count(EvaluationCase.id)).where(EvaluationCase.dataset_id == dataset_id)
         result = await self.session.execute(stmt)
         return int(result.scalar_one())
 
@@ -72,9 +70,7 @@ class EvaluationScoreRepository(BaseRepository[EvaluationScore]):
     model = EvaluationScore
 
     async def list_for_run(self, run_id: UUID) -> list[EvaluationScore]:
-        stmt = select(EvaluationScore).where(
-            EvaluationScore.evaluation_run_id == run_id
-        )
+        stmt = select(EvaluationScore).where(EvaluationScore.evaluation_run_id == run_id)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

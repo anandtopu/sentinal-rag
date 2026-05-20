@@ -25,8 +25,8 @@ resource "google_storage_bucket" "documents" {
 
   lifecycle_rule {
     condition {
-      age                = 30
-      with_state         = "ARCHIVED" # noncurrent versions
+      age        = 30
+      with_state = "ARCHIVED" # noncurrent versions
     }
     action {
       type          = "SetStorageClass"

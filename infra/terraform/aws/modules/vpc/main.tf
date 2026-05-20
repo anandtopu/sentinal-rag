@@ -50,9 +50,9 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(var.tags, local.cluster_subnet_tag, {
-    Name                       = "${var.name}-public-${local.azs[count.index]}"
-    Tier                       = "public"
-    "kubernetes.io/role/elb"   = "1"
+    Name                     = "${var.name}-public-${local.azs[count.index]}"
+    Tier                     = "public"
+    "kubernetes.io/role/elb" = "1"
   })
 }
 
@@ -165,11 +165,11 @@ resource "aws_iam_role_policy" "flow" {
 }
 
 resource "aws_flow_log" "this" {
-  count                = var.enable_flow_logs ? 1 : 0
-  iam_role_arn         = aws_iam_role.flow[0].arn
-  log_destination      = aws_cloudwatch_log_group.flow[0].arn
-  traffic_type         = "ALL"
-  vpc_id               = aws_vpc.this.id
+  count                    = var.enable_flow_logs ? 1 : 0
+  iam_role_arn             = aws_iam_role.flow[0].arn
+  log_destination          = aws_cloudwatch_log_group.flow[0].arn
+  traffic_type             = "ALL"
+  vpc_id                   = aws_vpc.this.id
   max_aggregation_interval = 60
-  tags                 = var.tags
+  tags                     = var.tags
 }

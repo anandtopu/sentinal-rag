@@ -150,29 +150,29 @@ resource "aws_eks_node_group" "this" {
 # CoreDNS, kube-proxy, vpc-cni, EBS CSI driver. Pinned versions kept in
 # variables so they roll deliberately, not on every apply.
 resource "aws_eks_addon" "coredns" {
-  cluster_name      = aws_eks_cluster.this.name
-  addon_name        = "coredns"
-  addon_version     = var.addon_versions.coredns
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "coredns"
+  addon_version               = var.addon_versions.coredns
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"
-  depends_on        = [aws_eks_node_group.this]
-  tags              = var.tags
+  depends_on                  = [aws_eks_node_group.this]
+  tags                        = var.tags
 }
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name  = aws_eks_cluster.this.name
-  addon_name    = "kube-proxy"
-  addon_version = var.addon_versions.kube_proxy
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "kube-proxy"
+  addon_version               = var.addon_versions.kube_proxy
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"
-  tags          = var.tags
+  tags                        = var.tags
 }
 
 resource "aws_eks_addon" "vpc_cni" {
-  cluster_name  = aws_eks_cluster.this.name
-  addon_name    = "vpc-cni"
-  addon_version = var.addon_versions.vpc_cni
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "vpc-cni"
+  addon_version               = var.addon_versions.vpc_cni
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"
-  tags          = var.tags
+  tags                        = var.tags
 }

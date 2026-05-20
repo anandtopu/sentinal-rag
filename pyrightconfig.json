@@ -1,0 +1,7 @@
+{
+  "reportMissingTypeStubs": false,
+  "reportMissingImports": "none",
+  "exclude": [
+    "**/__pycache__"
+  ]
+}

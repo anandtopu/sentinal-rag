@@ -51,9 +51,7 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
-        _session_factory = async_sessionmaker(
-            bind=_engine, expire_on_commit=False, autoflush=False
-        )
+        _session_factory = async_sessionmaker(bind=_engine, expire_on_commit=False, autoflush=False)
     return _session_factory
 
 
@@ -72,9 +70,7 @@ async def _session_for_tenant(tenant_id: UUID) -> AsyncIterator[AsyncSession]:
 def _build_audit_storage() -> ObjectStorage:
     return build_object_storage(
         provider=os.environ.get("OBJECT_STORAGE_PROVIDER", "minio"),
-        bucket=os.environ.get(
-            "OBJECT_STORAGE_BUCKET_AUDIT", "sentinelrag-audit"
-        ),
+        bucket=os.environ.get("OBJECT_STORAGE_BUCKET_AUDIT", "sentinelrag-audit"),
         region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
         endpoint=os.environ.get("OBJECT_STORAGE_ENDPOINT"),
         access_key=os.environ.get("OBJECT_STORAGE_ACCESS_KEY"),

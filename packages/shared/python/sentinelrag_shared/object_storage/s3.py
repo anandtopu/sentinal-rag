@@ -61,7 +61,7 @@ class S3Storage(ObjectStorage):
         content_type: str | None = None,
         custom_metadata: dict[str, str] | None = None,
     ) -> ObjectMetadata:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             extra: dict[str, Any] = {}
             if content_type:
                 extra["ContentType"] = content_type
@@ -77,7 +77,7 @@ class S3Storage(ObjectStorage):
         )
 
     async def get(self, key: str) -> bytes:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             try:
                 response = await s3.get_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
@@ -87,7 +87,7 @@ class S3Storage(ObjectStorage):
             return await response["Body"].read()
 
     async def get_stream(self, key: str) -> AsyncIterator[bytes]:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             try:
                 response = await s3.get_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
@@ -98,7 +98,7 @@ class S3Storage(ObjectStorage):
                 yield chunk
 
     async def exists(self, key: str) -> bool:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             try:
                 await s3.head_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
@@ -108,11 +108,11 @@ class S3Storage(ObjectStorage):
             return True
 
     async def delete(self, key: str) -> None:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             await s3.delete_object(Bucket=self.bucket, Key=key)
 
     async def head(self, key: str) -> ObjectMetadata:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             try:
                 response = await s3.head_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
@@ -128,10 +128,8 @@ class S3Storage(ObjectStorage):
             custom_metadata=response.get("Metadata", {}),
         )
 
-    async def list_keys(
-        self, prefix: str, *, page_size: int = 1000
-    ) -> AsyncIterator[str]:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+    async def list_keys(self, prefix: str, *, page_size: int = 1000) -> AsyncIterator[str]:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             paginator = s3.get_paginator("list_objects_v2")
             async for page in paginator.paginate(
                 Bucket=self.bucket,
@@ -142,7 +140,7 @@ class S3Storage(ObjectStorage):
                     yield obj["Key"]
 
     async def presign_get_url(self, key: str, *, expires_in_seconds: int = 3600) -> str:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
+        async with self._session.client("s3", **self._client_kwargs()) as s3:  # pyright: ignore[reportGeneralTypeIssues]
             return await s3.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.bucket, "Key": key},

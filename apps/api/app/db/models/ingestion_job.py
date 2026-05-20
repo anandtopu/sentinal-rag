@@ -32,31 +32,21 @@ class IngestionJob(Base):
         ForeignKey("collections.id", ondelete="CASCADE"),
         nullable=False,
     )
-    status: Mapped[str] = mapped_column(
-        String, nullable=False, server_default=text("'queued'")
-    )
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'queued'"))
     input_source: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     chunking_strategy: Mapped[str] = mapped_column(
         String, nullable=False, server_default=text("'semantic'")
     )
     embedding_model: Mapped[str] = mapped_column(String, nullable=False)
-    documents_total: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default=text("0")
-    )
+    documents_total: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     documents_processed: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("0")
     )
-    chunks_created: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default=text("0")
-    )
+    chunks_created: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     workflow_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
+    started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

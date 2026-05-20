@@ -107,6 +107,4 @@ async def assign_role(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     service = UserService(db)
-    await service.assign_role(
-        user_id=user_id, role_id=payload.role_id, granted_by=ctx.user_id
-    )
+    await service.assign_role(user_id=user_id, role_id=payload.role_id, granted_by=ctx.user_id)

@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 """UnstructuredParser — wraps ``unstructured.partition.auto.partition``.
 
 Maps unstructured's Element classes to our :class:`ElementType` so the
@@ -9,7 +10,10 @@ from __future__ import annotations
 
 import io
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from sentinelrag_shared.parsing.elements import ElementType, ParsedElement
 from sentinelrag_shared.parsing.parser import Parser, ParserError
@@ -58,7 +62,9 @@ class UnstructuredParser(Parser):
         # has it as a runtime dep. Importing at module level would slow down
         # other consumers of the package.
         try:
-            from unstructured.partition.auto import partition  # noqa: PLC0415
+            from unstructured.partition.auto import partition as _partition
+
+            partition = cast("Callable[..., list[Any]]", _partition)
         except ImportError as exc:
             msg = (
                 "unstructured is not installed. The parser is available only "

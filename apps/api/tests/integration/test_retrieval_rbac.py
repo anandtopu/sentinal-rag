@@ -43,10 +43,7 @@ async def _seed_tenant_with_chunk(
     chunk_id = uuid4()
 
     await admin_session.execute(
-        text(
-            "INSERT INTO tenants (id, name, slug) "
-            "VALUES (:id, :name, :slug)"
-        ),
+        text("INSERT INTO tenants (id, name, slug) VALUES (:id, :name, :slug)"),
         {"id": str(tenant_id), "name": slug.title(), "slug": slug},
     )
     await admin_session.execute(
@@ -141,9 +138,7 @@ class TestRBACAtRetrievalTime:
         # Run search bound to tenant A's session.
         get_a_session = tenant_session_factory(a_tid)
         async for sess in get_a_session():
-            search = PostgresFtsKeywordSearch(
-                session=sess, access_filter=AccessFilter()
-            )
+            search = PostgresFtsKeywordSearch(session=sess, access_filter=AccessFilter())
 
             # Even when A explicitly requests both A's and B's collection,
             # only A's chunk should come back.

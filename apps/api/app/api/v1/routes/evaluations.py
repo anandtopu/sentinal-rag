@@ -69,9 +69,7 @@ async def add_case(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> EvaluationCaseRead:
     service = EvaluationService(db)
-    case = await service.add_case(
-        tenant_id=ctx.tenant_id, dataset_id=dataset_id, payload=payload
-    )
+    case = await service.add_case(tenant_id=ctx.tenant_id, dataset_id=dataset_id, payload=payload)
     return EvaluationCaseRead.model_validate(case)
 
 
@@ -106,9 +104,7 @@ async def start_run(
         temporal_client=temporal,
         evaluation_task_queue=settings.temporal_task_queue_evaluation,
     )
-    run = await service.start_run(
-        tenant_id=ctx.tenant_id, created_by=ctx.user_id, payload=payload
-    )
+    run = await service.start_run(tenant_id=ctx.tenant_id, created_by=ctx.user_id, payload=payload)
     return EvaluationRunRead.model_validate(run)
 
 

@@ -45,9 +45,7 @@ class StructureAwareChunker(Chunker):
             if not buffer:
                 return
             text_parts = [
-                e.table_html or e.text
-                for e in buffer
-                if (e.table_html or e.text.strip())
+                e.table_html or e.text for e in buffer if (e.table_html or e.text.strip())
             ]
             text = "\n\n".join(text_parts).strip()
             if not text:

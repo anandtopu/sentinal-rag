@@ -39,9 +39,7 @@ class TestRowLevelSecurity:
         tenant_session_factory,
         cleanup_db,
     ) -> None:
-        tenant_a, tenant_b, user_a, _user_b = await self._seed_two_tenants_with_users(
-            admin_session
-        )
+        tenant_a, tenant_b, user_a, _user_b = await self._seed_two_tenants_with_users(admin_session)
 
         # Session bound to tenant_a sees user_a only.
         get_a = tenant_session_factory(tenant_a.id)
@@ -72,10 +70,7 @@ class TestRowLevelSecurity:
         async for sess in get_a():
             with pytest.raises(DBAPIError):
                 await sess.execute(
-                    text(
-                        "INSERT INTO users (tenant_id, email) "
-                        "VALUES (:tid, 'eve@acme.test')"
-                    ),
+                    text("INSERT INTO users (tenant_id, email) VALUES (:tid, 'eve@acme.test')"),
                     {"tid": tenant_b.id},
                 )
 

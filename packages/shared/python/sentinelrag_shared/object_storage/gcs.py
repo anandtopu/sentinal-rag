@@ -85,9 +85,7 @@ class GcsStorage:
 
         return await asyncio.to_thread(_head)
 
-    async def list_keys(
-        self, prefix: str, *, page_size: int = 1000
-    ) -> AsyncIterator[str]:
+    async def list_keys(self, prefix: str, *, page_size: int = 1000) -> AsyncIterator[str]:
         def _list() -> list[str]:
             return [
                 cast(str, blob.name)
@@ -101,9 +99,7 @@ class GcsStorage:
         for key in await asyncio.to_thread(_list):
             yield key
 
-    async def presign_get_url(
-        self, key: str, *, expires_in_seconds: int = 3600
-    ) -> str:
+    async def presign_get_url(self, key: str, *, expires_in_seconds: int = 3600) -> str:
         def _sign() -> str:
             blob = self._bucket.blob(key)
             return blob.generate_signed_url(
