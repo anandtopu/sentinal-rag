@@ -41,11 +41,48 @@ const config: Config = {
           DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
         },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        danger: {
+          DEFAULT: 'hsl(var(--danger))',
+          foreground: 'hsl(var(--danger-foreground))',
+        },
+      },
+      fontFamily: {
+        mono: [
+          'ui-monospace',
+          'JetBrains Mono',
+          'SF Mono',
+          'Menlo',
+          'Cascadia Mono',
+          'Consolas',
+          'monospace',
+        ],
       },
       borderRadius: {
         lg: 'calc(var(--radius) + 4px)',
         md: 'var(--radius)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      keyframes: {
+        'sr-ping': {
+          '0%': { transform: 'scale(0.6)', opacity: '0.55' },
+          '80%, 100%': { transform: 'scale(2.2)', opacity: '0' },
+        },
+        'sr-blink': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
+        },
+      },
+      animation: {
+        'sr-ping': 'sr-ping 1.6s ease-out infinite',
+        'sr-blink': 'sr-blink 1.1s step-end infinite',
       },
     },
   },

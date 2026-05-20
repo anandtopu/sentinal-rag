@@ -106,3 +106,20 @@ class QueryTraceResponse(APIModel):
     created_at: datetime
     retrieval_results: list[RetrievalResultRead]
     generation: GeneratedAnswerSummary | None
+
+
+class QuerySessionListItem(APIModel):
+    """One row of the query-history feed (BACKLOG B10 #3).
+
+    A flattened `query_sessions` row joined to its `generated_answers` for the
+    grounding score + model — the fields the dashboard "Recent queries" card
+    shows.
+    """
+
+    id: UUID
+    query: str
+    status: str
+    latency_ms: int | None
+    grounding_score: float | None
+    model: str | None
+    created_at: datetime

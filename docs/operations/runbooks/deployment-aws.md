@@ -257,6 +257,12 @@ kubectl -n sentinelrag get pods -w
 Expected order:
 1. Pre-upgrade migration Job — `alembic upgrade head` against RDS. Should
    finish in 30-60 seconds. Watch with `kubectl -n sentinelrag logs -f job/<name>`.
+   The Job reuses the API image and runs `cd /workspace && alembic -c
+   migrations/alembic.ini upgrade head`; the image ships the canonical
+   hand-written chain (repo-root `migrations/`) at `/workspace/migrations`
+   (single source of truth — same chain `make db-upgrade` applies). If the Job
+   logs `No such file or directory` for `/workspace` or `ModuleNotFoundError:
+   psycopg`, the API image is stale — rebuild it (see BACKLOG B11 history).
 2. api / worker / frontend Deployments — Pods Running, Readiness probes pass.
 3. Ingresses — ALB resources provisioned (takes ~3-5 min for ALB+target
    group attachment).

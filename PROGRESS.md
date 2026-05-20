@@ -4,11 +4,16 @@
 > [`docs/architecture/PHASE_PLAN.md`](docs/architecture/PHASE_PLAN.md);
 > this file is the recruiter-readable cover sheet.
 
-**Last updated:** 2026-05-15 — all 10 phases code-side complete. Latest
-session expanded frontend Playwright E2E coverage for the dashboard,
-settings, audit/usage surfaces, optional query traces, and mocked tenant/user
-context. `pytest -m unit` remains green across **162 collected unit
-tests** with **70.80% Python coverage**.
+**Last updated:** 2026-05-20 — all 10 phases code-side complete. Latest
+session shipped the **frontend v0.6 console redesign** from a Claude Design
+handoff: grouped sidebar + ops-strip topbar and five redesigned screens
+(Query Playground split workbench with retrieval waterfall + 3-layer
+hallucination cascade, Dashboard ops cockpit, Documents inspector,
+Collections grid, Evaluations comparison). Built "wire real data, degrade
+honestly" — unbacked panels show `—`/empty states, with the backing APIs
+tracked as BACKLOG B10. Frontend gates green (`tsc`, `biome`, `vitest`,
+Playwright 11 pass / 4 skip). `pytest -m unit` remains green across **162
+collected unit tests** with **70.80% Python coverage**.
 
 ## Status by phase
 
@@ -19,7 +24,7 @@ tests** with **70.80% Python coverage**.
 | 2 | Ingestion | 🟢 | Temporal `IngestionWorkflow` + 8 idempotent activities; multi-dim embedding columns |
 | 3 | Retrieval + RAG orchestrator | 🟢 | Hybrid BM25+vector w/ RRF, per-query `ef_search`, RBAC at retrieval time |
 | 4 | Prompts + evaluation | 🟢 | Versioned `PromptService`, 4 custom evaluators, eval workflow |
-| 5 | Frontend | 🟢 | Next.js 15 App Router, NextAuth, query playground with SSE trace |
+| 5 | Frontend | 🟢 | Next.js 15 App Router, NextAuth, query playground with SSE trace; v0.6 operator-console redesign (shell + 5 screens) |
 | 6 + 6.5 | Observability + cost + audit | 🟢 | Per-tenant budgets, audit dual-write, daily reconciliation, OTel meters, Grafana JSON dashboards |
 | 7 | AWS deployment | 🟢 (code-side) | Helm chart + 8 Terraform modules + Dockerfiles + bootstrap charts + GHCR build pipeline |
 | 8 | Multi-cloud + scale + DR | 🟢 (code-side) | GCP mirror (7 modules), OpenSearch reintroduction, k6 + Chaos Mesh, security CI, DR runbook |

@@ -10,10 +10,12 @@ from app.api.v1.routes import (
     evaluations,
     health,
     ingestion,
+    metrics,
     prompts,
     query,
     roles,
     tenants,
+    usage,
     users,
 )
 
@@ -28,5 +30,7 @@ api_v1_router.include_router(ingestion.router)
 api_v1_router.include_router(query.router)
 api_v1_router.include_router(prompts.router)
 api_v1_router.include_router(evaluations.router)
+api_v1_router.include_router(metrics.router)
+api_v1_router.include_router(usage.router)
 
-# Phase 6+ will add: audit, usage.
+# Phase 6+ will add: audit.

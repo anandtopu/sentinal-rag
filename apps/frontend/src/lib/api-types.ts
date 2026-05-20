@@ -183,6 +183,16 @@ export interface QueryTraceResponse {
   generation: GeneratedAnswerSummary | null;
 }
 
+export interface QuerySessionListItem {
+  id: string;
+  query: string;
+  status: string;
+  latency_ms: number | null;
+  grounding_score: number | null;
+  model: string | null;
+  created_at: string;
+}
+
 // ---- Prompts ----
 export interface PromptTemplate {
   id: string;
@@ -237,6 +247,8 @@ export interface EvaluationRun {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  // Populated only by listEvalRuns({ includeSummary: true }) (ADR-0040).
+  summary?: EvaluationScoreSummary | null;
 }
 
 export interface EvaluationScoreSummary {
@@ -255,6 +267,63 @@ export interface EvaluationRunResults {
   evaluation_run_id: string;
   status: string;
   summary: EvaluationScoreSummary;
+}
+
+// ---- Metrics (ADR-0038) ----
+export type MetricsWindow = '1h' | '24h' | '7d';
+
+export interface LatencyPercentiles {
+  p50_ms: number | null;
+  p95_ms: number | null;
+  p99_ms: number | null;
+  count: number;
+}
+
+export interface MetricsBucket {
+  bucket_start: string;
+  queries: number;
+  errors: number;
+  p95_latency_ms: number | null;
+}
+
+export interface MetricsSummary {
+  window: string;
+  since: string;
+  until: string;
+  total_queries: number;
+  error_rate: number;
+  abstain_rate: number;
+  queries_per_min: number;
+  latency: LatencyPercentiles;
+  series: MetricsBucket[];
+}
+
+// ---- Usage / cost (ADR-0039) ----
+export interface UsageBudget {
+  limit_usd: number;
+  soft_threshold_pct: number;
+  hard_threshold_pct: number;
+  period_type: string;
+  period_start: string;
+  period_end: string;
+}
+
+export interface UsageBucket {
+  bucket_start: string;
+  cost_usd: number;
+}
+
+export interface UsageSummary {
+  period: string;
+  since: string;
+  until: string;
+  total_cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  records: number;
+  budget: UsageBudget | null;
+  budget_utilization_pct: number | null;
+  series: UsageBucket[];
 }
 
 // ---- Errors ----

@@ -105,18 +105,6 @@ class EvaluationRunCreate(APIModel):
         return value
 
 
-class EvaluationRunRead(APIModel):
-    id: UUID
-    dataset_id: UUID
-    name: str
-    status: str
-    workflow_id: str | None
-    prompt_version_id: UUID | None
-    started_at: datetime | None
-    completed_at: datetime | None
-    created_at: datetime
-
-
 class EvaluationScoreSummary(APIModel):
     context_relevance_avg: float | None
     faithfulness_avg: float | None
@@ -127,6 +115,21 @@ class EvaluationScoreSummary(APIModel):
     cases_total: int
     cases_completed: int
     cases_failed: int = 0
+
+
+class EvaluationRunRead(APIModel):
+    id: UUID
+    dataset_id: UUID
+    name: str
+    status: str
+    workflow_id: str | None
+    prompt_version_id: UUID | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    # Populated only on the batch list when ?include=summary (ADR-0040);
+    # live-aggregated server-side, null otherwise.
+    summary: EvaluationScoreSummary | None = None
 
 
 class EvaluationRunResults(APIModel):

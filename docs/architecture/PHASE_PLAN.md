@@ -10,12 +10,121 @@ This is the live phase plan for the SentinelRAG build. Update this file when a p
 
 ## Current phase
 
-**All 10 phases complete (code-side) — last update 2026-05-15 (frontend E2E
-coverage pass).** The latest session expanded Playwright coverage around the
-dashboard, settings, audit/usage pages, optional query traces, and mocked
-tenant/user context. The suite now has 15 frontend E2E tests: 11 deterministic
-frontend/mocked-API tests pass locally, and 4 live-backend specs skip cleanly
-when `/api/health` is unavailable.
+**All 10 phases complete (code-side).** Recent work is post-phase polish +
+the deferred backend read-models behind the v0.6 console (BACKLOG B10 — all
+four items shipped, plus the perf-index follow-up).
+
+**Latest — migration packaging fix (2026-05-20, BACKLOG B11).** Reconciled the
+deploy migration path with the canonical chain: `apps/api/Dockerfile` now
+`COPY migrations/ /workspace/migrations/` (where the Helm pre-upgrade Job's
+`cd /workspace && alembic -c migrations/alembic.ini upgrade head` already
+looks) and installs `psycopg[binary]` (env.py resolves the sync URL to the
+`+psycopg`/psycopg3 dialect; the chart supplies only `DATABASE_URL`). Deleted
+the stray `apps/api/migrations/` (extensions-only) + `apps/api/alembic.ini` —
+Docker + Helm + Makefile now share one source of truth (repo-root
+`migrations/`). Verified: `helm template` renders the Job correctly; `alembic
+heads` → `0017`; `deployment-aws.md` Step 9 updated. Not yet run against a live
+cluster.
+
+**Previous — migration 0017: `query_sessions(tenant_id, created_at DESC)` index
+(2026-05-20).** The ADR-0038 perf follow-up: hand-written Alembic revision
+`migrations/versions/0017_query_sessions_tenant_created_index.py` adds
+`idx_query_sessions_tenant_created`, built `CONCURRENTLY` inside an
+`autocommit_block` (class A per ADR-0033; the first migration in the repo to
+use CONCURRENTLY). Verified offline — ruff clean; `alembic heads` → single
+head `0017`; `alembic upgrade --sql 0016:0017` emits the concurrent index
+outside a transaction. Live apply (`make db-upgrade`) is Docker-blocked on
+this host. **Finding:** placing it surfaced a latent deploy bug — the API
+image ships the stray `apps/api/migrations/` (extensions-only), not the
+canonical repo-root `migrations/` the Helm Job expects at `/workspace`.
+Logged as **BACKLOG B11** (not fixed here — separate deploy-infra change).
+
+**Latest — eval-run summary batch read (2026-05-20, [ADR-0040](adr/0040-evaluation-summary-batch-read.md)), closes BACKLOG B10 #4.**
+Investigation found `GET /eval/runs/{id}` already returned real per-metric
+averages (live-aggregated from per-case `evaluation_scores`), so they were
+never missing — the real defect was the evaluations page's N+1 `getEvalRun`
+fan-out. Fixed by a batch read `GET /eval/runs?include=summary` (one `GROUP BY`
+via `EvaluationScoreRepository.aggregate_for_runs` + `EvaluationService.summaries_for`,
+`summary` added to `EvaluationRunRead`); the page now makes one call and the
+leaderboard / medians / trend / case-outcomes populate with real numbers. A
+denormalized summary snapshot on `evaluation_runs` was deliberately **not**
+built (drift-prone, premature) — ADR-0040 records why + the revisit criteria.
+Verified: 2 new unit tests; full `uv run pytest -m unit` green; ruff clean;
+pyright 0 errors; frontend `tsc`/`biome`/`vitest` green; Playwright 11 pass /
+4 skip. **BACKLOG B10 is now fully shipped (#1–#4).**
+
+**Previous — query-history feed (2026-05-20, BACKLOG B10 #3).** Added
+`GET /api/v1/query` (paginated, RLS-scoped) listing recent `query_sessions`
+LEFT JOINed to `generated_answers` — `QuerySessionRepository.list_recent` +
+`QueryHistoryService` + `QuerySessionListItem` schema + `GET /query` route
+(reuses `queries:execute`). The dashboard "Recent queries" card now renders
+real rows (id / time-ago / query / grounding badge / latency / abstain flag)
+instead of the honest empty state. A conventional list endpoint following the
+ADR-0038 read-model pattern + the existing collections/documents list shape —
+no separate ADR. Verified: 4 new `QueryHistoryService` unit tests; full
+`uv run pytest -m unit` green; ruff clean; targeted pyright 0 errors; frontend
+`tsc`/`biome`/`vitest` green; Playwright 11 pass / 4 skip. B10 status: #1–#3
+done, #4 (persisted eval-run summaries) remains.
+
+**Previous — usage/cost summary read-model (2026-05-20, [ADR-0039](adr/0039-usage-cost-summary-read-model.md)).**
+Implemented BACKLOG **B10 item #2**: `GET /api/v1/usage/summary` aggregates
+`usage_records` + `tenant_budgets` (RLS-scoped) into spend over the active
+budget period (or calendar month-to-date), budget utilization %, and a
+gap-filled daily cost series. New `app/schemas/usage.py`, `UsageService`,
+`usage.py` route (reuses `queries:execute`), and two `UsageRecordRepository`
+aggregate methods (reusing `TenantBudgetRepository.get_active`/`period_spend`).
+The console's `cost mtd` chip + dashboard `Cost · MTD` tile (with
+"% of $limit budget" + sparkline) now show real data. Verified: 5 new
+`UsageService` unit tests; full `uv run pytest -m unit` green; ruff clean;
+targeted pyright 0 errors; frontend `tsc`/`biome`/`vitest` green; Playwright
+11 pass / 4 skip.
+
+**Previous — metrics summary read-model (2026-05-20, [ADR-0038](adr/0038-metrics-summary-read-model.md)).**
+Implemented BACKLOG **B10 item #1**: `GET /api/v1/metrics/summary` aggregates
+`query_sessions` in Postgres (RLS-scoped) into windowed latency percentiles +
+error/abstain rates + a gap-filled series. New `app/schemas/metrics.py`,
+`MetricsService`, `metrics.py` route (reuses `queries:execute`), and two
+`QuerySessionRepository` aggregate methods; Prometheus proxy left as the
+documented future swap (gated on B1). The console's previously-dark panels now
+show real data: topbar `p95` / `err 1h` chips and the dashboard `Queries · 24h`
++ `p95 latency` tiles with sparklines (`cost mtd` stays `—` pending B10 #2).
+Verified: 6 new `MetricsService` unit tests pass; full `uv run pytest -m unit`
+green; ruff clean; targeted pyright 0 errors (baseline stub warnings only);
+frontend `tsc`/`biome`/`vitest` green; Playwright 11 pass / 4 skip.
+
+**Previous — frontend v0.6 console redesign (2026-05-20).** This session
+reimplemented the operator console from a
+Claude Design handoff (`SentinelRAG Design Review.html`) against the existing
+Next.js 15 + shadcn/Tailwind stack — no new UI dependencies. Shipped: a
+grouped sidebar (Operate / Knowledge / Quality / Observe) + ops-strip topbar,
+and five redesigned screens — Query Playground split workbench (retrieval
+waterfall + 3-layer hallucination cascade), Dashboard ops cockpit, Documents
+master/detail inspector, Collections card grid, Evaluations comparison
+leaderboard. New shared primitives (`Mono`/`Kbd`, `SectionLabel`,
+`StatusDot`, `MiniSpark`/`TrendSpark`, `DataBar`, `SignalChip`) + semantic
+color tokens (`success`/`warning`/`danger`) added to the design system.
+
+Approach was **wire real API data, degrade honestly** — panels with no
+backing endpoint render `—` / empty states rather than fabricated numbers
+(topbar p95/err/cost, dashboard 24h sparklines + recent-queries feed, eval
+per-metric medians/trend). The backend read-models that would light those
+panels up are tracked as **[BACKLOG.md](BACKLOG.md) B10** (the deferred
+"extend the backend" option) — not started.
+
+**Verified this session:**
+- `tsc --noEmit` → clean. `biome check src tests` → clean.
+- `vitest run` → **6 passed** (api client).
+- `playwright test` → **11 passed / 4 skipped** (15 total). The 4 skips are
+  the live-backend specs; the 11 mocked/deterministic specs pass.
+  `feature-regression.spec.ts` selectors were updated for the legitimate
+  table→grid/list structural changes (cells → text, master/detail title
+  `.first()`), with every behavioral assertion preserved.
+
+**Previous frontend E2E coverage pass (2026-05-15).** That session expanded
+Playwright coverage around the dashboard, settings, audit/usage pages,
+optional query traces, and mocked tenant/user context. The suite has 15
+frontend E2E tests: 11 deterministic frontend/mocked-API tests pass locally,
+and 4 live-backend specs skip cleanly when `/api/health` is unavailable.
 
 **Previous shared LLM wrapper coverage pass (2026-05-13).** Expanded unit
 coverage around the LiteLLM embedder/generator wrappers and local reranker
@@ -263,6 +372,19 @@ incrementally rather than in a single sweep.
 
 ### Phase 5 — Frontend 🟢
 **Goal:** Next.js dashboard against the live API.
+- 🟢 **v0.6 console redesign (2026-05-20).** Reimplemented the app shell +
+  all five screens from a Claude Design handoff (`SentinelRAG Design
+  Review.html`) against the same shadcn/Tailwind stack — grouped sidebar +
+  ops-strip topbar; Query Playground split workbench (composer | answer +
+  citations + retrieval waterfall + 3-layer hallucination cascade); Dashboard
+  ops cockpit; Documents master/detail inspector with ingestion lineage;
+  Collections card grid; Evaluations comparison leaderboard. Added shared
+  primitives (`Mono`/`Kbd`, `SectionLabel`, `StatusDot`, `MiniSpark`/
+  `TrendSpark`, `DataBar`, `SignalChip`) + `success`/`warning`/`danger`
+  tokens. Every panel reads real API data and degrades to honest `—`/empty
+  states where no endpoint exists; the backing read-models are tracked as
+  [BACKLOG.md](BACKLOG.md) B10. tsc + biome + vitest + Playwright
+  (11 pass / 4 skip) green.
 - 🟢 Next.js 15 App Router scaffolding consolidated under `apps/frontend/src/` (matching tsconfig + tailwind paths).
 - 🟢 NextAuth.js v5 (`lib/auth.ts`) bound to Keycloak in prod; `Credentials` dev provider gated by `AUTH_DEV_BYPASS=true` so the dev token bypass stays inert by default.
 - 🟢 Typed fetch client (`lib/api.ts`) — bearer forwarding, query serialization, error-envelope unwrapping into `ApiError`, multipart upload helper. `useApiClient()` injects the session token automatically.

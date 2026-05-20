@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 from sentinelrag_shared.audit import (
     DualWriteAuditService,
@@ -31,16 +31,19 @@ from app.dependencies import (
     RerankerDep,
     RetrievalClientDep,
 )
+from app.schemas.common import Page
 from app.schemas.query import (
     CitationRead,
     GeneratedAnswerSummary,
     QueryRequest,
     QueryResponse,
+    QuerySessionListItem,
     QueryTraceResponse,
     QueryUsage,
     RetrievalResultRead,
 )
 from app.services.idempotency import IdempotencyService
+from app.services.query_history_service import QueryHistoryService
 from app.services.rag import (
     GenerationConfig,
     Orchestrator,
@@ -299,6 +302,21 @@ def _coerce_metadata(raw: Any) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+@router.get("", response_model=Page[QuerySessionListItem])
+async def list_query_sessions(
+    _ctx: Annotated[AuthContext, Depends(require_permission("queries:execute"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Page[QuerySessionListItem]:
+    """Recent query sessions (newest first), tenant-scoped via RLS. Powers the
+    dashboard "Recent queries" feed (BACKLOG B10 #3)."""
+    items = await QueryHistoryService(db).list_recent(limit=limit, offset=offset)
+    return Page[QuerySessionListItem](
+        items=items, total=len(items), limit=limit, offset=offset
+    )
 
 
 @router.get("/{query_session_id}/trace", response_model=QueryTraceResponse)

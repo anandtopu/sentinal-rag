@@ -23,13 +23,17 @@ import type {
   EvaluationRun,
   EvaluationRunResults,
   IngestionJob,
+  MetricsSummary,
+  MetricsWindow,
   Page,
   PromptTemplate,
   PromptVersion,
   QueryRequest,
   QueryResponse,
+  QuerySessionListItem,
   QueryTraceResponse,
   Tenant,
+  UsageSummary,
   User,
 } from './api-types';
 
@@ -191,8 +195,24 @@ export const api = {
   // Query
   executeQuery: (payload: QueryRequest, token?: string) =>
     request<QueryResponse>('POST', '/query', { token, body: payload }),
+  listQueries: (args: { limit?: number; offset?: number; token?: string } = {}) =>
+    request<Page<QuerySessionListItem>>('GET', '/query', {
+      token: args.token,
+      query: { limit: args.limit ?? 50, offset: args.offset ?? 0 },
+    }),
   getTrace: (query_session_id: string, token?: string) =>
     request<QueryTraceResponse>('GET', `/query/${query_session_id}/trace`, { token }),
+
+  // Metrics (ADR-0038)
+  getMetricsSummary: (args: { window?: MetricsWindow; token?: string } = {}) =>
+    request<MetricsSummary>('GET', '/metrics/summary', {
+      token: args.token,
+      query: { window: args.window ?? '24h' },
+    }),
+
+  // Usage / cost (ADR-0039)
+  getUsageSummary: (args: { token?: string } = {}) =>
+    request<UsageSummary>('GET', '/usage/summary', { token: args.token }),
 
   // Prompts
   listPrompts: (token?: string) => request<PromptTemplate[]>('GET', '/prompts', { token }),
@@ -202,7 +222,11 @@ export const api = {
   // Evaluation
   listEvalDatasets: (token?: string) =>
     request<EvaluationDataset[]>('GET', '/eval/datasets', { token }),
-  listEvalRuns: (token?: string) => request<EvaluationRun[]>('GET', '/eval/runs', { token }),
+  listEvalRuns: (args: { includeSummary?: boolean; token?: string } = {}) =>
+    request<EvaluationRun[]>('GET', '/eval/runs', {
+      token: args.token,
+      query: { include: args.includeSummary ? 'summary' : undefined },
+    }),
   getEvalRun: (run_id: string, token?: string) =>
     request<EvaluationRunResults>('GET', `/eval/runs/${run_id}`, { token }),
   listEvalCases: (dataset_id: string, token?: string) =>

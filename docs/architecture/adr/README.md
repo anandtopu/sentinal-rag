@@ -51,3 +51,6 @@ This directory holds the architectural decisions for SentinelRAG. We use the [MA
 | [0035](0035-pii-redaction-at-ingestion.md) | Presidio rule-based redaction, per-tenant opt-in, between parse and chunk in the Temporal ingestion workflow | Accepted |
 | [0036](0036-vector-sharding-per-tenant-index.md) | Shared HNSW by default; partial per-tenant HNSW carve-out when chunks > 5M or recall@10 < 0.85 | Accepted |
 | [0037](0037-streaming-generation-response.md) | `POST /query/stream` returns SSE token / citation / grounding / usage / done frames; existing `/query` JSON contract unchanged | Accepted |
+| [0038](0038-metrics-summary-read-model.md) | `GET /metrics/summary` per-tenant ops read-model: aggregate `query_sessions` in Postgres now (Prometheus swap later), windowed percentiles + gap-filled series, RLS-scoped | Accepted |
+| [0039](0039-usage-cost-summary-read-model.md) | `GET /usage/summary` per-tenant cost read-model: aggregate `usage_records` + `tenant_budgets`, budget-period-aware MTD with calendar fallback, daily gap-filled series, RLS-scoped | Accepted |
+| [0040](0040-evaluation-summary-batch-read.md) | Evaluation run summaries served live + batched via `GET /eval/runs?include=summary` (one grouped query); deliberately not denormalized onto `evaluation_runs` | Accepted |

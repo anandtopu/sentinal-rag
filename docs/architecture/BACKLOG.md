@@ -157,6 +157,99 @@
   Makefile shape, snapshot logic, and add-ons (Karpenter pre-pull,
   CloudFront fallback page).
 
+### B10 — Backend APIs for the redesigned console's live-signal panels
+- **Scope:** The v0.6 frontend redesign wires every panel to real data and
+  degrades honestly (`—` / empty state) where no endpoint exists. Several
+  signature panels are therefore rendered but dark. Add the backing APIs so
+  they light up. Each endpoint maps to a specific, already-wired panel:
+  1. ✅ **Metrics summary** — **Shipped 2026-05-20 ([ADR-0038](adr/0038-metrics-summary-read-model.md)).**
+     `GET /api/v1/metrics/summary?window=1h|24h|7d` aggregates `query_sessions`
+     in Postgres (RLS-scoped) → percentiles + error/abstain rates + gap-filled
+     series. Lights up the topbar `p95` / `err 1h` chips and the dashboard
+     `Queries · 24h` + `p95 latency` tiles with sparklines. Prometheus proxy
+     remains the documented future swap (gated on B1). Code:
+     `apps/api/app/{schemas/metrics.py,services/metrics_service.py,api/v1/routes/metrics.py}`,
+     `QuerySessionRepository.{window,bucket}_aggregate`; consumed by
+     `topbar.tsx` + `dashboard/page.tsx`.
+  2. ✅ **Usage / cost summary** — **Shipped 2026-05-20 ([ADR-0039](adr/0039-usage-cost-summary-read-model.md)).**
+     `GET /api/v1/usage/summary` aggregates `usage_records` + `tenant_budgets`
+     (RLS-scoped) → spend over the active budget period (or calendar
+     month-to-date), budget context + utilization %, and a gap-filled daily
+     cost series. Lights up the topbar `cost mtd` chip (tone by utilization)
+     and the dashboard `Cost · MTD` tile (`X% of $limit budget` + sparkline).
+     Code: `apps/api/app/{schemas/usage.py,services/usage_service.py,api/v1/routes/usage.py}`,
+     `UsageRecordRepository.{summarize,daily_series}` (+ reuses
+     `TenantBudgetRepository.get_active`/`period_spend`); consumed by
+     `topbar.tsx` + `dashboard/page.tsx`.
+  3. ✅ **Query-history feed** — **Shipped 2026-05-20.** `GET /api/v1/query`
+     (paginated, RLS-scoped) lists recent `query_sessions` LEFT JOINed to
+     `generated_answers` (grounding score + model). Lights up the dashboard
+     "Recent queries" card (rows: id, time-ago, query, grounding badge,
+     latency, abstain/failed flags). A conventional list endpoint following the
+     ADR-0038 read-model pattern + the existing collections/documents list
+     shape — no separate ADR. Code:
+     `QuerySessionRepository.list_recent`, `QueryHistoryService`,
+     `QuerySessionListItem` schema, `GET /query` in `routes/query.py`;
+     consumed by `dashboard/page.tsx`.
+  4. ✅ **Eval-run summaries** — **Shipped 2026-05-20 ([ADR-0040](adr/0040-evaluation-summary-batch-read.md)).**
+     Investigation found `GET /eval/runs/{id}` *already* returns real
+     per-metric averages, aggregated live from per-case `evaluation_scores`
+     via `aggregate_for_run` — so they were never actually missing. The real
+     gap was the frontend's N+1 fan-out (one `getEvalRun` per run, each
+     404-fragile). Fixed by the batch read `GET /api/v1/eval/runs?include=summary`
+     (one `GROUP BY` query via `aggregate_for_runs` + `summaries_for`), with
+     `summary` added to `EvaluationRunRead`. The evaluations page now makes one
+     call; leaderboard columns / median tiles / trend / case-outcomes populate
+     with real numbers. A summary snapshot on `evaluation_runs` was
+     deliberately **not** built (drift-prone, premature) — see ADR-0040 for
+     the rationale and the revisit conditions.
+- **Why deferred:** This was the "Extend the backend" option explicitly
+  not taken during the v0.6 redesign — the chosen approach was "wire real,
+  degrade gracefully," so the UI is correct and ships now; the panels are
+  intentionally honest blanks rather than fabricated numbers (consistent
+  with ADR-0029's no-hand-written-numbers rule). Crosses from `apps/frontend`
+  into `apps/api` (+ contracts in `packages/shared/python/contracts/`).
+- **Status:** ✅ **All four items shipped (2026-05-20, ADR-0038/0039/0040),
+  plus the perf-index follow-up below.** The console's previously-dark panels
+  (topbar p95/err/cost, dashboard vitals + recent-queries, evaluations
+  leaderboard/medians/trend) all show real per-tenant data.
+- **Perf follow-up (from ADR-0038):** ✅ **Shipped 2026-05-20** —
+  `migrations/versions/0017_query_sessions_tenant_created_index.py` adds the
+  composite `idx_query_sessions_tenant_created` on
+  `query_sessions(tenant_id, created_at DESC)`, built `CONCURRENTLY` in an
+  `autocommit_block` (class A per ADR-0033). Verified offline (ruff, `alembic
+  heads` single head 0017→0016, `alembic upgrade --sql` emits the concurrent
+  index). **Applying it against a live Postgres (`make db-upgrade`) is still
+  pending** — integration/DB is Docker-blocked on the current host.
+
+### B11 — Migration packaging mismatch (deploy blocker, latent)
+- **Scope:** The canonical migration chain is the repo-root `migrations/`
+  (0001→0017; `make db-*` and the full schema live here). But the deploy path
+  doesn't ship it: `apps/api/Dockerfile` does `COPY apps/api/ /app/`
+  (WORKDIR `/app`) and never copies repo-root `migrations/` — the image only
+  carries the **stray** `apps/api/migrations/` (a separate chain whose only
+  revision, `001_initial_schema.py`, just creates extensions). Meanwhile the
+  Helm pre-upgrade Job (`infra/helm/sentinelrag/templates/migrations/job.yaml`
+  + `values.yaml`) runs `cd /workspace && alembic -c migrations/alembic.ini
+  upgrade head`, expecting the canonical chain at `/workspace/migrations` —
+  a path the image neither creates nor populates. So a real `helm upgrade`
+  would fail (`/workspace` missing) or, against the in-image config, apply
+  only the extensions migration — not the schema.
+- **Status:** ✅ **Shipped 2026-05-20.** `apps/api/Dockerfile` now
+  `COPY migrations/ /workspace/migrations/` (build context is repo root) so the
+  canonical chain lands where the Helm Job's existing `cd /workspace && alembic
+  -c migrations/alembic.ini upgrade head` command looks; the pip line installs
+  `psycopg[binary]` (psycopg3) since `env.py` resolves the sync URL to the
+  `+psycopg` dialect (the chart supplies only `DATABASE_URL`, no
+  `DATABASE_URL_SYNC`). The stray `apps/api/migrations/` + `apps/api/alembic.ini`
+  were deleted (no references anywhere). Docker + Helm + Makefile now agree on
+  repo-root `migrations/` as the single source of truth. Verified: `helm
+  template` renders the Job against the API image with the `/workspace` command;
+  `alembic heads` → single head `0017`; no dangling refs. `deployment-aws.md`
+  Step 9 notes the path + failure symptoms. **Not verified against a live
+  cluster** (no EKS/homelab apply on this host) — confidence is "renders +
+  chain resolves," not "ran in dev EKS."
+
 ## How to use this file
 
 - New deferred work goes here as a new `### Bn — <scope>` block.

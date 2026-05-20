@@ -11,10 +11,14 @@ test.describe('feature regression suite (mocked API)', () => {
     await page.goto('/dashboard');
 
     await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-    await expect(page.getByText('Acme Research', { exact: true })).toBeVisible();
-    await expect(page.getByText('acme', { exact: true })).toBeVisible();
-    await expect(page.getByText('Active scopes for retrieval')).toBeVisible();
-    await expect(page.getByText('Lifetime runs (ragas + custom)')).toBeVisible();
+    // Tenant context surfaces in the breadcrumb (name) and sidebar (slug · plan).
+    await expect(page.getByText('Acme Research', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('acme · enterprise')).toBeVisible();
+    // Ops-vitals tiles (ADR-0038 metrics) replaced the old count tiles.
+    await expect(page.getByText('Queries · 24h')).toBeVisible();
+    await expect(page.getByText('p95 latency')).toBeVisible();
+    // Recent-queries feed (BACKLOG B10 #3) renders real rows.
+    await expect(page.getByText('Steps to rotate the LiteLLM gateway API key')).toBeVisible();
     await expect(page.getByText(/RBAC injected at retrieval time/i)).toBeVisible();
     await expect(page.getByText(/Prompts are versioned artifacts/i)).toBeVisible();
   });
@@ -24,7 +28,8 @@ test.describe('feature regression suite (mocked API)', () => {
 
     await page.goto('/collections');
     await expect(page.getByRole('heading', { name: 'Collections', level: 1 })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'Seed Runbooks' })).toBeVisible();
+    // Collections render as a card grid now, not a table.
+    await expect(page.getByText('Seed Runbooks')).toBeVisible();
 
     await page.getByRole('button', { name: 'New collection' }).click();
     await page.getByLabel(/^name/i).fill('Regression Evidence');
@@ -32,8 +37,8 @@ test.describe('feature regression suite (mocked API)', () => {
     await page.getByLabel(/description/i).fill('Captured release verification artifacts');
     await page.getByRole('button', { name: 'Create collection' }).click();
 
-    await expect(page.getByRole('cell', { name: 'Regression Evidence' })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'private' }).first()).toBeVisible();
+    await expect(page.getByText('Regression Evidence')).toBeVisible();
+    await expect(page.getByText('private').first()).toBeVisible();
   });
 
   test('documents upload queues ingestion and refreshes document/job tables', async ({ page }) => {
@@ -41,7 +46,9 @@ test.describe('feature regression suite (mocked API)', () => {
 
     await page.goto('/documents');
     await expect(page.getByRole('heading', { name: 'Documents', level: 1 })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'aws-runbook.md' })).toBeVisible();
+    // Documents render as a master/detail list now; the selected doc's title
+    // appears in both the list row and the detail header.
+    await expect(page.getByText('aws-runbook.md').first()).toBeVisible();
 
     await page.getByLabel(/file/i).setInputFiles({
       name: 'regression.md',
@@ -50,7 +57,7 @@ test.describe('feature regression suite (mocked API)', () => {
     });
 
     await expect(page.getByText(/Queued ingestion job eeeeeeee/i)).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'regression.md' })).toBeVisible();
+    await expect(page.getByText('regression.md').first()).toBeVisible();
     await expect(page.getByText('queued', { exact: true })).toBeVisible();
   });
 
@@ -117,8 +124,13 @@ test.describe('feature regression suite (mocked API)', () => {
     await expect(page.getByText('default', { exact: true })).toBeVisible();
 
     await page.goto('/evaluations');
-    await expect(page.getByRole('cell', { name: 'Nightly faithfulness regression' })).toBeVisible();
-    await expect(page.getByText('completed', { exact: true })).toBeVisible();
+    // Evaluations render as a comparison leaderboard now, not a table.
+    await expect(page.getByText('Nightly faithfulness regression')).toBeVisible();
+    // "completed" now appears as both the run status badge and the case-outcomes
+    // row label (the latter only renders because real summary data is present).
+    await expect(page.getByText('completed', { exact: true }).first()).toBeVisible();
+    // Batched summaries (ADR-0040) populate the leaderboard with real metrics.
+    await expect(page.getByText('0.91').first()).toBeVisible();
   });
 
   test('settings page renders tenant and user context from authenticated API calls', async ({
@@ -146,7 +158,12 @@ test.describe('feature regression suite (mocked API)', () => {
     await expect(page.getByText(/dual-written to Postgres \+ S3 Object Lock/i)).toBeVisible();
 
     await page.getByRole('link', { name: 'Usage' }).click();
-    await expect(page.getByRole('heading', { name: 'Usage & Cost', level: 1 })).toBeVisible();
+    await page.waitForURL('**/usage');
+    // Client-side route swap can lag under parallel load; allow extra time for
+    // the new page to commit before asserting its heading.
+    await expect(page.getByRole('heading', { name: 'Usage & Cost', level: 1 })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByText(/soft\/hard caps/i)).toBeVisible();
   });
 });

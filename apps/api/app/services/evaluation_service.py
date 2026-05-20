@@ -33,6 +33,7 @@ from app.schemas.evaluations import (
     EvaluationCaseCreate,
     EvaluationDatasetCreate,
     EvaluationRunCreate,
+    EvaluationScoreSummary,
 )
 
 
@@ -178,3 +179,44 @@ class EvaluationService:
         cases_total = await self.cases.count_for_dataset(run.dataset_id)
         agg["cases_total"] = cases_total
         return run, agg
+
+    async def summaries_for(
+        self, run_ids: list[UUID]
+    ) -> dict[UUID, EvaluationScoreSummary]:
+        """Live-aggregated summaries for many runs in one query (ADR-0040).
+
+        Runs without scored cases get an all-empty summary. ``cases_total`` is
+        the scored-case count (completed + failed); the exact dataset-case
+        count remains on the per-run ``GET /eval/runs/{id}``.
+        """
+        aggs = await self.scores.aggregate_for_runs(run_ids)
+        out: dict[UUID, EvaluationScoreSummary] = {}
+        for run_id in run_ids:
+            agg = aggs.get(run_id)
+            if agg is None:
+                out[run_id] = EvaluationScoreSummary(
+                    context_relevance_avg=None,
+                    faithfulness_avg=None,
+                    answer_correctness_avg=None,
+                    citation_accuracy_avg=None,
+                    average_latency_ms=None,
+                    total_cost_usd=None,
+                    cases_total=0,
+                    cases_completed=0,
+                    cases_failed=0,
+                )
+                continue
+            completed = int(agg["cases_completed"] or 0)
+            failed = int(agg["cases_failed"] or 0)
+            out[run_id] = EvaluationScoreSummary(
+                context_relevance_avg=agg["context_relevance_avg"],
+                faithfulness_avg=agg["faithfulness_avg"],
+                answer_correctness_avg=agg["answer_correctness_avg"],
+                citation_accuracy_avg=agg["citation_accuracy_avg"],
+                average_latency_ms=agg["average_latency_ms"],
+                total_cost_usd=agg["total_cost_usd"],
+                cases_total=completed + failed,
+                cases_completed=completed,
+                cases_failed=failed,
+            )
+        return out

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -117,3 +118,46 @@ class EvaluationScoreRepository(BaseRepository[EvaluationScore]):
             "cases_completed": int(row.completed),
             "cases_failed": int(row.failed),
         }
+
+    async def aggregate_for_runs(
+        self, run_ids: list[UUID]
+    ) -> dict[UUID, dict[str, Any]]:
+        """Aggregate scores for many runs in one ``GROUP BY`` query (ADR-0040).
+
+        Returns a map ``run_id -> agg``; runs with no scored cases are absent
+        from the map (the caller treats them as empty summaries).
+        """
+        if not run_ids:
+            return {}
+        completed = EvaluationScore.status == "completed"
+        stmt = (
+            select(
+                EvaluationScore.evaluation_run_id.label("run_id"),
+                func.avg(EvaluationScore.context_relevance_score).filter(completed).label("ctx"),
+                func.avg(EvaluationScore.faithfulness_score).filter(completed).label("faith"),
+                func.avg(EvaluationScore.answer_correctness_score).filter(completed).label("ans"),
+                func.avg(EvaluationScore.citation_accuracy_score).filter(completed).label("cite"),
+                func.avg(EvaluationScore.latency_ms).filter(completed).label("lat"),
+                func.sum(EvaluationScore.cost_usd).filter(completed).label("cost"),
+                func.count(EvaluationScore.id).filter(completed).label("completed"),
+                func.count(EvaluationScore.id)
+                .filter(EvaluationScore.status == "failed")
+                .label("failed"),
+            )
+            .where(EvaluationScore.evaluation_run_id.in_(run_ids))
+            .group_by(EvaluationScore.evaluation_run_id)
+        )
+        result = await self.session.execute(stmt)
+        out: dict[UUID, dict[str, Any]] = {}
+        for row in result.all():
+            out[row.run_id] = {
+                "context_relevance_avg": float(row.ctx) if row.ctx is not None else None,
+                "faithfulness_avg": float(row.faith) if row.faith is not None else None,
+                "answer_correctness_avg": float(row.ans) if row.ans is not None else None,
+                "citation_accuracy_avg": float(row.cite) if row.cite is not None else None,
+                "average_latency_ms": int(row.lat) if row.lat is not None else None,
+                "total_cost_usd": float(row.cost) if row.cost is not None else None,
+                "cases_completed": int(row.completed),
+                "cases_failed": int(row.failed),
+            }
+        return out

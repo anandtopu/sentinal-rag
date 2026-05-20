@@ -118,10 +118,19 @@ async def list_runs(
     db: Annotated[AsyncSession, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include: Annotated[str | None, Query()] = None,
 ) -> list[EvaluationRunRead]:
+    """List recent runs. With ``?include=summary`` each run carries its
+    live-aggregated `EvaluationScoreSummary` in one batched query (ADR-0040),
+    so the evaluations leaderboard loads without an N+1 fan-out."""
     service = EvaluationService(db)
     runs = await service.list_runs(limit=limit, offset=offset)
-    return [EvaluationRunRead.model_validate(run) for run in runs]
+    reads = [EvaluationRunRead.model_validate(run) for run in runs]
+    if include and "summary" in include.split(","):
+        summaries = await service.summaries_for([run.id for run in runs])
+        for read in reads:
+            read.summary = summaries.get(read.id)
+    return reads
 
 
 @router.get("/runs/{run_id}", response_model=EvaluationRunResults)

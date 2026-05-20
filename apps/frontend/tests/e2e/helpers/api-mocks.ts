@@ -199,6 +199,39 @@ export async function installApiMocks(page: Page): Promise<MockState> {
       });
     }
 
+    if (path === '/api/query' && request.method() === 'GET') {
+      const items = [
+        {
+          id: ids.querySession,
+          query: 'What is the AWS deployment order?',
+          status: 'completed',
+          latency_ms: 312,
+          grounding_score: 0.94,
+          model: 'ollama/llama3.1:8b',
+          created_at: now,
+        },
+        {
+          id: '5d2e90a1-0000-4000-8000-000000000aaa',
+          query: 'Steps to rotate the LiteLLM gateway API key',
+          status: 'completed',
+          latency_ms: 287,
+          grounding_score: 0.88,
+          model: 'ollama/llama3.1:8b',
+          created_at: now,
+        },
+        {
+          id: 'f911c2a0-0000-4000-8000-000000000bbb',
+          query: 'Decommissioning checklist for retired collections',
+          status: 'abstained',
+          latency_ms: 612,
+          grounding_score: null,
+          model: 'ollama/llama3.1:8b',
+          created_at: now,
+        },
+      ];
+      return json(route, { items, total: items.length, limit: 6, offset: 0 });
+    }
+
     if (path === `/api/query/${ids.querySession}/trace/stream`) {
       const trace = queryTrace();
       return route.fulfill({
@@ -238,7 +271,71 @@ export async function installApiMocks(page: Page): Promise<MockState> {
       ]);
     }
 
+    if (path === '/api/metrics/summary') {
+      return json(route, {
+        window: url.searchParams.get('window') ?? '24h',
+        since: now,
+        until: now,
+        total_queries: 128,
+        error_rate: 0.012,
+        abstain_rate: 0.03,
+        queries_per_min: 0.09,
+        latency: { p50_ms: 210, p95_ms: 412, p99_ms: 880, count: 124 },
+        series: [
+          { bucket_start: now, queries: 8, errors: 0, p95_latency_ms: 380 },
+          { bucket_start: now, queries: 12, errors: 1, p95_latency_ms: 420 },
+          { bucket_start: now, queries: 6, errors: 0, p95_latency_ms: 350 },
+          { bucket_start: now, queries: 14, errors: 0, p95_latency_ms: 410 },
+          { bucket_start: now, queries: 10, errors: 1, p95_latency_ms: 440 },
+          { bucket_start: now, queries: 9, errors: 0, p95_latency_ms: 400 },
+        ],
+      });
+    }
+
+    if (path === '/api/usage/summary') {
+      return json(route, {
+        period: 'budget',
+        since: now,
+        until: now,
+        total_cost_usd: 184.2,
+        input_tokens: 482_000,
+        output_tokens: 96_400,
+        records: 312,
+        budget: {
+          limit_usd: 270,
+          soft_threshold_pct: 80,
+          hard_threshold_pct: 100,
+          period_type: 'month',
+          period_start: now,
+          period_end: now,
+        },
+        budget_utilization_pct: 68.2,
+        series: [
+          { bucket_start: now, cost_usd: 22.4 },
+          { bucket_start: now, cost_usd: 31.1 },
+          { bucket_start: now, cost_usd: 18.9 },
+          { bucket_start: now, cost_usd: 41.0 },
+          { bucket_start: now, cost_usd: 35.6 },
+          { bucket_start: now, cost_usd: 35.2 },
+        ],
+      });
+    }
+
+    const evalSummary = {
+      context_relevance_avg: 0.74,
+      faithfulness_avg: 0.91,
+      answer_correctness_avg: 0.87,
+      citation_accuracy_avg: 0.96,
+      average_latency_ms: 312,
+      total_cost_usd: 0.0041,
+      cases_total: 10,
+      cases_completed: 9,
+      cases_failed: 1,
+    };
+
     if (path === '/api/eval/runs') {
+      // ?include=summary attaches the live-aggregated summary (ADR-0040).
+      const includeSummary = url.searchParams.get('include') === 'summary';
       return json(route, [
         {
           id: ids.evalRun,
@@ -250,8 +347,16 @@ export async function installApiMocks(page: Page): Promise<MockState> {
           started_at: now,
           completed_at: now,
           created_at: now,
+          summary: includeSummary ? evalSummary : null,
         },
       ]);
+    }
+    if (path === `/api/eval/runs/${ids.evalRun}`) {
+      return json(route, {
+        evaluation_run_id: ids.evalRun,
+        status: 'completed',
+        summary: evalSummary,
+      });
     }
 
     return json(route, { error: { code: 'not_mocked', message: `No mock for ${path}` } }, 404);
