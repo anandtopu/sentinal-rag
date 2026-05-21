@@ -168,11 +168,7 @@ jobs:
           fi
 
       - name: Upload SARIF — ${{ matrix.image.name }}
-<<<<<<< HEAD
         if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && steps.trivy_image_sarif.outputs.exists == 'true' }}
-=======
-        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && hashFiles(format('trivy-{0}.sarif', matrix.image.name)) != '' }}
->>>>>>> 69769f6 (ci: fix security workflow YAML and SARIF guards)
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.image.name }}.sarif

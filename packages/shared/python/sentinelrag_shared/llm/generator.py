@@ -122,10 +122,6 @@ class LiteLLMGenerator:
                 f"LiteLLM generation timed out after {self.max_retries} attempts: {exc}"
             ) from exc
         except Exception as exc:
-            if "timeout" in str(exc).lower():
-                raise GeneratorTimeoutError(
-                    f"LiteLLM generation timed out after {self.max_retries} attempts: {exc}"
-                ) from exc
             raise GeneratorError(
                 f"LiteLLM generation failed after {self.max_retries} attempts: {exc}"
             ) from exc
