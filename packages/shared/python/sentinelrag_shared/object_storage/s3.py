@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import aioboto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from sentinelrag_shared.object_storage.interface import (
@@ -28,14 +29,21 @@ class S3Storage(ObjectStorage):
     def __init__(
         self,
         *,
-        bucket: str,
+        bucket: str | None = None,
+        bucket_name: str | None = None,
         region: str = "us-east-1",
         endpoint_url: str | None = None,
         access_key_id: str | None = None,
         secret_access_key: str | None = None,
         verify_ssl: bool = True,
+        local_dir: str | None = None,
     ) -> None:
-        self.bucket = bucket
+        del local_dir
+
+        self.bucket = bucket_name or bucket
+        if not self.bucket:
+            raise ValueError("bucket or bucket_name is required")
+
         self._region = region
         self._endpoint_url = endpoint_url
         self._access_key_id = access_key_id
@@ -44,7 +52,11 @@ class S3Storage(ObjectStorage):
         self._session = aioboto3.Session()
 
     def _client_kwargs(self) -> dict[str, Any]:
-        kw: dict[str, Any] = {"region_name": self._region, "verify": self._verify_ssl}
+        kw: dict[str, Any] = {
+            "region_name": self._region,
+            "verify": self._verify_ssl,
+            "config": Config(signature_version="s3v4"),
+        }
         if self._endpoint_url:
             kw["endpoint_url"] = self._endpoint_url
         if self._access_key_id:
@@ -68,6 +80,7 @@ class S3Storage(ObjectStorage):
             if custom_metadata:
                 extra["Metadata"] = custom_metadata
             await s3.put_object(Bucket=self.bucket, Key=key, Body=data, **extra)
+
         return ObjectMetadata(
             key=key,
             size_bytes=len(data),
@@ -80,45 +93,53 @@ class S3Storage(ObjectStorage):
         async with self._session.client("s3", **self._client_kwargs()) as s3:
             try:
                 response = await s3.get_object(Bucket=self.bucket, Key=key)
+                return await response["Body"].read()
             except ClientError as exc:
-                if exc.response["Error"]["Code"] in {"NoSuchKey", "404"}:
+                code = exc.response.get("Error", {}).get("Code")
+                if code in {"NoSuchKey", "404", "NotFound"}:
                     raise ObjectNotFoundError(key) from exc
                 raise ObjectStorageError(str(exc)) from exc
-            return await response["Body"].read()
 
     async def get_stream(self, key: str) -> AsyncIterator[bytes]:
         async with self._session.client("s3", **self._client_kwargs()) as s3:
             try:
                 response = await s3.get_object(Bucket=self.bucket, Key=key)
+                async for chunk in response["Body"].iter_chunks(64 * 1024):
+                    yield chunk
             except ClientError as exc:
-                if exc.response["Error"]["Code"] in {"NoSuchKey", "404"}:
+                code = exc.response.get("Error", {}).get("Code")
+                if code in {"NoSuchKey", "404", "NotFound"}:
                     raise ObjectNotFoundError(key) from exc
                 raise ObjectStorageError(str(exc)) from exc
-            async for chunk in response["Body"].iter_chunks(64 * 1024):
-                yield chunk
 
     async def exists(self, key: str) -> bool:
         async with self._session.client("s3", **self._client_kwargs()) as s3:
             try:
                 await s3.head_object(Bucket=self.bucket, Key=key)
+                return True
             except ClientError as exc:
-                if exc.response["Error"]["Code"] in {"404", "NoSuchKey"}:
+                code = exc.response.get("Error", {}).get("Code")
+                if code in {"404", "NoSuchKey", "NotFound"}:
                     return False
                 raise ObjectStorageError(str(exc)) from exc
-            return True
 
     async def delete(self, key: str) -> None:
         async with self._session.client("s3", **self._client_kwargs()) as s3:
-            await s3.delete_object(Bucket=self.bucket, Key=key)
+            try:
+                await s3.delete_object(Bucket=self.bucket, Key=key)
+            except ClientError as exc:
+                raise ObjectStorageError(str(exc)) from exc
 
     async def head(self, key: str) -> ObjectMetadata:
         async with self._session.client("s3", **self._client_kwargs()) as s3:
             try:
                 response = await s3.head_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
-                if exc.response["Error"]["Code"] in {"404", "NoSuchKey"}:
+                code = exc.response.get("Error", {}).get("Code")
+                if code in {"404", "NoSuchKey", "NotFound"}:
                     raise ObjectNotFoundError(key) from exc
                 raise ObjectStorageError(str(exc)) from exc
+
         return ObjectMetadata(
             key=key,
             size_bytes=response.get("ContentLength", 0),
@@ -150,5 +171,4 @@ class S3Storage(ObjectStorage):
             )
 
     async def close(self) -> None:
-        # aioboto3 sessions are per-call; nothing persistent to close.
         return None
