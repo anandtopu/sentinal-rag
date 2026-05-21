@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-from __future__ import annotations
-
-from typing import Any
-=======
 # pyright: reportMissingImports=false
 
 from __future__ import annotations
@@ -14,17 +9,12 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
 from sentinelrag_shared.llm.types import RerankResult, UsageRecord
->>>>>>> eec497a (fix: unblock pyright for llm modules and narrow CI scope)
 
 
 class RerankerError(Exception):
     pass
 
 
-<<<<<<< HEAD
-class Reranker:
-    def __init__(self, model_name: str, max_length: int = 512) -> None:
-=======
 @dataclass(slots=True)
 class RerankCandidate:
     chunk_id: str
@@ -81,50 +71,13 @@ class BgeReranker:
         max_length: int = 512,
         batch_size: int = 32,
     ) -> None:
->>>>>>> eec497a (fix: unblock pyright for llm modules and narrow CI scope)
         self.model_name = model_name
-        self.max_length = max_length
+        self._use_fp16 = use_fp16
+        self._max_length = max_length
+        self._batch_size = batch_size
 
-<<<<<<< HEAD
-    def score(self, pairs: list[tuple[str, str]]) -> list[float]:
-        try:
-            from FlagEmbedding import FlagReranker as _FlagReranker  # type: ignore[import-not-found]
-        except ImportError:
-            _FlagReranker = None
-
-        if _FlagReranker is not None:
-            try:
-                _flag_model = _FlagReranker(self.model_name)
-                _scores = _flag_model.compute_score(
-                    pairs,
-                    normalize=True,
-                )
-                return list(_scores)
-            except Exception:
-                pass
-
-        try:
-            from sentence_transformers import CrossEncoder  # type: ignore[import-not-found]
-        except ImportError as exc:
-            raise RerankerError(
-                "Neither FlagEmbedding nor sentence-transformers is installed."
-            ) from exc
-
-        try:
-            _bge_model = CrossEncoder(self.model_name, max_length=self.max_length)
-            return list(
-                _bge_model.predict(
-                    pairs,
-                    convert_to_numpy=True,
-                )
-            )
-        except Exception as exc:
-            raise RerankerError(
-                f"Could not load reranker model {self.model_name!r}: {exc}"
-            ) from exc
-=======
     def _ensure_model(self) -> Any:
-        global _bge_model, _bge_model_name  # noqa: PLW0603
+        global _bge_model, _bge_model_name
 
         if _bge_model is not None and self.model_name == _bge_model_name:
             return _bge_model
@@ -135,7 +88,7 @@ class BgeReranker:
 
             flag_reranker_cls: Any | None = None
             try:
-                from FlagEmbedding import FlagReranker as flag_reranker_cls  # noqa: PLC0415
+                from FlagEmbedding import FlagReranker as flag_reranker_cls
             except ImportError:
                 pass
 
@@ -153,7 +106,7 @@ class BgeReranker:
                     ) from exc
 
             try:
-                from sentence_transformers import CrossEncoder  # noqa: PLC0415
+                from sentence_transformers import CrossEncoder
 
                 _bge_model = CrossEncoder(self.model_name, max_length=self._max_length)
                 _bge_model_name = self.model_name
@@ -225,4 +178,3 @@ class BgeReranker:
             return [float(score) for score in raw]
 
         raise RerankerError("Loaded model has neither compute_score nor predict.")
->>>>>>> eec497a (fix: unblock pyright for llm modules and narrow CI scope)
