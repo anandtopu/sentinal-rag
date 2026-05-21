@@ -1,35 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import dataclass, field
+from typing import Any
 
 
-@dataclass(frozen=True)
-class LLMResponse:
-    text: str
-    raw: Any | None = None
+@dataclass(slots=True)
+class UsageRecord:
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    model: str | None = None
     provider: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class EmbeddingResult:
+    embeddings: list[list[float]]
     model: str | None = None
-
-
-@dataclass(frozen=True)
-class GenerationResult:
-    text: str
-    usage: dict[str, int] | None = None
-    provider: str | None = None
-    model: str | None = None
-
-
-@dataclass(frozen=True)
-class GeneratorResult:
-    text: str
-    metadata: dict[str, Any] | None = None
-
-
-@dataclass(frozen=True)
-class RerankResult:
-    scores: list[float]
-    model: str | None = None
-
-
-ModelProvider = Literal["ollama", "openai", "azure", "local"]
+    usage: UsageRecord | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
