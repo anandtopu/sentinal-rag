@@ -73,12 +73,24 @@ def env_int(
 def load_worker_settings(environ: Mapping[str, str] | None = None) -> WorkerSettings:
     env = os.environ if environ is None else environ
     return WorkerSettings(
-        log_level=env.get("LOG_LEVEL", "INFO"),
+        log_level=env.get("LOG_LEVEL", env.get("LOGLEVEL", "INFO")),
         environment=env.get("ENVIRONMENT", "local"),
-        temporal_host=env.get("TEMPORAL_HOST", "localhost:7233"),
-        temporal_namespace=env.get("TEMPORAL_NAMESPACE", "default"),
-        ingestion_task_queue=env.get("TEMPORAL_TASK_QUEUE_INGESTION", "ingestion"),
-        evaluation_task_queue=env.get("TEMPORAL_TASK_QUEUE_EVALUATION", "evaluation"),
-        audit_task_queue=env.get("TEMPORAL_TASK_QUEUE_AUDIT", "audit"),
-        otlp_endpoint=env.get("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        temporal_host=env.get("TEMPORAL_HOST", env.get("TEMPORALHOST", "localhost:7233")),
+        temporal_namespace=env.get("TEMPORAL_NAMESPACE", env.get("TEMPORALNAMESPACE", "default")),
+        ingestion_task_queue=env.get(
+            "TEMPORAL_TASK_QUEUE_INGESTION",
+            env.get("TEMPORALTASKQUEUEINGESTION", "ingestion"),
+        ),
+        evaluation_task_queue=env.get(
+            "TEMPORAL_TASK_QUEUE_EVALUATION",
+            env.get("TEMPORALTASKQUEUEEVALUATION", "evaluation"),
+        ),
+        audit_task_queue=env.get(
+            "TEMPORAL_TASK_QUEUE_AUDIT",
+            env.get("TEMPORALTASKQUEUEAUDIT", "audit"),
+        ),
+        otlp_endpoint=env.get(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            env.get("OTELEXPORTEROTLPENDPOINT"),
+        ),
     )
