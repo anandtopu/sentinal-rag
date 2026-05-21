@@ -1,9 +1,15 @@
-from sentinelrag_shared.llm.types import EmbeddingResult, UsageRecord
-from sentinelrag_shared.llm.embedder import EmbedderError, LiteLLMEmbedder
+from sentinelrag_shared.llm.types import (
+    EmbeddingResult,
+    GenerateResult,
+    RerankCandidate,
+    RerankResult,
+    UsageRecord,
+)
 
 __all__ = [
     "EmbeddingResult",
+    "GenerateResult",
+    "RerankCandidate",
+    "RerankResult",
     "UsageRecord",
-    "EmbedderError",
-    "LiteLLMEmbedder",
 ]
