@@ -171,7 +171,9 @@ def generate(
                 model_buckets: dict[str, list[tuple[int, int]]] = {}
                 for _ in range(requests):
                     model = _pick_model(tenant.tier, rng=rng)
-                    model_buckets.setdefault(model, []).append(_sample_tokens(model, rng=rng))
+                    model_buckets.setdefault(model, []).append(
+                        _sample_tokens(model, rng=rng)
+                    )
 
                 for model, samples in model_buckets.items():
                     in_total = sum(s[0] for s in samples)
@@ -202,7 +204,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tenants", type=int, default=4)
     p.add_argument("--days", type=int, default=30)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--output", type=Path, default=Path("scripts/cost/synthetic-month.csv"))
+    p.add_argument(
+        "--output", type=Path, default=Path("scripts/cost/synthetic-month.csv")
+    )
     return p
 
 

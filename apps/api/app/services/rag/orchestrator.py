@@ -131,7 +131,11 @@ class Orchestrator:
         # picks the embedding model per evaluation run).
         embedder = self._embedder_override or LiteLLMEmbedder(
             model_name=self._embedding_model,
-            api_base=self._ollama_base_url if self._embedding_model.startswith("ollama/") else None,
+            api_base=(
+                self._ollama_base_url
+                if self._embedding_model.startswith("ollama/")
+                else None
+            ),
         )
         retrieval_client = self._retrieval_client_override or InProcessRetrievalClient(
             session=self._session,
@@ -202,17 +206,23 @@ class Orchestrator:
             # R3.S4: classify provider timeouts so audit dashboards can
             # split them out from generic internal errors.
             reason = (
-                "provider_timeout" if isinstance(exc, GeneratorTimeoutError) else "internal_error"
+                "provider_timeout"
+                if isinstance(exc, GeneratorTimeoutError)
+                else "internal_error"
             )
             with contextlib.suppress(Exception):
-                await session_stage.close(ctx, status="failed", error_message=error_message)
+                await session_stage.close(
+                    ctx, status="failed", error_message=error_message
+                )
             record_query_completed(status="failed", latency_ms=ctx.latency_ms)
             # Audit even on failure — the trail is the point. Best-effort:
             # never mask the original exception with a secondary write
             # failure. The daily reconciliation job (Phase 6.5) catches
             # any missed audit rows.
             with contextlib.suppress(Exception):
-                await audit_stage.record_query_failed(ctx, error=error_message, reason=reason)
+                await audit_stage.record_query_failed(
+                    ctx, error=error_message, reason=reason
+                )
             # R3.S5: settle the reservation on the failure path so a
             # stuck provider doesn't lock the tenant's budget for
             # ``timeout + cushion`` seconds.

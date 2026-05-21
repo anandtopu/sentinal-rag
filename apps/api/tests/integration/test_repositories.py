@@ -50,14 +50,18 @@ class TestPhase1Services:
             user_svc = UserService(sess)
             user = await user_svc.create(
                 tenant_id=tenant.id,
-                payload=UserCreate(email="alice@cybertron.example.com", full_name="Alice"),
+                payload=UserCreate(
+                    email="alice@cybertron.example.com", full_name="Alice"
+                ),
             )
             user_id = user.id
 
         # 3. Assign role.
         async for sess in get_tenant_session():
             user_svc = UserService(sess)
-            await user_svc.assign_role(user_id=user_id, role_id=role_id, granted_by=user_id)
+            await user_svc.assign_role(
+                user_id=user_id, role_id=role_id, granted_by=user_id
+            )
 
         # 4. Resolve permissions for the user.
         async for sess in get_tenant_session():

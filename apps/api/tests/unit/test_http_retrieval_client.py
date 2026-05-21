@@ -27,7 +27,9 @@ def _auth() -> AuthContext:
     )
 
 
-def _build_client(handler: httpx.MockTransport, **kwargs: object) -> HttpRetrievalClient:
+def _build_client(
+    handler: httpx.MockTransport, **kwargs: object
+) -> HttpRetrievalClient:
     return HttpRetrievalClient(
         base_url="http://retrieval.test",
         service_token="t0p-s3cret",

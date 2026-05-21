@@ -51,7 +51,9 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
-        _session_factory = async_sessionmaker(bind=_engine, expire_on_commit=False, autoflush=False)
+        _session_factory = async_sessionmaker(
+            bind=_engine, expire_on_commit=False, autoflush=False
+        )
     return _session_factory
 
 

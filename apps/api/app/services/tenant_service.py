@@ -41,7 +41,9 @@ class TenantService:
         try:
             await self.db.flush()
         except IntegrityError as exc:
-            raise ConflictError("Tenant could not be created (constraint violation).") from exc
+            raise ConflictError(
+                "Tenant could not be created (constraint violation)."
+            ) from exc
         return tenant
 
     async def get(self, tenant_id: UUID) -> Tenant:

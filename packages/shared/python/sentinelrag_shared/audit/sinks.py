@@ -47,7 +47,9 @@ class PostgresAuditSink:
         self._session = session
 
     async def write(self, event: AuditEvent) -> None:
-        from sqlalchemy import text  # noqa: PLC0415 — keep this module sqla-free at import
+        from sqlalchemy import (
+            text,
+        )  # noqa: PLC0415 — keep this module sqla-free at import
 
         try:
             await self._session.execute(
@@ -73,12 +75,16 @@ class PostgresAuditSink:
                     "ip": event.ip_address,
                     "ua": event.user_agent,
                     "req": event.request_id,
-                    "before": json.dumps(event.before_state)
-                    if event.before_state is not None
-                    else None,
-                    "after": json.dumps(event.after_state)
-                    if event.after_state is not None
-                    else None,
+                    "before": (
+                        json.dumps(event.before_state)
+                        if event.before_state is not None
+                        else None
+                    ),
+                    "after": (
+                        json.dumps(event.after_state)
+                        if event.after_state is not None
+                        else None
+                    ),
                     "meta": json.dumps(event.metadata),
                     "ts": event.created_at,
                 },

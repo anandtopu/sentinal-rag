@@ -59,12 +59,16 @@ class LiteLLMGenerator:
 
         usage_obj = cast(dict[str, Any], response.get("usage", {}))
         input_tokens = int(cast(int | float, usage_obj.get("prompt_tokens", 0) or 0))
-        output_tokens = int(cast(int | float, usage_obj.get("completion_tokens", 0) or 0))
+        output_tokens = int(
+            cast(int | float, usage_obj.get("completion_tokens", 0) or 0)
+        )
 
         hidden = cast(dict[str, Any], response.get("_hidden_params", {}))
         response_cost = hidden.get("response_cost")
         reasoning_tokens = (
-            int(cast(int | float | str, response_cost)) if response_cost is not None else None
+            int(cast(int | float | str, response_cost))
+            if response_cost is not None
+            else None
         )
 
         return GenerateResult(

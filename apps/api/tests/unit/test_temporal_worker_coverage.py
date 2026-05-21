@@ -74,18 +74,24 @@ def test_activity_uuid_and_vector_helpers_are_deterministic() -> None:
     assert ingestion_activities._as_uuid(value) == value
     assert ingestion_activities._format_vector([1, "2.5"]) == "[1.0,2.5]"  # type: ignore[list-item]
     assert (
-        ingestion_activities._raw_text_key("tenant/documents/doc/versions/v/original.txt")
+        ingestion_activities._raw_text_key(
+            "tenant/documents/doc/versions/v/original.txt"
+        )
         == "tenant/documents/doc/versions/v/raw.txt"
     )
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_download_and_hash_closes_storage(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_download_and_hash_closes_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     storage = FakeStorage(b"hello")
     monkeypatch.setattr(ingestion_activities, "_build_storage", lambda: storage)
 
-    result = await ingestion_activities.download_and_hash(str(uuid4()), "tenant/doc.txt")
+    result = await ingestion_activities.download_and_hash(
+        str(uuid4()), "tenant/doc.txt"
+    )
 
     assert result["content_hash"] == (
         "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
@@ -155,7 +161,9 @@ async def test_evaluation_mark_run_running_raises_when_row_not_visible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = FakeSession([FakeDbResult(rowcount=0)])
-    monkeypatch.setattr(eval_activities, "_session_for_tenant", _session_factory(session))
+    monkeypatch.setattr(
+        eval_activities, "_session_for_tenant", _session_factory(session)
+    )
 
     with pytest.raises(RuntimeError, match="not visible"):
         await eval_activities.mark_run_running(str(uuid4()), str(uuid4()))
@@ -169,7 +177,9 @@ async def test_evaluation_list_case_ids_returns_ordered_ids(
     case_ids = [uuid4(), uuid4()]
     rows = [(case_ids[0],), (case_ids[1],)]
     session = FakeSession([FakeDbResult(rows=rows)])
-    monkeypatch.setattr(eval_activities, "_session_for_tenant", _session_factory(session))
+    monkeypatch.setattr(
+        eval_activities, "_session_for_tenant", _session_factory(session)
+    )
 
     result = await eval_activities.list_case_ids(str(uuid4()), str(uuid4()))
 
@@ -205,7 +215,9 @@ async def test_evaluation_record_case_failure_upserts_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = FakeSession([FakeDbResult()])
-    monkeypatch.setattr(eval_activities, "_session_for_tenant", _session_factory(session))
+    monkeypatch.setattr(
+        eval_activities, "_session_for_tenant", _session_factory(session)
+    )
 
     await eval_activities.record_case_failure(
         str(uuid4()),
@@ -238,7 +250,9 @@ async def test_ingestion_workflow_marks_job_failed_when_activity_fails(
             raise RuntimeError("parse failed")
         return None
 
-    monkeypatch.setattr(ingestion_workflow.workflow, "execute_activity", fake_execute_activity)
+    monkeypatch.setattr(
+        ingestion_workflow.workflow, "execute_activity", fake_execute_activity
+    )
 
     payload = {
         "job_id": str(uuid4()),
@@ -280,7 +294,9 @@ async def test_evaluation_workflow_counts_failed_cases_and_finalizes_failed(
             finalized["args"] = args
         return None
 
-    monkeypatch.setattr(eval_workflow.workflow, "execute_activity", fake_execute_activity)
+    monkeypatch.setattr(
+        eval_workflow.workflow, "execute_activity", fake_execute_activity
+    )
     run_id = uuid4()
     payload = {
         "evaluation_run_id": str(run_id),

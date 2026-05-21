@@ -126,7 +126,9 @@ class BudgetReservationService:
             cursor = 0
             pattern = self.tenant_prefix(tenant_id=tenant_id)
             while True:
-                cursor, keys = await self._client.scan(cursor=cursor, match=pattern, count=100)
+                cursor, keys = await self._client.scan(
+                    cursor=cursor, match=pattern, count=100
+                )
                 if keys:
                     values = await self._client.mget(*keys)
                     for v in values:

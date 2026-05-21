@@ -18,7 +18,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sentinelrag_shared.chunking.base import Chunk, Chunker, ChunkingStrategy, count_tokens
+from sentinelrag_shared.chunking.base import (
+    Chunk,
+    Chunker,
+    ChunkingStrategy,
+    count_tokens,
+)
 from sentinelrag_shared.parsing.elements import ElementType, ParsedElement
 
 
@@ -45,7 +50,9 @@ class StructureAwareChunker(Chunker):
             if not buffer:
                 return
             text_parts = [
-                e.table_html or e.text for e in buffer if (e.table_html or e.text.strip())
+                e.table_html or e.text
+                for e in buffer
+                if (e.table_html or e.text.strip())
             ]
             text = "\n\n".join(text_parts).strip()
             if not text:

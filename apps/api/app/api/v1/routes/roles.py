@@ -57,7 +57,9 @@ async def list_roles(
     out: list[RoleRead] = []
     for role in roles:
         codes = await service.list_permission_codes(role.id)
-        out.append(RoleRead.model_validate({**role.__dict__, "permission_codes": codes}))
+        out.append(
+            RoleRead.model_validate({**role.__dict__, "permission_codes": codes})
+        )
     return out
 
 

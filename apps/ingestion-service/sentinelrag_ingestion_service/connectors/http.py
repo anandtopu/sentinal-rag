@@ -10,7 +10,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
-from sentinelrag_ingestion_service.connectors.base import ConnectorError, FetchedDocument
+from sentinelrag_ingestion_service.connectors.base import (
+    ConnectorError,
+    FetchedDocument,
+)
 
 
 class HttpConnector:
@@ -34,15 +37,21 @@ class HttpConnector:
         return await asyncio.to_thread(self._fetch_sync, source_uri)
 
     def _fetch_sync(self, source_uri: str) -> FetchedDocument:
-        request = Request(source_uri, headers={"User-Agent": self._user_agent})  # noqa: S310
+        request = Request(
+            source_uri, headers={"User-Agent": self._user_agent}
+        )  # noqa: S310
         try:
-            with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+            with urlopen(
+                request, timeout=self._timeout_seconds
+            ) as response:  # noqa: S310
                 content = response.read()
                 headers = Message()
                 for key, value in response.headers.items():
                     headers[key] = value
         except HTTPError as exc:
-            raise ConnectorError(f"HTTP fetch failed with status {exc.code}: {source_uri}") from exc
+            raise ConnectorError(
+                f"HTTP fetch failed with status {exc.code}: {source_uri}"
+            ) from exc
         except URLError as exc:
             raise ConnectorError(f"HTTP fetch failed: {source_uri}") from exc
 

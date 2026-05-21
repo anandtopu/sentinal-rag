@@ -158,8 +158,12 @@ class CostService:
         projected = spend + reserved + estimate_usd
 
         # Compute thresholds in USD.
-        soft_limit = budget.limit_usd * Decimal(budget.soft_threshold_pct) / Decimal(100)
-        hard_limit = budget.limit_usd * Decimal(budget.hard_threshold_pct) / Decimal(100)
+        soft_limit = (
+            budget.limit_usd * Decimal(budget.soft_threshold_pct) / Decimal(100)
+        )
+        hard_limit = (
+            budget.limit_usd * Decimal(budget.hard_threshold_pct) / Decimal(100)
+        )
 
         period_end_iso = budget.current_period_end.isoformat()
 

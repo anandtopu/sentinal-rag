@@ -85,7 +85,9 @@ class GcsStorage:
 
         return await asyncio.to_thread(_head)
 
-    async def list_keys(self, prefix: str, *, page_size: int = 1000) -> AsyncIterator[str]:
+    async def list_keys(
+        self, prefix: str, *, page_size: int = 1000
+    ) -> AsyncIterator[str]:
         def _list() -> list[str]:
             return [
                 cast(str, blob.name)
@@ -115,7 +117,9 @@ class GcsStorage:
             await asyncio.to_thread(close)
 
 
-def _metadata_from_blob(blob: storage.Blob, *, key: str | None = None) -> ObjectMetadata:
+def _metadata_from_blob(
+    blob: storage.Blob, *, key: str | None = None
+) -> ObjectMetadata:
     updated = blob.updated
     if updated is not None and updated.tzinfo is None:
         updated = updated.replace(tzinfo=UTC)

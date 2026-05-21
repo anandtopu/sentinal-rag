@@ -20,7 +20,9 @@ from starlette.responses import StreamingResponse
 
 
 class FakeResult:
-    def __init__(self, *, one: object | None = None, many: list[object] | None = None) -> None:
+    def __init__(
+        self, *, one: object | None = None, many: list[object] | None = None
+    ) -> None:
         self.one = one
         self.many = many or []
 
@@ -42,7 +44,9 @@ class FakeSession:
         return result
 
 
-def _auth(*, permissions: frozenset[str] = frozenset({"queries:execute"})) -> AuthContext:
+def _auth(
+    *, permissions: frozenset[str] = frozenset({"queries:execute"})
+) -> AuthContext:
     return AuthContext(
         tenant_id=uuid4(),
         user_id=uuid4(),
@@ -88,7 +92,9 @@ def _request(*, model: str = "ollama/llama3.1:8b") -> QueryRequest:
     )
 
 
-async def _collect_stream(response: StreamingResponse, *, limit: int = 10) -> list[bytes]:
+async def _collect_stream(
+    response: StreamingResponse, *, limit: int = 10
+) -> list[bytes]:
     chunks: list[bytes] = []
     async for chunk in response.body_iterator:
         chunks.append(chunk)
@@ -256,7 +262,10 @@ async def test_stream_trace_waits_until_session_exists(
             return None
         return SimpleNamespace(
             status="completed",
-            model_dump=lambda mode: {"query_session_id": str(query_session_id), "mode": mode},
+            model_dump=lambda mode: {
+                "query_session_id": str(query_session_id),
+                "mode": mode,
+            },
         )
 
     async def no_sleep(_seconds: float) -> None:

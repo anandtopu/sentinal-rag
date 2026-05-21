@@ -5,7 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import TIMESTAMP, Boolean, ForeignKey, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,7 +22,9 @@ from app.db.base import Base
 
 class Role(Base):
     __tablename__ = "roles"
-    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_roles_tenant_id_name"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_roles_tenant_id_name"),
+    )
 
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

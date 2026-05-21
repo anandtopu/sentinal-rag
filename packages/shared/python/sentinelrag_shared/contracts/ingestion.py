@@ -23,7 +23,9 @@ class IngestionWorkflowInput(Contract):
     document_id: UUID
     storage_uri: str = Field(..., min_length=1)
     mime_type: str = Field(..., min_length=1)
-    chunking_strategy: Literal["semantic", "sliding_window", "structure_aware"] = "semantic"
+    chunking_strategy: Literal["semantic", "sliding_window", "structure_aware"] = (
+        "semantic"
+    )
     parsing_strategy: Literal["fast", "hi_res", "ocr_only", "auto"] = "fast"
     embedding_model: str = Field(..., min_length=1)
     metadata: dict[str, Any] = Field(default_factory=dict)

@@ -68,9 +68,13 @@ class UserService:
 
         role = await RoleRepository(self.db).get(role_id)
         if role is None:
-            from sentinelrag_shared.errors.exceptions import RoleNotFoundError  # noqa: PLC0415
+            from sentinelrag_shared.errors.exceptions import (
+                RoleNotFoundError,
+            )  # noqa: PLC0415
 
             raise RoleNotFoundError()
         # IntegrityError → already assigned, swallow for idempotency.
         with contextlib.suppress(IntegrityError):
-            await self.repo.assign_role(user_id=user_id, role_id=role_id, granted_by=granted_by)
+            await self.repo.assign_role(
+                user_id=user_id, role_id=role_id, granted_by=granted_by
+            )

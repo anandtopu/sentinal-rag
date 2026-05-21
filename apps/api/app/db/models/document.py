@@ -56,7 +56,9 @@ class Document(Base):
     sensitivity_level: Mapped[str] = mapped_column(
         String, nullable=False, server_default=text("'internal'")
     )
-    status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'pending'"))
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'pending'")
+    )
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
@@ -74,7 +76,9 @@ class Document(Base):
 class DocumentVersion(Base):
     __tablename__ = "document_versions"
     __table_args__ = (
-        UniqueConstraint("document_id", "version_number", name="uq_document_versions_doc_version"),
+        UniqueConstraint(
+            "document_id", "version_number", name="uq_document_versions_doc_version"
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -151,7 +155,9 @@ class DocumentChunk(Base):
 class ChunkEmbedding(Base):
     __tablename__ = "chunk_embeddings"
     __table_args__ = (
-        UniqueConstraint("chunk_id", "embedding_model", name="uq_chunk_embeddings_chunk_model"),
+        UniqueConstraint(
+            "chunk_id", "embedding_model", name="uq_chunk_embeddings_chunk_model"
+        ),
         CheckConstraint(
             "(embedding_768 IS NOT NULL)::int + "
             "(embedding_1024 IS NOT NULL)::int + "
@@ -176,9 +182,15 @@ class ChunkEmbedding(Base):
         nullable=False,
     )
     embedding_model: Mapped[str] = mapped_column(String, nullable=False)
-    embedding_768: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
-    embedding_1024: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
-    embedding_1536: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
+    embedding_768: Mapped[list[float] | None] = mapped_column(
+        Vector(768), nullable=True
+    )
+    embedding_1024: Mapped[list[float] | None] = mapped_column(
+        Vector(1024), nullable=True
+    )
+    embedding_1536: Mapped[list[float] | None] = mapped_column(
+        Vector(1536), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

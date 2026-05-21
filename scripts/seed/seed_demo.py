@@ -20,11 +20,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 # Defaults match apps/api/app/core/config.py.
-DEMO_TENANT_ID = UUID(os.environ.get("DEV_TENANT_ID", "00000000-0000-0000-0000-000000000001"))
+DEMO_TENANT_ID = UUID(
+    os.environ.get("DEV_TENANT_ID", "00000000-0000-0000-0000-000000000001")
+)
 DEMO_TENANT_SLUG = "demo"
 DEMO_TENANT_NAME = "Demo Tenant"
 
-DEMO_USER_ID = UUID(os.environ.get("DEV_USER_ID", "00000000-0000-0000-0000-000000000010"))
+DEMO_USER_ID = UUID(
+    os.environ.get("DEV_USER_ID", "00000000-0000-0000-0000-000000000010")
+)
 DEMO_USER_EMAIL = os.environ.get("DEV_USER_EMAIL", "demo-admin@sentinelrag.example.com")
 
 DEMO_ROLE_ID = UUID("00000000-0000-0000-0000-000000000020")
@@ -46,7 +50,11 @@ async def seed() -> None:
                 "VALUES (:id, :name, :slug, 'enterprise') "
                 "ON CONFLICT (id) DO NOTHING"
             ),
-            {"id": str(DEMO_TENANT_ID), "name": DEMO_TENANT_NAME, "slug": DEMO_TENANT_SLUG},
+            {
+                "id": str(DEMO_TENANT_ID),
+                "name": DEMO_TENANT_NAME,
+                "slug": DEMO_TENANT_SLUG,
+            },
         )
 
         # 2. User.
@@ -56,7 +64,11 @@ async def seed() -> None:
                 "VALUES (:id, :tid, :email, 'Demo Admin') "
                 "ON CONFLICT (id) DO NOTHING"
             ),
-            {"id": str(DEMO_USER_ID), "tid": str(DEMO_TENANT_ID), "email": DEMO_USER_EMAIL},
+            {
+                "id": str(DEMO_USER_ID),
+                "tid": str(DEMO_TENANT_ID),
+                "email": DEMO_USER_EMAIL,
+            },
         )
 
         # 3. Role.
@@ -66,7 +78,11 @@ async def seed() -> None:
                 "VALUES (:id, :tid, :name, 'Demo admin role with all permissions') "
                 "ON CONFLICT (id) DO NOTHING"
             ),
-            {"id": str(DEMO_ROLE_ID), "tid": str(DEMO_TENANT_ID), "name": DEMO_ROLE_NAME},
+            {
+                "id": str(DEMO_ROLE_ID),
+                "tid": str(DEMO_TENANT_ID),
+                "name": DEMO_ROLE_NAME,
+            },
         )
 
         # 4. Grant ALL permissions to the demo role.

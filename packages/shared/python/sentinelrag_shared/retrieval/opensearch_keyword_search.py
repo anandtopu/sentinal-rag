@@ -167,7 +167,11 @@ class OpenSearchKeywordSearch:
                     ],
                     "filter": [
                         {"term": {"tenant_id": str(auth.tenant_id)}},
-                        {"terms": {"collection_id": [str(cid) for cid in authorized_ids]}},
+                        {
+                            "terms": {
+                                "collection_id": [str(cid) for cid in authorized_ids]
+                            }
+                        },
                     ],
                 }
             },
@@ -206,7 +210,9 @@ class OpenSearchKeywordSearch:
         predicate = self.access_filter.build(auth=auth, collection_ids=requested)
         # CTE plus a trivial SELECT against it. predicate.params already
         # carries auth_user_id, auth_tenant_id, min_access_rank.
-        sql = (predicate.cte_sql or "") + "\nSELECT collection_id FROM authorized_collections"
+        sql = (
+            predicate.cte_sql or ""
+        ) + "\nSELECT collection_id FROM authorized_collections"
 
         result = await self.session.execute(text(sql), predicate.params)
         ids = [UUID(str(row.collection_id)) for row in result.fetchall()]
@@ -255,7 +261,9 @@ class OpenSearchKeywordSearch:
         )
         if response.get("errors"):
             failed = sum(
-                1 for item in response.get("items", []) if next(iter(item.values())).get("error")
+                1
+                for item in response.get("items", [])
+                if next(iter(item.values())).get("error")
             )
             return len(chunks) - failed
         return len(chunks)

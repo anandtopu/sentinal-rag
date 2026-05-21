@@ -204,8 +204,12 @@ def test_idempotency_body_hash_is_stable() -> None:
 def test_idempotency_cache_key_includes_tenant() -> None:
     tenant_a = uuid4()
     tenant_b = uuid4()
-    k_a = IdempotencyService.cache_key(tenant_id=tenant_a, idempotency_key="k1", body_hash="b1")
-    k_b = IdempotencyService.cache_key(tenant_id=tenant_b, idempotency_key="k1", body_hash="b1")
+    k_a = IdempotencyService.cache_key(
+        tenant_id=tenant_a, idempotency_key="k1", body_hash="b1"
+    )
+    k_b = IdempotencyService.cache_key(
+        tenant_id=tenant_b, idempotency_key="k1", body_hash="b1"
+    )
     assert k_a != k_b
     assert str(tenant_a) in k_a
     assert str(tenant_b) in k_b
@@ -221,7 +225,9 @@ async def test_reservation_round_trip() -> None:
     svc = BudgetReservationService(fake)
     tenant = uuid4()
     req = uuid4()
-    await svc.reserve(tenant_id=tenant, request_id=req, amount_usd=Decimal("0.02"), ttl_seconds=60)
+    await svc.reserve(
+        tenant_id=tenant, request_id=req, amount_usd=Decimal("0.02"), ttl_seconds=60
+    )
     total = await svc.total_reserved(tenant_id=tenant)
     assert total == Decimal("0.02")
     await svc.release(tenant_id=tenant, request_id=req)

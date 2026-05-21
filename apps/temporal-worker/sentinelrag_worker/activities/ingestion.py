@@ -46,7 +46,9 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
-        _session_factory = async_sessionmaker(bind=_engine, expire_on_commit=False, autoflush=False)
+        _session_factory = async_sessionmaker(
+            bind=_engine, expire_on_commit=False, autoflush=False
+        )
     return _session_factory
 
 
@@ -65,7 +67,9 @@ async def _session_for_tenant(tenant_id: UUID) -> AsyncIterator[AsyncSession]:
 def _build_storage() -> ObjectStorage:
     return build_object_storage(
         provider=os.environ.get("OBJECT_STORAGE_PROVIDER", "minio"),
-        bucket=os.environ.get("OBJECT_STORAGE_BUCKET_DOCUMENTS", "sentinelrag-documents"),
+        bucket=os.environ.get(
+            "OBJECT_STORAGE_BUCKET_DOCUMENTS", "sentinelrag-documents"
+        ),
         region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
         endpoint=os.environ.get("OBJECT_STORAGE_ENDPOINT"),
         access_key=os.environ.get("OBJECT_STORAGE_ACCESS_KEY"),
@@ -86,7 +90,9 @@ async def mark_job_running(job_id: str, tenant_id: str, document_id: str) -> Non
     tid = _as_uuid(tenant_id)
     async with _session_for_tenant(tid) as session:
         await session.execute(
-            text("UPDATE ingestion_jobs SET status='running', started_at=now() WHERE id=:id"),
+            text(
+                "UPDATE ingestion_jobs SET status='running', started_at=now() WHERE id=:id"
+            ),
             {"id": str(_as_uuid(job_id))},
         )
         await session.execute(
@@ -96,7 +102,9 @@ async def mark_job_running(job_id: str, tenant_id: str, document_id: str) -> Non
 
 
 @activity.defn
-async def mark_job_failed(job_id: str, tenant_id: str, document_id: str, error: str) -> None:
+async def mark_job_failed(
+    job_id: str, tenant_id: str, document_id: str, error: str
+) -> None:
     tid = _as_uuid(tenant_id)
     async with _session_for_tenant(tid) as session:
         await session.execute(
@@ -143,7 +151,9 @@ async def upsert_document_version(
     did = _as_uuid(document_id)
     async with _session_for_tenant(tid) as session:
         existing = await session.execute(
-            text("SELECT id FROM document_versions WHERE document_id=:did AND content_hash=:h"),
+            text(
+                "SELECT id FROM document_versions WHERE document_id=:did AND content_hash=:h"
+            ),
             {"did": str(did), "h": content_hash},
         )
         row = existing.first()
@@ -206,7 +216,9 @@ async def parse_document(
         )
         await storage.put(
             elements_uri,
-            json.dumps([_element_to_dict(e) for e in elements], default=str).encode("utf-8"),
+            json.dumps([_element_to_dict(e) for e in elements], default=str).encode(
+                "utf-8"
+            ),
             content_type="application/json",
             custom_metadata={"tenant_id": tenant_id},
         )
@@ -252,7 +264,10 @@ async def chunk_and_persist(
     Idempotent on (document_version_id, chunk_index) — re-running deletes
     the previous chunks for this version first.
     """
-    from sentinelrag_shared.chunking import ChunkingStrategy, get_chunker  # noqa: PLC0415
+    from sentinelrag_shared.chunking import (
+        ChunkingStrategy,
+        get_chunker,
+    )  # noqa: PLC0415
 
     tid = _as_uuid(tenant_id)
     did = _as_uuid(document_id)
@@ -307,9 +322,11 @@ async def embed_chunks(tenant_id: str, version_id: str, embedding_model: str) ->
 
     embedder = LiteLLMEmbedder(
         model_name=embedding_model,
-        api_base=os.environ.get("OLLAMA_BASE_URL")
-        if embedding_model.startswith("ollama/")
-        else None,
+        api_base=(
+            os.environ.get("OLLAMA_BASE_URL")
+            if embedding_model.startswith("ollama/")
+            else None
+        ),
     )
     dim = embedder.dimension
     if dim not in {768, 1024, 1536}:
@@ -424,12 +441,22 @@ def _element_to_dict(element: ParsedElement) -> dict[str, Any]:
 def _element_from_dict(item: dict[str, Any]) -> ParsedElement:
     return ParsedElement(
         text=str(item.get("text") or ""),
-        element_type=ElementType(str(item.get("element_type") or ElementType.UNCATEGORIZED)),
-        page_number=item.get("page_number") if isinstance(item.get("page_number"), int) else None,
-        section_title=item.get("section_title")
-        if isinstance(item.get("section_title"), str)
-        else None,
-        table_html=item.get("table_html") if isinstance(item.get("table_html"), str) else None,
+        element_type=ElementType(
+            str(item.get("element_type") or ElementType.UNCATEGORIZED)
+        ),
+        page_number=(
+            item.get("page_number")
+            if isinstance(item.get("page_number"), int)
+            else None
+        ),
+        section_title=(
+            item.get("section_title")
+            if isinstance(item.get("section_title"), str)
+            else None
+        ),
+        table_html=(
+            item.get("table_html") if isinstance(item.get("table_html"), str) else None
+        ),
         metadata=item.get("metadata") if isinstance(item.get("metadata"), dict) else {},
     )
 

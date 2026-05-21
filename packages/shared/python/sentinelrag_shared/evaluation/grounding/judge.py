@@ -110,7 +110,9 @@ class LiteLLMJudge:
                 reasoning=(result.text or "")[:200] or "unparseable",
                 latency_ms=latency_ms,
             )
-        verdict: JudgeVerdict = "pass" if verdict_match.group(1).upper() == "PASS" else "fail"
+        verdict: JudgeVerdict = (
+            "pass" if verdict_match.group(1).upper() == "PASS" else "fail"
+        )
         reasoning = _extract_reason(result.text or "")
         return JudgeResult(
             verdict=verdict,

@@ -64,7 +64,9 @@ class EvaluationRunWorkflow:
                         "case_id": case_id,
                         "tenant_id": str(payload.tenant_id),
                         "actor_user_id": (
-                            str(payload.actor_user_id) if payload.actor_user_id else None
+                            str(payload.actor_user_id)
+                            if payload.actor_user_id
+                            else None
                         ),
                         "collection_ids": [str(c) for c in payload.collection_ids],
                         "prompt_version_id": (

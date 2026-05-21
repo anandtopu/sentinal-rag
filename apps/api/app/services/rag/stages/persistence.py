@@ -78,9 +78,13 @@ class PersistenceStage:
 
     async def _persist_generated_answer(self, ctx: QueryContext) -> UUID:
         assert ctx.query_session_id is not None
-        prompt_version_id = ctx.resolved_prompt.id if ctx.resolved_prompt is not None else None
+        prompt_version_id = (
+            ctx.resolved_prompt.id if ctx.resolved_prompt is not None else None
+        )
         model_provider = (
-            ctx.effective_model.split("/", 1)[0] if "/" in ctx.effective_model else "unknown"
+            ctx.effective_model.split("/", 1)[0]
+            if "/" in ctx.effective_model
+            else "unknown"
         )
         return await self._answers.create(
             tenant_id=ctx.auth.tenant_id,

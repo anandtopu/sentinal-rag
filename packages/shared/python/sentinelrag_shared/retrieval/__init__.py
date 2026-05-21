@@ -12,7 +12,10 @@ AccessFilter is applied to BOTH BM25 and vector queries before candidates are
 fetched — unauthorized chunks never enter the rerank/generation path.
 """
 
-from sentinelrag_shared.retrieval.access_filter import AccessFilter, AccessFilterPredicate
+from sentinelrag_shared.retrieval.access_filter import (
+    AccessFilter,
+    AccessFilterPredicate,
+)
 from sentinelrag_shared.retrieval.candidate import Candidate, RetrievalStage
 from sentinelrag_shared.retrieval.hybrid import (
     HybridRetrievalResult,

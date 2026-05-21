@@ -140,7 +140,9 @@ class TestJWTVerifier:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_missing_tenant_claim_rejected(self, keypair_and_jwks, base_claims) -> None:
+    async def test_missing_tenant_claim_rejected(
+        self, keypair_and_jwks, base_claims
+    ) -> None:
         priv, jwk = keypair_and_jwks
         _stub_jwks(jwk)
         verifier = _verifier()
@@ -153,7 +155,9 @@ class TestJWTVerifier:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_tampered_signature_rejected(self, keypair_and_jwks, base_claims) -> None:
+    async def test_tampered_signature_rejected(
+        self, keypair_and_jwks, base_claims
+    ) -> None:
         priv, jwk = keypair_and_jwks
         _stub_jwks(jwk)
         verifier = _verifier()

@@ -163,7 +163,9 @@ def merge_with_rrf(
 
     ranked = sorted(scored.values(), key=lambda x: x[0], reverse=True)
     out: list[Candidate] = []
-    for new_rank, (rrf_score, cand, bm25_rank, vector_rank) in enumerate(ranked[:top_k], start=1):
+    for new_rank, (rrf_score, cand, bm25_rank, vector_rank) in enumerate(
+        ranked[:top_k], start=1
+    ):
         out.append(
             Candidate(
                 chunk_id=cand.chunk_id,

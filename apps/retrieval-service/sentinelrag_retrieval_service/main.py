@@ -217,9 +217,11 @@ async def retrieve(payload: RetrieveRequest) -> RetrieveResponse:
     if payload.mode != "bm25":
         embedder = LiteLLMEmbedder(
             model_name=settings.default_embedding_model,
-            api_base=settings.ollama_base_url
-            if settings.default_embedding_model.startswith("ollama/")
-            else None,
+            api_base=(
+                settings.ollama_base_url
+                if settings.default_embedding_model.startswith("ollama/")
+                else None
+            ),
         )
         embedding_result = await embedder.embed([payload.query])
 
@@ -246,7 +248,9 @@ async def _run_retrieval(
     embedding_result: EmbeddingResult | None,
 ) -> RetrieveResponse:
     access_filter = AccessFilter()
-    keyword_search = PostgresFtsKeywordSearch(session=session, access_filter=access_filter)
+    keyword_search = PostgresFtsKeywordSearch(
+        session=session, access_filter=access_filter
+    )
 
     if payload.mode == "bm25":
         bm25 = await keyword_search.search(
@@ -364,7 +368,9 @@ def _usage_to_dto(usage: UsageRecord | None) -> EmbeddingUsageDTO | None:
         model_name=usage.model_name,
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
-        total_cost_usd=usage.total_cost_usd if usage.total_cost_usd is not None else None,
+        total_cost_usd=(
+            usage.total_cost_usd if usage.total_cost_usd is not None else None
+        ),
         latency_ms=usage.latency_ms,
     )
 

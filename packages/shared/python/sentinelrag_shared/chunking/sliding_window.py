@@ -11,7 +11,12 @@ from collections.abc import Sequence
 
 import tiktoken
 
-from sentinelrag_shared.chunking.base import Chunk, Chunker, ChunkingStrategy, count_tokens
+from sentinelrag_shared.chunking.base import (
+    Chunk,
+    Chunker,
+    ChunkingStrategy,
+    count_tokens,
+)
 from sentinelrag_shared.parsing.elements import ParsedElement
 
 _ENCODING = tiktoken.get_encoding("cl100k_base")

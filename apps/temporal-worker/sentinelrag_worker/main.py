@@ -72,7 +72,9 @@ async def main() -> None:
         audit_queue=settings.audit_task_queue,
     )
 
-    client = await Client.connect(settings.temporal_host, namespace=settings.temporal_namespace)
+    client = await Client.connect(
+        settings.temporal_host, namespace=settings.temporal_namespace
+    )
 
     ingestion_worker = Worker(
         client,

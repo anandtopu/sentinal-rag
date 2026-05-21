@@ -6,7 +6,16 @@ import json
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from sentinelrag_shared.auth import AuthContext
 from sentinelrag_shared.errors.exceptions import NotFoundError, ValidationFailedError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +58,9 @@ async def upload_document(
     chunking_strategy: Annotated[
         Literal["semantic", "sliding_window", "structure_aware"], Form()
     ] = "semantic",
-    parsing_strategy: Annotated[Literal["fast", "hi_res", "ocr_only", "auto"], Form()] = "fast",
+    parsing_strategy: Annotated[
+        Literal["fast", "hi_res", "ocr_only", "auto"], Form()
+    ] = "fast",
     metadata: Annotated[str, Form()] = "{}",
     force_reindex: Annotated[bool, Query()] = False,
 ) -> DocumentUploadResponse:

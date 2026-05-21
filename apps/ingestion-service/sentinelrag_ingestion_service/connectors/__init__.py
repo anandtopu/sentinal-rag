@@ -15,7 +15,9 @@ from sentinelrag_ingestion_service.connectors.base import (
 from sentinelrag_ingestion_service.connectors.http import HttpConnector
 from sentinelrag_ingestion_service.connectors.inline import InlineTextConnector
 from sentinelrag_ingestion_service.connectors.local_file import LocalFileConnector
-from sentinelrag_ingestion_service.connectors.object_storage import ObjectStorageConnector
+from sentinelrag_ingestion_service.connectors.object_storage import (
+    ObjectStorageConnector,
+)
 
 __all__ = [
     "ConnectorError",

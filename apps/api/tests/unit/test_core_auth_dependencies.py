@@ -99,11 +99,15 @@ async def test_require_auth_dev_token_resolves_seeded_user_and_binds_context(
 ) -> None:
     user = _user()
     monkeypatch.setattr(auth_module, "get_settings", FakeSettings)
-    monkeypatch.setattr(auth_module, "UserRepository", lambda db: FakeUserRepo(db, user=user))
+    monkeypatch.setattr(
+        auth_module, "UserRepository", lambda db: FakeUserRepo(db, user=user)
+    )
     monkeypatch.setattr(
         auth_module,
         "RoleRepository",
-        lambda db: FakeRoleRepo(db, permissions=["queries:execute", "llm:cloud_models"]),
+        lambda db: FakeRoleRepo(
+            db, permissions=["queries:execute", "llm:cloud_models"]
+        ),
     )
 
     ctx = await auth_module.require_auth(
@@ -125,7 +129,9 @@ async def test_require_auth_dev_token_requires_seeded_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(auth_module, "get_settings", FakeSettings)
-    monkeypatch.setattr(auth_module, "UserRepository", lambda db: FakeUserRepo(db, user=None))
+    monkeypatch.setattr(
+        auth_module, "UserRepository", lambda db: FakeUserRepo(db, user=None)
+    )
 
     with pytest.raises(AuthInvalidError, match="demo user is not seeded"):
         await auth_module.require_auth(
@@ -141,14 +147,18 @@ async def test_require_auth_jwt_existing_user_loads_database_permissions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     user = _user()
-    claims = SimpleNamespace(sub="keycloak-sub", tenant_id=user.tenant_id, email=user.email)
+    claims = SimpleNamespace(
+        sub="keycloak-sub", tenant_id=user.tenant_id, email=user.email
+    )
     settings = SimpleNamespace(
         environment="dev",
         auth_allow_dev_token=False,
         dev_token_value="dev",
     )
     monkeypatch.setattr(auth_module, "get_settings", lambda: settings)
-    monkeypatch.setattr(auth_module, "UserRepository", lambda db: FakeUserRepo(db, user=user))
+    monkeypatch.setattr(
+        auth_module, "UserRepository", lambda db: FakeUserRepo(db, user=user)
+    )
     monkeypatch.setattr(
         auth_module,
         "RoleRepository",

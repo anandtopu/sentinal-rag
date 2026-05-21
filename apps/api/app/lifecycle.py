@@ -116,9 +116,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # path because it overrides the model alias per evaluation run.
     app.state.embedder = LiteLLMEmbedder(
         model_name=settings.default_embedding_model,
-        api_base=settings.ollama_base_url
-        if settings.default_embedding_model.startswith("ollama/")
-        else None,
+        api_base=(
+            settings.ollama_base_url
+            if settings.default_embedding_model.startswith("ollama/")
+            else None
+        ),
     )
     log.info("embedder.loaded", model=settings.default_embedding_model)
 

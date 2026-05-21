@@ -88,7 +88,9 @@ async def execute_query(
     # response of the old payload.
     cache_key: str | None = None
     if idempotency_key:
-        body_hash = IdempotencyService.body_hash(payload.model_dump_json().encode("utf-8"))
+        body_hash = IdempotencyService.body_hash(
+            payload.model_dump_json().encode("utf-8")
+        )
         cache_key = IdempotencyService.cache_key(
             tenant_id=ctx.tenant_id,
             idempotency_key=idempotency_key,
@@ -172,7 +174,9 @@ async def _resolve_idempotent_response(
     return QueryResponse.model_validate(cached)
 
 
-def _to_query_response(result: QueryResult, *, include_citations: bool = True) -> QueryResponse:
+def _to_query_response(
+    result: QueryResult, *, include_citations: bool = True
+) -> QueryResponse:
     citations: list[CitationRead] = []
     if include_citations:
         citations = [
@@ -207,7 +211,9 @@ def _to_query_response(result: QueryResult, *, include_citations: bool = True) -
     )
 
 
-async def _build_trace(db: AsyncSession, query_session_id: UUID) -> QueryTraceResponse | None:
+async def _build_trace(
+    db: AsyncSession, query_session_id: UUID
+) -> QueryTraceResponse | None:
     """Read the full trace for a session in one round-trip set.
 
     Returns ``None`` when the session row doesn't exist (yet) — used by the
@@ -270,7 +276,9 @@ async def _build_trace(db: AsyncSession, query_session_id: UUID) -> QueryTraceRe
                 prompt_version_id=gen_row.prompt_version_id,
                 input_tokens=gen_row.input_tokens,
                 output_tokens=gen_row.output_tokens,
-                cost_usd=float(gen_row.cost_usd) if gen_row.cost_usd is not None else None,
+                cost_usd=(
+                    float(gen_row.cost_usd) if gen_row.cost_usd is not None else None
+                ),
                 grounding_score=gen_row.grounding_score,
                 hallucination_risk_score=gen_row.hallucination_risk_score,
                 confidence_score=gen_row.confidence_score,

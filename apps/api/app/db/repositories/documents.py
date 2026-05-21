@@ -18,7 +18,9 @@ from app.db.repositories.base import BaseRepository
 class DocumentRepository(BaseRepository[Document]):
     model = Document
 
-    async def get_by_checksum(self, *, tenant_id: UUID, checksum: str) -> Document | None:
+    async def get_by_checksum(
+        self, *, tenant_id: UUID, checksum: str
+    ) -> Document | None:
         stmt = select(Document).where(
             Document.tenant_id == tenant_id,
             Document.checksum == checksum,
@@ -44,7 +46,9 @@ class DocumentRepository(BaseRepository[Document]):
         return list(result.scalars().all())
 
     async def count_for_collection(self, collection_id: UUID) -> int:
-        stmt = select(func.count(Document.id)).where(Document.collection_id == collection_id)
+        stmt = select(func.count(Document.id)).where(
+            Document.collection_id == collection_id
+        )
         result = await self.session.execute(stmt)
         return int(result.scalar_one())
 

@@ -117,7 +117,9 @@ class TestReconcileOneTenant:
     async def test_no_drift_no_backfill(self) -> None:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(3)]
-        result, put_log = await self._run(pg_events=events, s3_keys=[e.id for e in events])
+        result, put_log = await self._run(
+            pg_events=events, s3_keys=[e.id for e in events]
+        )
         assert result.pg_count == 3
         assert result.s3_count == 3
         assert result.missing_in_s3 == 0
@@ -129,7 +131,9 @@ class TestReconcileOneTenant:
         tenant = uuid4()
         events = [_event(tenant) for _ in range(4)]
         # Only 2 of the 4 are in S3.
-        result, put_log = await self._run(pg_events=events, s3_keys=[events[0].id, events[1].id])
+        result, put_log = await self._run(
+            pg_events=events, s3_keys=[events[0].id, events[1].id]
+        )
         assert result.missing_in_s3 == 2
         assert result.backfilled == 2
         assert set(put_log) == {events[2].id, events[3].id}
@@ -154,7 +158,9 @@ class TestReconcileOneTenant:
         tenant = uuid4()
         in_pg = [_event(tenant)]
         orphan = uuid4()
-        result, put_log = await self._run(pg_events=in_pg, s3_keys=[in_pg[0].id, orphan])
+        result, put_log = await self._run(
+            pg_events=in_pg, s3_keys=[in_pg[0].id, orphan]
+        )
         # Orphan is reported, never touched — Object Lock makes deletion
         # impossible and the alarm is the right response.
         assert result.missing_in_pg == 1
@@ -171,7 +177,9 @@ class TestReconcileOneTenant:
 
         # Second run with the now-repaired state — no drift, no puts.
         # Simulate "after repair" by including all event ids in s3_keys.
-        second, second_log = await self._run(pg_events=events, s3_keys=[e.id for e in events])
+        second, second_log = await self._run(
+            pg_events=events, s3_keys=[e.id for e in events]
+        )
         assert second.missing_in_s3 == 0
         assert second.backfilled == 0
         assert second_log == []

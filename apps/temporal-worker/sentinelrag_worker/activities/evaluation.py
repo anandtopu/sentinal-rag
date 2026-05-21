@@ -47,7 +47,9 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         dsn = get_database_url()
         _engine = create_async_engine(dsn, pool_pre_ping=True, pool_size=5)
-        _session_factory = async_sessionmaker(bind=_engine, expire_on_commit=False, autoflush=False)
+        _session_factory = async_sessionmaker(
+            bind=_engine, expire_on_commit=False, autoflush=False
+        )
     return _session_factory
 
 
@@ -71,7 +73,9 @@ def _build_reranker() -> Reranker:
         return NoOpReranker()
     try:
         return BgeReranker(
-            model_name=os.environ.get("DEFAULT_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+            model_name=os.environ.get(
+                "DEFAULT_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"
+            )
         )
     except RerankerError:
         return NoOpReranker()
@@ -89,7 +93,9 @@ _ALL_EVALUATORS: list[Evaluator] = [
 async def mark_run_running(run_id: str, tenant_id: str) -> None:
     async with _session_for_tenant(_as_uuid(tenant_id)) as session:
         result = await session.execute(
-            text("UPDATE evaluation_runs SET status='running', started_at=now() WHERE id=:id"),
+            text(
+                "UPDATE evaluation_runs SET status='running', started_at=now() WHERE id=:id"
+            ),
             {"id": str(_as_uuid(run_id))},
         )
         if result.rowcount != 1:
@@ -102,7 +108,9 @@ async def list_case_ids(dataset_id: str, tenant_id: str) -> list[str]:
     async with _session_for_tenant(_as_uuid(tenant_id)) as session:
         rows = (
             await session.execute(
-                text("SELECT id FROM evaluation_cases WHERE dataset_id=:did ORDER BY created_at"),
+                text(
+                    "SELECT id FROM evaluation_cases WHERE dataset_id=:did ORDER BY created_at"
+                ),
                 {"did": str(_as_uuid(dataset_id))},
             )
         ).fetchall()
@@ -191,7 +199,9 @@ async def score_case(
             user_id=eval_user_id,
             tenant_id=tid,
             email=eval_email,
-            permissions=frozenset({"queries:execute", "documents:read", "collections:read"}),
+            permissions=frozenset(
+                {"queries:execute", "documents:read", "collections:read"}
+            ),
         )
 
         orchestrator = Orchestrator(
@@ -208,30 +218,34 @@ async def score_case(
             query=str(case_row.input_query),
             auth=auth,
             collection_ids=[_as_uuid(c) for c in collection_ids],
-            retrieval=RetrievalConfig(
-                **{
-                    k: v
-                    for k, v in retrieval_config.items()
-                    if k
-                    in {
-                        "mode",
-                        "top_k_bm25",
-                        "top_k_vector",
-                        "top_k_hybrid",
-                        "top_k_rerank",
-                        "ef_search",
+            retrieval=(
+                RetrievalConfig(
+                    **{
+                        k: v
+                        for k, v in retrieval_config.items()
+                        if k
+                        in {
+                            "mode",
+                            "top_k_bm25",
+                            "top_k_vector",
+                            "top_k_hybrid",
+                            "top_k_rerank",
+                            "ef_search",
+                        }
                     }
-                }
-            )
-            if retrieval_config
-            else RetrievalConfig(),
+                )
+                if retrieval_config
+                else RetrievalConfig()
+            ),
             generation=GenerationConfig(
                 model=model_config.get("model", "ollama/llama3.1:8b"),
                 temperature=model_config.get("temperature", 0.1),
                 max_tokens=model_config.get("max_tokens", 800),
             ),
             options=QueryOptions(
-                prompt_version_id=_as_uuid(prompt_version_id) if prompt_version_id else None,
+                prompt_version_id=(
+                    _as_uuid(prompt_version_id) if prompt_version_id else None
+                ),
             ),
         )
 
@@ -264,7 +278,8 @@ async def score_case(
         eval_context = EvalContext(
             answer_text=result.answer,
             retrieved_chunks=[
-                {"chunk_id": str(r.chunk_id), "content": r.content} for r in retrieved_rows
+                {"chunk_id": str(r.chunk_id), "content": r.content}
+                for r in retrieved_rows
             ],
             cited_chunk_ids=[c.chunk_id for c in result.citations],
             cited_quoted_texts=[c.quoted_text or "" for c in result.citations],
@@ -357,7 +372,9 @@ async def record_case_failure(
 async def finalize_run(run_id: str, tenant_id: str, status: str = "completed") -> None:
     async with _session_for_tenant(_as_uuid(tenant_id)) as session:
         result = await session.execute(
-            text("UPDATE evaluation_runs SET status=:status, completed_at=now() WHERE id=:id"),
+            text(
+                "UPDATE evaluation_runs SET status=:status, completed_at=now() WHERE id=:id"
+            ),
             {"id": str(_as_uuid(run_id)), "status": status},
         )
         if result.rowcount != 1:

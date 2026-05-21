@@ -20,8 +20,12 @@ class DocumentCreate(APIModel):
 
     collection_id: UUID
     title: str | None = Field(default=None, max_length=500)
-    sensitivity_level: Literal["public", "internal", "confidential", "restricted"] = "internal"
-    chunking_strategy: Literal["semantic", "sliding_window", "structure_aware"] = "semantic"
+    sensitivity_level: Literal["public", "internal", "confidential", "restricted"] = (
+        "internal"
+    )
+    chunking_strategy: Literal["semantic", "sliding_window", "structure_aware"] = (
+        "semantic"
+    )
     parsing_strategy: Literal["fast", "hi_res", "ocr_only", "auto"] = "fast"
     metadata: dict[str, Any] = Field(default_factory=dict)
 

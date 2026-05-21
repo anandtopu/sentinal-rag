@@ -103,7 +103,9 @@ class PgvectorVectorSearch:
         # ef_search controls HNSW recall/latency. Set per-query via SET LOCAL
         # so it doesn't leak. Default 40 is pgvector's recommended value.
         if ef_search is not None:
-            await self.session.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}"))
+            await self.session.execute(
+                text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}")
+            )
 
         # We want the cosine *similarity* (higher = better) but pgvector's
         # ``<=>`` returns *distance* (lower = better). Convert with 1 - dist.

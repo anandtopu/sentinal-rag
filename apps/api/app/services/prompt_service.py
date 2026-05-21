@@ -148,11 +148,15 @@ class PromptService:
         template = await self.templates.get_by_name(task_type)
         if template is None:
             if task_type != DEFAULT_RAG_PROMPT_NAME:
-                raise NotFoundError(f"Prompt template for task '{task_type}' not found.")
+                raise NotFoundError(
+                    f"Prompt template for task '{task_type}' not found."
+                )
             return await self._seed_default_rag_prompt(tenant_id=tenant_id)
         version = await self.versions.get_default(template.id)
         if version is None:
-            raise NotFoundError(f"Default prompt version for task '{task_type}' not found.")
+            raise NotFoundError(
+                f"Default prompt version for task '{task_type}' not found."
+            )
         return version
 
     async def _seed_default_rag_prompt(self, *, tenant_id: UUID) -> PromptVersion:

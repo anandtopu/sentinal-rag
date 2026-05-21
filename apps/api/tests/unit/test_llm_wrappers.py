@@ -19,7 +19,9 @@ async def test_litellm_embedder_empty_input_returns_usage_without_provider_call(
     async def fail_if_called(**_kwargs: Any) -> dict[str, Any]:
         raise AssertionError("provider should not be called for an empty batch")
 
-    monkeypatch.setattr("sentinelrag_shared.llm.embedder.litellm.aembedding", fail_if_called)
+    monkeypatch.setattr(
+        "sentinelrag_shared.llm.embedder.litellm.aembedding", fail_if_called
+    )
     embedder = LiteLLMEmbedder(model_name="ollama/nomic-embed-text")
 
     result = await embedder.embed([])
@@ -47,7 +49,9 @@ async def test_litellm_embedder_batches_and_aggregates_usage(
             "_hidden_params": {"response_cost": 0.0015},
         }
 
-    monkeypatch.setattr("sentinelrag_shared.llm.embedder.litellm.aembedding", fake_aembedding)
+    monkeypatch.setattr(
+        "sentinelrag_shared.llm.embedder.litellm.aembedding", fake_aembedding
+    )
     embedder = LiteLLMEmbedder(
         model_name="ollama/nomic-embed-text",
         api_base="http://ollama:11434",
@@ -75,7 +79,9 @@ async def test_litellm_embedder_rejects_unexpected_dimension(
     async def fake_aembedding(**_kwargs: Any) -> dict[str, Any]:
         return {"data": [{"embedding": [0.1, 0.2]}], "usage": {"input_tokens": 3}}
 
-    monkeypatch.setattr("sentinelrag_shared.llm.embedder.litellm.aembedding", fake_aembedding)
+    monkeypatch.setattr(
+        "sentinelrag_shared.llm.embedder.litellm.aembedding", fake_aembedding
+    )
     embedder = LiteLLMEmbedder(model_name="ollama/nomic-embed-text", max_retries=1)
 
     with pytest.raises(EmbedderError, match="returned dim=2"):
@@ -90,7 +96,9 @@ async def test_litellm_embedder_wraps_provider_failures(
     async def fake_aembedding(**_kwargs: Any) -> dict[str, Any]:
         raise RuntimeError("provider unavailable")
 
-    monkeypatch.setattr("sentinelrag_shared.llm.embedder.litellm.aembedding", fake_aembedding)
+    monkeypatch.setattr(
+        "sentinelrag_shared.llm.embedder.litellm.aembedding", fake_aembedding
+    )
     embedder = LiteLLMEmbedder(model_name="ollama/nomic-embed-text", max_retries=1)
 
     with pytest.raises(EmbedderError, match="failed after 1 attempts") as exc_info:
@@ -119,7 +127,9 @@ async def test_litellm_generator_forwards_request_and_extracts_usage(
             "_hidden_params": {"response_cost": Decimal("0.0042")},
         }
 
-    monkeypatch.setattr("sentinelrag_shared.llm.generator.litellm.acompletion", fake_acompletion)
+    monkeypatch.setattr(
+        "sentinelrag_shared.llm.generator.litellm.acompletion", fake_acompletion
+    )
     generator = LiteLLMGenerator(
         model_name="openai/gpt-4.1-mini",
         api_base="https://litellm.example",
@@ -159,7 +169,9 @@ async def test_litellm_generator_wraps_provider_failures(
     async def fake_acompletion(**_kwargs: Any) -> dict[str, Any]:
         raise RuntimeError("timeout")
 
-    monkeypatch.setattr("sentinelrag_shared.llm.generator.litellm.acompletion", fake_acompletion)
+    monkeypatch.setattr(
+        "sentinelrag_shared.llm.generator.litellm.acompletion", fake_acompletion
+    )
     generator = LiteLLMGenerator(model_name="ollama/llama3.1:8b", max_retries=1)
 
     with pytest.raises(GeneratorError, match="failed after 1 attempts") as exc_info:
@@ -230,7 +242,9 @@ def test_bge_reranker_orders_compute_score_results(
 def test_bge_reranker_supports_predict_models() -> None:
     reranker = BgeReranker(batch_size=2)
 
-    assert reranker._score(_PredictModel(), [("query", "alpha"), ("query", "beta")]) == [0.3, 0.7]
+    assert reranker._score(
+        _PredictModel(), [("query", "alpha"), ("query", "beta")]
+    ) == [0.3, 0.7]
 
 
 @pytest.mark.unit

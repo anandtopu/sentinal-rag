@@ -231,7 +231,9 @@ def test_v1_retrieve_returns_503_when_service_token_unset() -> None:
 @pytest.mark.unit
 def test_v1_retrieve_returns_401_when_token_mismatches() -> None:
     """A wrong/missing bearer must not be accepted by the route."""
-    app.dependency_overrides[get_settings] = lambda: Settings(service_token="expected-secret")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        service_token="expected-secret"
+    )
     try:
         client = TestClient(app)
         response = client.post(
@@ -248,7 +250,9 @@ def test_v1_retrieve_returns_401_when_token_mismatches() -> None:
 @pytest.mark.unit
 def test_v1_retrieve_rejects_missing_auth_header() -> None:
     """No Authorization header should also 401 (token configured)."""
-    app.dependency_overrides[get_settings] = lambda: Settings(service_token="expected-secret")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        service_token="expected-secret"
+    )
     try:
         client = TestClient(app)
         response = client.post("/v1/retrieve", json=_retrieve_payload())
@@ -260,7 +264,9 @@ def test_v1_retrieve_rejects_missing_auth_header() -> None:
 @pytest.mark.unit
 def test_v1_retrieve_validates_request_body() -> None:
     """Bad mode → 422 before the auth check runs (FastAPI orders validators)."""
-    app.dependency_overrides[get_settings] = lambda: Settings(service_token="expected-secret")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        service_token="expected-secret"
+    )
     try:
         client = TestClient(app)
         bad = _retrieve_payload()
@@ -287,7 +293,9 @@ def test_healthz_alias_works() -> None:
 @pytest.mark.unit
 def test_capabilities_advertises_real_retrieval_when_token_configured() -> None:
     """With service_token set, /capabilities switches to the upgraded surface."""
-    app.dependency_overrides[get_settings] = lambda: Settings(service_token="expected-secret")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        service_token="expected-secret"
+    )
     try:
         client = TestClient(app)
         body = client.get("/capabilities").json()

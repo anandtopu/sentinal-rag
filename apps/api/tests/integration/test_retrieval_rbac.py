@@ -138,7 +138,9 @@ class TestRBACAtRetrievalTime:
         # Run search bound to tenant A's session.
         get_a_session = tenant_session_factory(a_tid)
         async for sess in get_a_session():
-            search = PostgresFtsKeywordSearch(session=sess, access_filter=AccessFilter())
+            search = PostgresFtsKeywordSearch(
+                session=sess, access_filter=AccessFilter()
+            )
 
             # Even when A explicitly requests both A's and B's collection,
             # only A's chunk should come back.
@@ -151,9 +153,9 @@ class TestRBACAtRetrievalTime:
 
         chunk_ids_returned = {r.chunk_id for r in results}
         assert a_chunk in chunk_ids_returned, "A's chunk MUST be in results"
-        assert b_chunk not in chunk_ids_returned, (
-            "B's chunk leaked into A's retrieval — RBAC is post-mask, not pre-filter"
-        )
+        assert (
+            b_chunk not in chunk_ids_returned
+        ), "B's chunk leaked into A's retrieval — RBAC is post-mask, not pre-filter"
 
     async def test_keyword_search_filters_to_requested_collection(
         self,
@@ -221,7 +223,9 @@ class TestRBACAtRetrievalTime:
         )
         get_session = tenant_session_factory(a_tid)
         async for sess in get_session():
-            search = PostgresFtsKeywordSearch(session=sess, access_filter=AccessFilter())
+            search = PostgresFtsKeywordSearch(
+                session=sess, access_filter=AccessFilter()
+            )
             # Request ONLY the first collection; the other-collection chunk must
             # not appear.
             results = await search.search(
@@ -233,6 +237,6 @@ class TestRBACAtRetrievalTime:
 
         chunk_ids = {r.chunk_id for r in results}
         assert a_chunk in chunk_ids
-        assert other_chunk not in chunk_ids, (
-            "collection_ids scope was not honored at retrieval time"
-        )
+        assert (
+            other_chunk not in chunk_ids
+        ), "collection_ids scope was not honored at retrieval time"

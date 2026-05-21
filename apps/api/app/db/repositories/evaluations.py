@@ -23,7 +23,9 @@ class EvaluationDatasetRepository(BaseRepository[EvaluationDataset]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def list_recent(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationDataset]:
+    async def list_recent(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[EvaluationDataset]:
         stmt = (
             select(EvaluationDataset)
             .order_by(EvaluationDataset.created_at.desc())
@@ -47,7 +49,9 @@ class EvaluationCaseRepository(BaseRepository[EvaluationCase]):
         return list(result.scalars().all())
 
     async def count_for_dataset(self, dataset_id: UUID) -> int:
-        stmt = select(func.count(EvaluationCase.id)).where(EvaluationCase.dataset_id == dataset_id)
+        stmt = select(func.count(EvaluationCase.id)).where(
+            EvaluationCase.dataset_id == dataset_id
+        )
         result = await self.session.execute(stmt)
         return int(result.scalar_one())
 
@@ -55,7 +59,9 @@ class EvaluationCaseRepository(BaseRepository[EvaluationCase]):
 class EvaluationRunRepository(BaseRepository[EvaluationRun]):
     model = EvaluationRun
 
-    async def list_recent(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationRun]:
+    async def list_recent(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[EvaluationRun]:
         stmt = (
             select(EvaluationRun)
             .order_by(EvaluationRun.created_at.desc())
@@ -70,7 +76,9 @@ class EvaluationScoreRepository(BaseRepository[EvaluationScore]):
     model = EvaluationScore
 
     async def list_for_run(self, run_id: UUID) -> list[EvaluationScore]:
-        stmt = select(EvaluationScore).where(EvaluationScore.evaluation_run_id == run_id)
+        stmt = select(EvaluationScore).where(
+            EvaluationScore.evaluation_run_id == run_id
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

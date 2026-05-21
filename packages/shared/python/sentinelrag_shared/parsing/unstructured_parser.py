@@ -92,7 +92,9 @@ class UnstructuredParser(Parser):
         meta = elem.metadata.to_dict() if elem.metadata else {}
         page_number = meta.get("page_number")
         section_title = meta.get("section") or meta.get("category_depth")
-        table_html = meta.get("text_as_html") if element_type == ElementType.TABLE else None
+        table_html = (
+            meta.get("text_as_html") if element_type == ElementType.TABLE else None
+        )
 
         # Drop heavy nested fields that don't survive serialization cleanly.
         for k in ("orig_elements", "coordinates", "languages"):

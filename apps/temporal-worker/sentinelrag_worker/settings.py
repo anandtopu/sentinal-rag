@@ -6,7 +6,9 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-DEFAULT_DATABASE_URL = "postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag"
+DEFAULT_DATABASE_URL = (
+    "postgresql+asyncpg://sentinel:sentinel@localhost:15432/sentinelrag"
+)
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"0", "false", "no", "off"}

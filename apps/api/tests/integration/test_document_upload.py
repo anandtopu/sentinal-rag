@@ -54,7 +54,9 @@ class TestDocumentUpload:
         mock_temporal_client,
         cleanup_db,
     ) -> None:
-        tenant, user, collection = await self._seed_tenant_with_collection(admin_session)
+        tenant, user, collection = await self._seed_tenant_with_collection(
+            admin_session
+        )
 
         get_session = tenant_session_factory(tenant.id)
         body = b"# Test document\n\nThis is some test content for ingestion."
@@ -149,7 +151,9 @@ class TestDocumentUpload:
         mock_temporal_client,
         cleanup_db,
     ) -> None:
-        tenant, user, collection = await self._seed_tenant_with_collection(admin_session)
+        tenant, user, collection = await self._seed_tenant_with_collection(
+            admin_session
+        )
         body = b"deduplication content"
 
         get_session = tenant_session_factory(tenant.id)

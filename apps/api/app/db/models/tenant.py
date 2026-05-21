@@ -30,8 +30,12 @@ class Tenant(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    plan: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'developer'"))
-    status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'active'"))
+    plan: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'developer'")
+    )
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'active'")
+    )
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSONB,

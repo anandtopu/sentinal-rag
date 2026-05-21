@@ -40,8 +40,7 @@ def upgrade() -> None:
         "ON query_sessions(tenant_id, user_id)"
     )
     op.execute(
-        "CREATE INDEX idx_query_sessions_created_at "
-        "ON query_sessions(created_at)"
+        "CREATE INDEX idx_query_sessions_created_at " "ON query_sessions(created_at)"
     )
 
     op.execute("""
@@ -63,8 +62,7 @@ def upgrade() -> None:
         "ON retrieval_results(query_session_id)"
     )
     op.execute(
-        "CREATE INDEX idx_retrieval_results_chunk "
-        "ON retrieval_results(chunk_id)"
+        "CREATE INDEX idx_retrieval_results_chunk " "ON retrieval_results(chunk_id)"
     )
 
     op.execute("""

@@ -7,7 +7,10 @@ import mimetypes
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from sentinelrag_ingestion_service.connectors.base import ConnectorError, FetchedDocument
+from sentinelrag_ingestion_service.connectors.base import (
+    ConnectorError,
+    FetchedDocument,
+)
 
 
 class LocalFileConnector:
@@ -35,7 +38,9 @@ class LocalFileConnector:
         parsed = urlparse(source_uri)
         if parsed.scheme == "file":
             if parsed.netloc not in {"", "localhost"}:
-                raise ConnectorError(f"Remote file URI hosts are not supported: {source_uri}")
+                raise ConnectorError(
+                    f"Remote file URI hosts are not supported: {source_uri}"
+                )
             path = Path(unquote(parsed.path))
         else:
             path = Path(source_uri)
@@ -63,6 +68,10 @@ class LocalFileConnector:
     def _assert_allowed(self, path: Path) -> None:
         if not self._allowed_roots:
             return
-        if not any(path == root or root in path.parents for root in self._allowed_roots):
+        if not any(
+            path == root or root in path.parents for root in self._allowed_roots
+        ):
             roots = ", ".join(str(root) for root in self._allowed_roots)
-            raise ConnectorError(f"Local source path is outside allowed roots ({roots}): {path}")
+            raise ConnectorError(
+                f"Local source path is outside allowed roots ({roots}): {path}"
+            )

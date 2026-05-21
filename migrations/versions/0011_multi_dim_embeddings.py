@@ -75,7 +75,9 @@ def downgrade() -> None:
     op.execute("ALTER TABLE chunk_embeddings DROP COLUMN IF EXISTS embedding_1536")
 
     # Restore the original single-dim column + index.
-    op.execute("ALTER TABLE chunk_embeddings ADD COLUMN embedding vector(1536) NOT NULL")
+    op.execute(
+        "ALTER TABLE chunk_embeddings ADD COLUMN embedding vector(1536) NOT NULL"
+    )
     op.execute(
         "CREATE INDEX idx_chunk_embeddings_vector "
         "ON chunk_embeddings USING hnsw (embedding vector_cosine_ops) "

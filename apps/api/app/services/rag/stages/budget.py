@@ -67,7 +67,10 @@ class BudgetStage:
         # R3.S1: roll the embedding cost into the budget estimate so the
         # gate sees the actual cumulative spend a query will book, not
         # just the LLM-completion slice.
-        if ctx.embedding_usage is not None and ctx.embedding_usage.total_cost_usd is not None:
+        if (
+            ctx.embedding_usage is not None
+            and ctx.embedding_usage.total_cost_usd is not None
+        ):
             estimate += ctx.embedding_usage.total_cost_usd
         decision = await self._cost_service.check_budget(
             tenant_id=ctx.auth.tenant_id,
@@ -107,7 +110,9 @@ class BudgetStage:
         assert ctx.query_session_id is not None
         decision = ctx.budget_decision
         event_type = (
-            "budget.denied" if decision.action == BudgetAction.DENY else "budget.downgraded"
+            "budget.denied"
+            if decision.action == BudgetAction.DENY
+            else "budget.downgraded"
         )
         await self._audit_service.record(
             AuditEvent(

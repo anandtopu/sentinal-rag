@@ -51,6 +51,7 @@ dev = [
     "python-jose[cryptography]>=3.3",
     "cryptography>=43.0",
     "email-validator>=2.2",
+    "black>=26.5.1",
 ]
 
 [tool.ruff]

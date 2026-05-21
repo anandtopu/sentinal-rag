@@ -16,7 +16,10 @@ from sentinelrag_ingestion_service.connectors import (
     UnsupportedSourceError,
 )
 from sentinelrag_ingestion_service.connectors.registry import build_default_registry
-from sentinelrag_shared.object_storage.interface import ObjectMetadata, ObjectNotFoundError
+from sentinelrag_shared.object_storage.interface import (
+    ObjectMetadata,
+    ObjectNotFoundError,
+)
 
 
 class MemoryStorage:

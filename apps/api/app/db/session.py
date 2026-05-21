@@ -32,9 +32,13 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import get_settings
 
 # --- Context variables (per-request) ---
-current_tenant_id: ContextVar[UUID | None] = ContextVar("current_tenant_id", default=None)
+current_tenant_id: ContextVar[UUID | None] = ContextVar(
+    "current_tenant_id", default=None
+)
 current_user_id: ContextVar[UUID | None] = ContextVar("current_user_id", default=None)
-current_request_id: ContextVar[str | None] = ContextVar("current_request_id", default=None)
+current_request_id: ContextVar[str | None] = ContextVar(
+    "current_request_id", default=None
+)
 
 
 # --- Engine + session factories ---
@@ -103,7 +107,9 @@ async def _bind_tenant_context(session: AsyncSession) -> None:
     if tid is None:
         # No tenant in context → set to NULL marker so RLS denies everything
         # rather than fall back to the previous transaction's setting.
-        await session.execute(text("SELECT set_config('app.current_tenant_id', '', true)"))
+        await session.execute(
+            text("SELECT set_config('app.current_tenant_id', '', true)")
+        )
         return
     await session.execute(_SET_TENANT_SQL, {"tid": str(tid)})
 

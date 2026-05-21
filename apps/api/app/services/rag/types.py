@@ -72,9 +72,7 @@ class QueryResult:
 # Sentinel used when retrieval returns no candidates and the caller opted in
 # to abstention. Kept module-level so tests can import the same string the
 # generation stage emits.
-ABSTAIN_ANSWER = (
-    "I do not have enough information in the provided sources to answer that confidently."
-)
+ABSTAIN_ANSWER = "I do not have enough information in the provided sources to answer that confidently."
 
 
 @dataclass(slots=True)

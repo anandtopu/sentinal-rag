@@ -108,7 +108,9 @@ def upgrade() -> None:
     )
 
     # Create initial 6 months of partitions starting from the current month.
-    today = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
     for suffix, start, end in _months_from(today, 6):
         op.execute(f"""
             CREATE TABLE audit_events_{suffix}
@@ -124,12 +126,8 @@ def upgrade() -> None:
     # Default partition catches stragglers outside the planned ranges.
     # Operational rule: if a row lands in *_default, alert + create the missing
     # named partition + move the row.
-    op.execute(
-        "CREATE TABLE audit_events_default PARTITION OF audit_events DEFAULT"
-    )
-    op.execute(
-        "CREATE TABLE usage_records_default PARTITION OF usage_records DEFAULT"
-    )
+    op.execute("CREATE TABLE audit_events_default PARTITION OF audit_events DEFAULT")
+    op.execute("CREATE TABLE usage_records_default PARTITION OF usage_records DEFAULT")
 
 
 def downgrade() -> None:
