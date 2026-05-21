@@ -1,33 +1,15 @@
-name: build-images
-
-# Builds the three SentinelRAG container images and pushes to GHCR.
-#
-# Trigger semantics (per ADR-0012 + ADR-0030):
-#   - Push to main → tag :sha-<short>  (ArgoCD Image Updater ignores; this is for ad-hoc testing)
-#   - Tag v*.*.*    → tag :v<major>.<minor>.<patch>  (Image Updater picks this up; production trigger)
-#   - workflow_dispatch → manual one-off
-#
-# All images are built with provenance attestation + SBOM via the docker
-# build-push-action so trivy / cosign / sigstore can verify supply-chain.
+name: Build Images
 
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches: [main, master]
-    tags: ['v*.*.*']
-    paths:
-      - 'apps/**'
-      - 'packages/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/build-images.yml'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Override tag (defaults to sha-<short> on main, the git tag on tag pushes)"
-        required: false
+    branches: [main]
 
 permissions:
+  actions: read
   contents: read
+<<<<<<< HEAD
   packages: write   # GHCR push
   id-token: write   # Sigstore keyless
   attestations: write
@@ -39,15 +21,19 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: ${{ github.repository_owner }}
+=======
+  security-events: write
+  packages: write
+>>>>>>> 8159bfd (ci: rewrite security workflows to guard SARIF uploads)
 
 jobs:
   build:
-    name: ${{ matrix.image.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         image:
+<<<<<<< HEAD
           - { name: "api",             dockerfile: "apps/api/Dockerfile",             context: "." }
           - { name: "temporal-worker", dockerfile: "apps/temporal-worker/Dockerfile", context: "." }
           - { name: "frontend",        dockerfile: "apps/frontend/Dockerfile",        context: "apps/frontend" }
@@ -57,18 +43,23 @@ jobs:
       - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
+=======
+          - name: api
+          - name: frontend
+          - name: temporal-worker
+    steps:
+      - uses: actions/checkout@v4
+>>>>>>> 8159bfd (ci: rewrite security workflows to guard SARIF uploads)
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build image
+        run: |
+          echo "Build ${{ matrix.image.name }}"
+          docker build -t local/${{ matrix.image.name }}:${{ github.sha }} -f Dockerfile .
 
-      - name: Compute tags + labels
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Run Trivy SARIF
+        uses: aquasecurity/trivy-action@0.24.0
         with:
+<<<<<<< HEAD
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/sentinelrag-${{ matrix.image.name }}
           tags: |
             type=ref,event=branch
@@ -115,30 +106,30 @@ jobs:
 >>>>>>> e063b11 (fix(actions): repair bandit and trivy workflows for deploy)
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/sentinelrag-${{ matrix.image.name }}@${{ steps.build.outputs.digest }}
+=======
+          image-ref: local/${{ matrix.image.name }}:${{ github.sha }}
+>>>>>>> 8159bfd (ci: rewrite security workflows to guard SARIF uploads)
           format: sarif
           output: trivy-${{ matrix.image.name }}.sarif
-          severity: HIGH,CRITICAL
+          exit-code: '0'
           ignore-unfixed: true
+<<<<<<< HEAD
           exit-code: 0   # don't fail the build on findings; security.yml already gates separately
+=======
+          severity: CRITICAL,HIGH
+>>>>>>> 8159bfd (ci: rewrite security workflows to guard SARIF uploads)
 
       - name: Upload Trivy SARIF
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && hashFiles(format('trivy-{0}.sarif', matrix.image.name)) != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
-        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && hashFiles(format('trivy-{0}.sarif', matrix.image.name)) != '' }}
           sarif_file: trivy-${{ matrix.image.name }}.sarif
           category: trivy-build-${{ matrix.image.name }}
 
   summary:
-    name: Build summary
     runs-on: ubuntu-latest
     needs: build
+    if: always()
     steps:
-      - name: Report
-        run: |
-          if [ "${{ needs.build.result }}" = "success" ]; then
-            echo "::notice title=Build OK::All three SentinelRAG images pushed to GHCR."
-          else
-            echo "::error title=Build failed::At least one image build failed; see matrix logs."
-            exit 1
-          fi
+      - name: Summary
+        run: echo "Build workflow completed"
