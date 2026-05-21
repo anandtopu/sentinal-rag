@@ -16,6 +16,11 @@ class GeneratorError(Exception):
     pass
 
 
+class GeneratorTimeoutError(GeneratorError):
+    """Raised when text generation times out."""
+    pass
+
+
 class Generator(Protocol):
     model_name: str
 
@@ -112,7 +117,15 @@ class LiteLLMGenerator:
 
         try:
             response_obj = await litellm.acompletion(**kwargs)
+        except TimeoutError as exc:
+            raise GeneratorTimeoutError(
+                f"LiteLLM generation timed out after {self.max_retries} attempts: {exc}"
+            ) from exc
         except Exception as exc:
+            if "timeout" in str(exc).lower():
+                raise GeneratorTimeoutError(
+                    f"LiteLLM generation timed out after {self.max_retries} attempts: {exc}"
+                ) from exc
             raise GeneratorError(
                 f"LiteLLM generation failed after {self.max_retries} attempts: {exc}"
             ) from exc
