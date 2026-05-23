@@ -1,15 +1,22 @@
-from sentinelrag_shared.llm.embedder import EmbedderError, LiteLLMEmbedder
+from sentinelrag_shared.llm.embedder import Embedder, EmbedderError, LiteLLMEmbedder
 from sentinelrag_shared.llm.generator import (
     Generator,
     GeneratorError,
     GeneratorTimeoutError,
     LiteLLMGenerator,
 )
-from sentinelrag_shared.llm.reranker import BgeReranker, NoOpReranker, Reranker
-from sentinelrag_shared.llm.types import EmbeddingResult, GenerateResult, UsageRecord
+from sentinelrag_shared.llm.reranker import (
+    BgeReranker,
+    NoOpReranker,
+    RerankCandidate,
+    Reranker,
+    RerankerError,
+)
+from sentinelrag_shared.llm.types import EmbeddingResult, GenerateResult, RerankResult, UsageRecord
 
 __all__ = [
     "BgeReranker",
+    "Embedder",
     "EmbedderError",
     "EmbeddingResult",
     "GenerateResult",
@@ -19,6 +26,9 @@ __all__ = [
     "LiteLLMEmbedder",
     "LiteLLMGenerator",
     "NoOpReranker",
+    "RerankCandidate",
+    "RerankResult",
     "Reranker",
+    "RerankerError",
     "UsageRecord",
 ]
