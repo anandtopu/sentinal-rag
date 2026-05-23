@@ -16,22 +16,14 @@ from app.services.rag.types import QueryContext
 
 
 class GenerationStage:
-    """Stateless — model + base url come from the QueryContext at call time.
-
-    Args:
-        request_timeout_seconds: per-call wall-clock cap (R3.S4). Tunable
-            from ``Settings.generation_timeout_seconds``; the default
-            matches LiteLLMGenerator's own default.
-    """
+    """Stateless — model + base url come from the QueryContext at call time."""
 
     def __init__(self, *, request_timeout_seconds: float = 60.0) -> None:
         self._timeout = request_timeout_seconds
 
     async def run(self, ctx: QueryContext) -> None:
         if ctx.resolved_prompt is None:
-            msg = (
-                "GenerationStage requires PromptStage to have resolved a prompt first."
-            )
+            msg = "GenerationStage requires PromptStage to have resolved a prompt first."
             raise RuntimeError(msg)
         if not ctx.effective_model:
             msg = "GenerationStage requires BudgetStage to have set effective_model first."
@@ -39,12 +31,7 @@ class GenerationStage:
 
         generator = LiteLLMGenerator(
             model_name=ctx.effective_model,
-            api_base=(
-                ctx.ollama_base_url
-                if ctx.effective_model.startswith("ollama/")
-                else None
-            ),
-            request_timeout_seconds=self._timeout,
+            api_base=(ctx.ollama_base_url if ctx.effective_model.startswith("ollama/") else None),
         )
         user_prompt = fill_prompt(
             ctx.resolved_prompt.user_prompt_template,
@@ -57,8 +44,9 @@ class GenerationStage:
             temperature=ctx.generation_cfg.temperature,
             max_tokens=ctx.generation_cfg.max_tokens,
         )
+
         ctx.answer_text = gen_result.text
         ctx.gen_usage = gen_result.usage
-        ctx.gen_cost = gen_result.usage.total_cost_usd or Decimal("0")
-        ctx.input_tokens = gen_result.usage.input_tokens
-        ctx.output_tokens = gen_result.usage.output_tokens
+        ctx.gen_cost = gen_result.total_cost_usd or Decimal("0")
+        ctx.input_tokens = gen_result.input_tokens
+        ctx.output_tokens = gen_result.output_tokens
