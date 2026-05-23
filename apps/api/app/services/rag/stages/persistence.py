@@ -40,13 +40,15 @@ class PersistenceStage:
         # legacy zero-row in that case so downstream cost dashboards
         # still join cleanly on query_session_id.
         if ctx.embedding_usage is not None:
+            embedding_provider = ctx.embedding_usage.provider or "unknown"
+            embedding_model_name = ctx.embedding_usage.model_name or "unknown"
             await self._usage.create(
                 tenant_id=ctx.auth.tenant_id,
                 user_id=ctx.auth.user_id,
                 query_session_id=ctx.query_session_id,
                 usage_type="embedding",
-                provider=ctx.embedding_usage.provider,
-                model_name=ctx.embedding_usage.model_name,
+                provider=embedding_provider,
+                model_name=embedding_model_name,
                 input_tokens=ctx.embedding_usage.input_tokens,
                 output_tokens=ctx.embedding_usage.output_tokens,
                 total_cost_usd=ctx.embedding_usage.total_cost_usd or Decimal("0"),
@@ -64,13 +66,15 @@ class PersistenceStage:
                 total_cost_usd=Decimal("0"),
             )
         if ctx.gen_usage is not None:
+            completion_provider = ctx.gen_usage.provider or "unknown"
+            completion_model_name = ctx.gen_usage.model_name or "unknown"
             await self._usage.create(
                 tenant_id=ctx.auth.tenant_id,
                 user_id=ctx.auth.user_id,
                 query_session_id=ctx.query_session_id,
                 usage_type="completion",
-                provider=ctx.gen_usage.provider,
-                model_name=ctx.gen_usage.model_name,
+                provider=completion_provider,
+                model_name=completion_model_name,
                 input_tokens=ctx.input_tokens,
                 output_tokens=ctx.output_tokens,
                 total_cost_usd=ctx.gen_cost,
