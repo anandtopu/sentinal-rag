@@ -124,9 +124,7 @@ class LiteLLMEmbedder:
                 all_vectors.append(vec)
 
             usage = response.get("usage") or {}
-            total_input_tokens += usage.get("prompt_tokens", 0) or usage.get(
-                "input_tokens", 0
-            )
+            total_input_tokens += usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
             hidden = response.get("_hidden_params", {}) or {}
             response_cost = hidden.get("response_cost")
             if isinstance(response_cost, (int, float, Decimal)):
