@@ -143,9 +143,11 @@ class EvaluationService:
                         "dataset_id": str(payload.dataset_id),
                         "actor_user_id": str(created_by) if created_by else None,
                         "collection_ids": [str(c) for c in payload.collection_ids],
-                        "prompt_version_id": str(payload.prompt_version_id)
-                        if payload.prompt_version_id
-                        else None,
+                        "prompt_version_id": (
+                            str(payload.prompt_version_id)
+                            if payload.prompt_version_id
+                            else None
+                        ),
                         "retrieval_config": payload.retrieval_config,
                         "model_config": payload.model_config_,
                     },
@@ -161,7 +163,9 @@ class EvaluationService:
 
         return run
 
-    async def list_runs(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationRun]:
+    async def list_runs(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[EvaluationRun]:
         return await self.runs.list_recent(limit=limit, offset=offset)
 
     async def get_run(self, run_id: UUID) -> EvaluationRun:
@@ -170,9 +174,7 @@ class EvaluationService:
             raise NotFoundError("Evaluation run not found.")
         return run
 
-    async def aggregate_run(
-        self, run_id: UUID
-    ) -> tuple[EvaluationRun, dict[str, Any]]:
+    async def aggregate_run(self, run_id: UUID) -> tuple[EvaluationRun, dict[str, Any]]:
         run = await self.get_run(run_id)
         agg = await self.scores.aggregate_for_run(run_id)
         cases_total = await self.cases.count_for_dataset(run.dataset_id)

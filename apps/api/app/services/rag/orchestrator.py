@@ -131,9 +131,11 @@ class Orchestrator:
         # picks the embedding model per evaluation run).
         embedder = self._embedder_override or LiteLLMEmbedder(
             model_name=self._embedding_model,
-            api_base=self._ollama_base_url
-            if self._embedding_model.startswith("ollama/")
-            else None,
+            api_base=(
+                self._ollama_base_url
+                if self._embedding_model.startswith("ollama/")
+                else None
+            ),
         )
         retrieval_client = self._retrieval_client_override or InProcessRetrievalClient(
             session=self._session,

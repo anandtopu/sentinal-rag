@@ -45,7 +45,9 @@ class FakeDb:
     async def flush(self) -> None:
         self.flushes += 1
 
-    async def execute(self, statement: object, params: dict[str, Any] | None = None) -> None:
+    async def execute(
+        self, statement: object, params: dict[str, Any] | None = None
+    ) -> None:
         self.executed.append((statement, params))
 
 
@@ -139,7 +141,9 @@ async def test_document_upload_deduplicates_indexed_content() -> None:
         default_embedding_model="ollama/nomic-embed-text",
     )
     service.collections = SimpleNamespace(get=lambda _id: _async_value(object()))
-    service.docs = SimpleNamespace(get_by_checksum=lambda **_kwargs: _async_value(existing))
+    service.docs = SimpleNamespace(
+        get_by_checksum=lambda **_kwargs: _async_value(existing)
+    )
 
     document, job = await service.upload(
         tenant_id=tenant_id,
@@ -187,7 +191,9 @@ async def test_document_upload_force_reindex_reuses_existing_document() -> None:
         default_embedding_model="ollama/nomic-embed-text",
     )
     service.collections = SimpleNamespace(get=lambda _id: _async_value(object()))
-    service.docs = SimpleNamespace(get_by_checksum=lambda **_kwargs: _async_value(existing))
+    service.docs = SimpleNamespace(
+        get_by_checksum=lambda **_kwargs: _async_value(existing)
+    )
 
     document, job = await service.upload(
         tenant_id=tenant_id,
@@ -229,7 +235,9 @@ async def test_document_upload_stores_blob_and_starts_ingestion_workflow() -> No
     document, job = await service.upload(
         tenant_id=uuid4(),
         created_by=uuid4(),
-        payload=DocumentCreate(collection_id=uuid4(), title="Guide", metadata={"team": "sre"}),
+        payload=DocumentCreate(
+            collection_id=uuid4(), title="Guide", metadata={"team": "sre"}
+        ),
         filename="guide.md",
         mime_type="text/markdown",
         body=b"# Guide",
@@ -274,7 +282,9 @@ async def test_document_upload_maps_temporal_start_failure() -> None:
 @pytest.mark.asyncio
 async def test_prompt_service_rejects_duplicate_template() -> None:
     service = PromptService(FakeDb())  # type: ignore[arg-type]
-    service.templates = SimpleNamespace(get_by_name=lambda _name: _async_value(object()))
+    service.templates = SimpleNamespace(
+        get_by_name=lambda _name: _async_value(object())
+    )
 
     with pytest.raises(ConflictError):
         await service.create_template(
@@ -291,7 +301,9 @@ async def test_prompt_service_create_version_clears_existing_default() -> None:
     template_id = uuid4()
     service = PromptService(db)  # type: ignore[arg-type]
     service.templates = SimpleNamespace(get=lambda _id: _async_value(object()))
-    service.versions = SimpleNamespace(latest_version_number=lambda _id: _async_value(2))
+    service.versions = SimpleNamespace(
+        latest_version_number=lambda _id: _async_value(2)
+    )
 
     version = await service.create_version(
         tenant_id=uuid4(),
@@ -439,7 +451,9 @@ async def test_tenant_service_update_mutates_optional_fields() -> None:
 
     updated = await service.update(
         tenant.id,
-        TenantUpdate(name="New", plan="team", status="active", metadata={"tier": "gold"}),
+        TenantUpdate(
+            name="New", plan="team", status="active", metadata={"tier": "gold"}
+        ),
     )
 
     assert updated.name == "New"
@@ -502,7 +516,9 @@ async def test_role_service_update_sets_permissions() -> None:
         get=lambda _id: _async_value(role),
         set_permissions=lambda **kwargs: _async_call(set_calls, kwargs),
     )
-    service.permissions = SimpleNamespace(get_by_code=lambda _code: _async_value(object()))
+    service.permissions = SimpleNamespace(
+        get_by_code=lambda _code: _async_value(object())
+    )
 
     updated = await service.update(
         role.id,

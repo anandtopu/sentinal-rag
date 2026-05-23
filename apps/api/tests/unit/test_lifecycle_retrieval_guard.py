@@ -78,6 +78,4 @@ def test_unknown_transport_fails_at_startup() -> None:
     """Pydantic's Literal narrows this away in practice; defensive guard fires."""
     log = _Recorder()
     with pytest.raises(RuntimeError, match="Unknown RETRIEVAL_TRANSPORT"):
-        _build_retrieval_client(
-            settings=_settings(transport="websockets"), log=log
-        )
+        _build_retrieval_client(settings=_settings(transport="websockets"), log=log)

@@ -52,7 +52,9 @@ class _FakeAuth:
     user_id: UUID = field(default_factory=uuid4)
 
 
-def _ctx(*, answer: str = "answer body", context: str = "supporting context") -> QueryContext:
+def _ctx(
+    *, answer: str = "answer body", context: str = "supporting context"
+) -> QueryContext:
     ctx = QueryContext(
         query="rollback",
         auth=_FakeAuth(),  # type: ignore[arg-type]

@@ -52,9 +52,7 @@ def upgrade() -> None:
         "ON documents(tenant_id, collection_id)"
     )
     op.execute("CREATE INDEX idx_documents_status ON documents(status)")
-    op.execute(
-        "CREATE INDEX idx_documents_checksum ON documents(tenant_id, checksum)"
-    )
+    op.execute("CREATE INDEX idx_documents_checksum ON documents(tenant_id, checksum)")
     op.execute("""
         CREATE TRIGGER trg_documents_updated_at
         BEFORE UPDATE ON documents

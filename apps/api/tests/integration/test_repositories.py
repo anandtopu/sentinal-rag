@@ -50,7 +50,9 @@ class TestPhase1Services:
             user_svc = UserService(sess)
             user = await user_svc.create(
                 tenant_id=tenant.id,
-                payload=UserCreate(email="alice@cybertron.example.com", full_name="Alice"),
+                payload=UserCreate(
+                    email="alice@cybertron.example.com", full_name="Alice"
+                ),
             )
             user_id = user.id
 

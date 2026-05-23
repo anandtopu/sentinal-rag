@@ -68,7 +68,9 @@ class UserService:
 
         role = await RoleRepository(self.db).get(role_id)
         if role is None:
-            from sentinelrag_shared.errors.exceptions import RoleNotFoundError  # noqa: PLC0415
+            from sentinelrag_shared.errors.exceptions import (
+                RoleNotFoundError,
+            )  # noqa: PLC0415
 
             raise RoleNotFoundError()
         # IntegrityError → already assigned, swallow for idempotency.

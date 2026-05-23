@@ -73,8 +73,7 @@ class TestRowLevelSecurity:
             with pytest.raises(DBAPIError):
                 await sess.execute(
                     text(
-                        "INSERT INTO users (tenant_id, email) "
-                        "VALUES (:tid, 'eve@acme.test')"
+                        "INSERT INTO users (tenant_id, email) VALUES (:tid, 'eve@acme.test')"
                     ),
                     {"tid": tenant_b.id},
                 )

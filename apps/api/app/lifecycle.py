@@ -116,9 +116,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # path because it overrides the model alias per evaluation run.
     app.state.embedder = LiteLLMEmbedder(
         model_name=settings.default_embedding_model,
-        api_base=settings.ollama_base_url
-        if settings.default_embedding_model.startswith("ollama/")
-        else None,
+        api_base=(
+            settings.ollama_base_url
+            if settings.default_embedding_model.startswith("ollama/")
+            else None
+        ),
     )
     log.info("embedder.loaded", model=settings.default_embedding_model)
 
@@ -149,9 +151,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await dispose_engines()
 
 
-def _build_retrieval_client(
-    *, settings: Settings, log: Any
-) -> RetrievalClient | None:
+def _build_retrieval_client(*, settings: Settings, log: Any) -> RetrievalClient | None:
     """Materialize the right RetrievalClient for ``RETRIEVAL_TRANSPORT``.
 
     Returns ``None`` for in-process transport — the orchestrator's
@@ -192,16 +192,11 @@ def _build_retrieval_client(
         )
     # Pydantic Literal narrows this to one of the two strings, but be
     # defensive against a typed-config mismatch.
-    msg = (
-        f"Unknown RETRIEVAL_TRANSPORT {transport!r}; "
-        "expected 'in-process' or 'http'."
-    )
+    msg = f"Unknown RETRIEVAL_TRANSPORT {transport!r}; expected 'in-process' or 'http'."
     raise RuntimeError(msg)
 
 
-async def _connect_temporal(
-    *, settings: Settings, log: Any
-) -> TemporalClient | None:
+async def _connect_temporal(*, settings: Settings, log: Any) -> TemporalClient | None:
     """Best-effort Temporal connect on startup; None on failure."""
     try:
         client = await TemporalClient.connect(

@@ -62,6 +62,8 @@ def configure_telemetry(
         if otlp_endpoint
         else OTLPMetricExporter(insecure=True)
     )
-    metric_reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=15_000)
+    metric_reader = PeriodicExportingMetricReader(
+        metric_exporter, export_interval_millis=15_000
+    )
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)

@@ -98,25 +98,29 @@ async def health() -> HealthResponse:
 async def capabilities(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> RetrievalCapabilitiesResponse:
-    return RetrievalCapabilitiesResponse(
-        service_role="real-retrieval",
-        modes=["bm25", "vector", "hybrid", "rrf_merge"],
-        stages=[stage.value for stage in RetrievalStage],
-        endpoints=["/rrf-merge", "/v1/retrieve"],
-        retrieval_backends=["postgres_fts", "pgvector_hnsw"],
-        rbac_at_retrieval_time=True,
-        rrf=True,
-    ) if settings.service_token else RetrievalCapabilitiesResponse(
-        # Without a service token configured we expose the diagnostic
-        # surface only — refuse to advertise capabilities we'd refuse
-        # to serve.
-        service_role="diagnostic-wrapper",
-        modes=["rrf_merge"],
-        stages=[stage.value for stage in RetrievalStage],
-        endpoints=["/rrf-merge"],
-        retrieval_backends=[],
-        rbac_at_retrieval_time=False,
-        rrf=True,
+    return (
+        RetrievalCapabilitiesResponse(
+            service_role="real-retrieval",
+            modes=["bm25", "vector", "hybrid", "rrf_merge"],
+            stages=[stage.value for stage in RetrievalStage],
+            endpoints=["/rrf-merge", "/v1/retrieve"],
+            retrieval_backends=["postgres_fts", "pgvector_hnsw"],
+            rbac_at_retrieval_time=True,
+            rrf=True,
+        )
+        if settings.service_token
+        else RetrievalCapabilitiesResponse(
+            # Without a service token configured we expose the diagnostic
+            # surface only — refuse to advertise capabilities we'd refuse
+            # to serve.
+            service_role="diagnostic-wrapper",
+            modes=["rrf_merge"],
+            stages=[stage.value for stage in RetrievalStage],
+            endpoints=["/rrf-merge"],
+            retrieval_backends=[],
+            rbac_at_retrieval_time=False,
+            rrf=True,
+        )
     )
 
 
@@ -213,9 +217,11 @@ async def retrieve(payload: RetrieveRequest) -> RetrieveResponse:
     if payload.mode != "bm25":
         embedder = LiteLLMEmbedder(
             model_name=settings.default_embedding_model,
-            api_base=settings.ollama_base_url
-            if settings.default_embedding_model.startswith("ollama/")
-            else None,
+            api_base=(
+                settings.ollama_base_url
+                if settings.default_embedding_model.startswith("ollama/")
+                else None
+            ),
         )
         embedding_result = await embedder.embed([payload.query])
 
@@ -283,9 +289,7 @@ async def _run_retrieval(
             top_k=payload.top_k_vector,
             ef_search=payload.ef_search,
         )
-        merged = _restage(
-            vector[: payload.top_k_hybrid], RetrievalStage.HYBRID_MERGE
-        )
+        merged = _restage(vector[: payload.top_k_hybrid], RetrievalStage.HYBRID_MERGE)
         return _build_response(
             bm25_candidates=[],
             vector_candidates=vector,
@@ -294,9 +298,7 @@ async def _run_retrieval(
             embedding_usage=embedding_result.usage,
         )
 
-    hybrid = HybridRetriever(
-        keyword_search=keyword_search, vector_search=vector_search
-    )
+    hybrid = HybridRetriever(keyword_search=keyword_search, vector_search=vector_search)
     result: HybridRetrievalResult = await hybrid.retrieve(
         query=payload.query,
         auth=auth,
@@ -366,7 +368,9 @@ def _usage_to_dto(usage: UsageRecord | None) -> EmbeddingUsageDTO | None:
         model_name=usage.model_name,
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
-        total_cost_usd=usage.total_cost_usd if usage.total_cost_usd is not None else None,
+        total_cost_usd=(
+            usage.total_cost_usd if usage.total_cost_usd is not None else None
+        ),
         latency_ms=usage.latency_ms,
     )
 
@@ -396,5 +400,3 @@ class _PrecomputedEmbedder:
             )
             raise RuntimeError(msg)
         return self._result
-
-

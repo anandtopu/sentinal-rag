@@ -15,8 +15,7 @@ from sentinelrag_shared.parsing.elements import ElementType, ParsedElement
 
 def _make_elements(parts: list[tuple[ElementType, str]]) -> list[ParsedElement]:
     return [
-        ParsedElement(text=text, element_type=t, page_number=1)
-        for t, text in parts
+        ParsedElement(text=text, element_type=t, page_number=1) for t, text in parts
     ]
 
 
@@ -120,9 +119,13 @@ class TestStructureAwareChunker:
 
     def test_heading_starts_new_chunk_and_sets_section(self) -> None:
         elements = [
-            ParsedElement(text="Pre-heading body.", element_type=ElementType.NARRATIVE_TEXT),
+            ParsedElement(
+                text="Pre-heading body.", element_type=ElementType.NARRATIVE_TEXT
+            ),
             ParsedElement(text="My Section", element_type=ElementType.HEADING),
-            ParsedElement(text="Post-heading body.", element_type=ElementType.NARRATIVE_TEXT),
+            ParsedElement(
+                text="Post-heading body.", element_type=ElementType.NARRATIVE_TEXT
+            ),
         ]
         chunks = StructureAwareChunker(target_tokens=512).chunk(elements)
         # The heading is consumed as section_title for following chunks; not its
@@ -138,9 +141,7 @@ class TestStructureAwareChunker:
 @pytest.mark.unit
 class TestChunkerFactory:
     def test_factory_dispatches_correctly(self) -> None:
-        assert isinstance(
-            get_chunker(ChunkingStrategy.SEMANTIC), SemanticChunker
-        )
+        assert isinstance(get_chunker(ChunkingStrategy.SEMANTIC), SemanticChunker)
         assert isinstance(
             get_chunker(ChunkingStrategy.SLIDING_WINDOW), SlidingWindowChunker
         )

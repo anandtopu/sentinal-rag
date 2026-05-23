@@ -51,6 +51,7 @@ dev = [
     "python-jose[cryptography]>=3.3",
     "cryptography>=43.0",
     "email-validator>=2.2",
+    "black>=26.5.1",
 ]
 
 [tool.ruff]
@@ -87,8 +88,6 @@ select = [
     "RUF", # ruff-specific
 ]
 ignore = [
-    "ANN101", # missing type for self
-    "ANN102", # missing type for cls
     "ANN401", # disallow Any (we sometimes need it at boundaries)
     "PLR0913", # too many arguments — services have legitimate reasons
     "S101",   # assert in pytest is fine
@@ -97,6 +96,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"packages/shared/python/sentinelrag_shared/parsing/unstructured_parser.py" = ["PLC0415"]
 "**/tests/**/*.py" = [
     "S",     # tests do unsafe things on purpose
     "ANN",   # annotation strictness relaxed in tests

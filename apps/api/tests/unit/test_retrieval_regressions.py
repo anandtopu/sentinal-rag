@@ -278,7 +278,9 @@ async def test_pgvector_search_sets_ef_search_and_uses_dimension_column() -> Non
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_postgres_keyword_search_and_opensearch_share_access_filter_shape() -> None:
+async def test_postgres_keyword_search_and_opensearch_share_access_filter_shape() -> (
+    None
+):
     session = FakeSqlSession()
     search = PostgresFtsKeywordSearch(
         session=session,  # type: ignore[arg-type]
@@ -286,7 +288,9 @@ async def test_postgres_keyword_search_and_opensearch_share_access_filter_shape(
     )
     requested = [uuid4()]
 
-    await search.search(query="kubernetes", auth=_auth(), collection_ids=requested, top_k=5)
+    await search.search(
+        query="kubernetes", auth=_auth(), collection_ids=requested, top_k=5
+    )
 
     sql, params = session.calls[0]
     assert "WITH authorized_collections AS" in sql

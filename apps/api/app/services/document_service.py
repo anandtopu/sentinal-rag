@@ -76,7 +76,9 @@ class DocumentService:
         checksum = hashlib.sha256(body).hexdigest()
 
         # Idempotency: same checksum within the tenant → return the existing doc.
-        existing = await self.docs.get_by_checksum(tenant_id=tenant_id, checksum=checksum)
+        existing = await self.docs.get_by_checksum(
+            tenant_id=tenant_id, checksum=checksum
+        )
         if existing is not None and existing.status == "indexed" and not force_reindex:
             # Return a no-op job pointer for API consistency.
             existing_job = IngestionJob(
@@ -96,7 +98,9 @@ class DocumentService:
 
         if existing is not None and force_reindex:
             if not existing.source_uri:
-                raise ValidationFailedError("Existing document has no source_uri to reindex.")
+                raise ValidationFailedError(
+                    "Existing document has no source_uri to reindex."
+                )
             existing.status = "pending"
             job = await self._create_and_start_job(
                 tenant_id=tenant_id,

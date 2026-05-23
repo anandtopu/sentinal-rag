@@ -1,16 +1,8 @@
 name: build-images
 
-# Builds the three SentinelRAG container images and pushes to GHCR.
-#
-# Trigger semantics (per ADR-0012 + ADR-0030):
-#   - Push to main → tag :sha-<short>  (ArgoCD Image Updater ignores; this is for ad-hoc testing)
-#   - Tag v*.*.*    → tag :v<major>.<minor>.<patch>  (Image Updater picks this up; production trigger)
-#   - workflow_dispatch → manual one-off
-#
-# All images are built with provenance attestation + SBOM via the docker
-# build-push-action so trivy / cosign / sigstore can verify supply-chain.
-
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main, master]
     tags: ['v*.*.*']
@@ -28,13 +20,15 @@ on:
 
 permissions:
   contents: read
-  packages: write   # GHCR push
-  id-token: write   # Sigstore keyless
+  packages: write
+  id-token: write
   attestations: write
+  security-events: write
+  actions: read
 
 concurrency:
   group: build-images-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false   # never cancel a tagged release build mid-push
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -48,9 +42,9 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - { name: "api",             dockerfile: "apps/api/Dockerfile",             context: "." }
+          - { name: "api", dockerfile: "apps/api/Dockerfile", context: "." }
           - { name: "temporal-worker", dockerfile: "apps/temporal-worker/Dockerfile", context: "." }
-          - { name: "frontend",        dockerfile: "apps/frontend/Dockerfile",        context: "apps/frontend" }
+          - { name: "frontend", dockerfile: "apps/frontend/Dockerfile", context: "apps/frontend" }
     steps:
       - uses: actions/checkout@v4
 
@@ -88,9 +82,6 @@ jobs:
         with:
           context: ${{ matrix.image.context }}
           file: ${{ matrix.image.dockerfile }}
-          # linux/amd64 only for now — arm64 build doubles CI minutes and we
-          # don't have arm64 nodes in either dev cluster yet. Add arm64 when
-          # Graviton / T2A nodes are introduced.
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -115,11 +106,21 @@ jobs:
           output: trivy-${{ matrix.image.name }}.sarif
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: 0   # don't fail the build on findings; security.yml already gates separately
+          exit-code: '0'
+
+      - name: Check Trivy SARIF exists
+        id: trivy_sarif
+        shell: bash
+        run: |
+          if [ -f trivy-${{ matrix.image.name }}.sarif ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload Trivy SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && steps.trivy_sarif.outputs.exists == 'true' }}
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.image.name }}.sarif
           category: trivy-build-${{ matrix.image.name }}

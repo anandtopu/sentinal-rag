@@ -58,7 +58,7 @@ module "gke" {
   services_range_name = module.vpc.services_range_name
 
   node_service_account = google_service_account.node.email
-  deletion_protection  = false  # dev
+  deletion_protection  = false # dev
 
   labels = local.common_labels
 }
@@ -74,9 +74,9 @@ module "cloudsql" {
   network_id                        = module.vpc.network_id
   private_service_access_dependency = module.vpc.private_service_access_connection
 
-  availability_type   = "ZONAL"  # dev
+  availability_type   = "ZONAL" # dev
   master_password     = var.cloudsql_master_password
-  deletion_protection = false    # dev
+  deletion_protection = false # dev
 
   labels = local.common_labels
 }
@@ -104,7 +104,7 @@ module "gcs" {
   project_id = var.project_id
   region     = var.region
 
-  audit_lock_retention = false  # dev — lock retention ON in prod overlay
+  audit_lock_retention = false # dev — lock retention ON in prod overlay
   force_destroy        = false
 
   labels = local.common_labels
@@ -125,7 +125,7 @@ module "secrets" {
     KEYCLOAK_ISSUER_URL       = "https://auth.dev.sentinelrag.example.com/realms/sentinelrag"
     KEYCLOAK_AUDIENCE         = "sentinelrag-api"
     KEYCLOAK_JWKS_URL         = "https://auth.dev.sentinelrag.example.com/realms/sentinelrag/protocol/openid-connect/certs"
-    OBJECT_STORAGE_ACCESS_KEY = ""  # WI-bound; SDK uses metadata server
+    OBJECT_STORAGE_ACCESS_KEY = "" # WI-bound; SDK uses metadata server
     OBJECT_STORAGE_SECRET_KEY = ""
     UNLEASH_API_TOKEN         = "PLACEHOLDER_ROTATE_ME"
   }

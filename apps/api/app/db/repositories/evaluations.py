@@ -23,7 +23,9 @@ class EvaluationDatasetRepository(BaseRepository[EvaluationDataset]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def list_recent(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationDataset]:
+    async def list_recent(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[EvaluationDataset]:
         stmt = (
             select(EvaluationDataset)
             .order_by(EvaluationDataset.created_at.desc())
@@ -57,7 +59,9 @@ class EvaluationCaseRepository(BaseRepository[EvaluationCase]):
 class EvaluationRunRepository(BaseRepository[EvaluationRun]):
     model = EvaluationRun
 
-    async def list_recent(self, *, limit: int = 50, offset: int = 0) -> list[EvaluationRun]:
+    async def list_recent(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> list[EvaluationRun]:
         stmt = (
             select(EvaluationRun)
             .order_by(EvaluationRun.created_at.desc())

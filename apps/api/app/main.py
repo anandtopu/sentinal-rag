@@ -7,6 +7,7 @@ Run locally with:
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse, RedirectResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.api.v1.router import api_v1_router
@@ -36,9 +37,15 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(api_v1_router, prefix=settings.api_base_path)
 
-    # OTel FastAPI instrumentation: must run after the app is constructed.
-    FastAPIInstrumentor.instrument_app(app)
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse(url="/docs")
 
+    @app.get("/healthz", include_in_schema=False)
+    async def healthz() -> JSONResponse:
+        return JSONResponse({"status": "ok"})
+
+    FastAPIInstrumentor.instrument_app(app)
     return app
 
 

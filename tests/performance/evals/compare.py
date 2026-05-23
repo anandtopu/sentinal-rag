@@ -86,8 +86,7 @@ COMPARISONS: dict[str, ComparisonConfig] = {
     "prompt-v2-vs-v1": ComparisonConfig(
         name="prompt-v2-vs-v1",
         description=(
-            "Prompt v2 vs v1 (set the version IDs in "
-            "--before-prompt-id / --after-prompt-id)."
+            "Prompt v2 vs v1 (set the version IDs in --before-prompt-id / --after-prompt-id)."
         ),
         # The actual version IDs are wired via CLI flags so authors don't
         # bake them into source. See main() for the override threading.
@@ -117,13 +116,17 @@ class APIClient:
     token: str
     timeout: float = 60.0
 
-    async def query(self, *, body: dict[str, Any], client: httpx.AsyncClient) -> dict[str, Any]:
+    async def query(
+        self, *, body: dict[str, Any], client: httpx.AsyncClient
+    ) -> dict[str, Any]:
         url = f"{self.base_url.rstrip('/')}/api/v1/query"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
         }
-        response = await client.post(url, json=body, headers=headers, timeout=self.timeout)
+        response = await client.post(
+            url, json=body, headers=headers, timeout=self.timeout
+        )
         response.raise_for_status()
         return response.json()
 
@@ -205,8 +208,12 @@ async def _run_one_side(
         ctx = EvalContext(
             answer_text=response.get("answer", "") or "",
             retrieved_chunks=[],  # filled when --include-trace is enabled (see CLI)
-            cited_chunk_ids=[UUID(c["chunk_id"]) for c in response.get("citations", [])],
-            cited_quoted_texts=[c.get("quoted_text") or "" for c in response.get("citations", [])],
+            cited_chunk_ids=[
+                UUID(c["chunk_id"]) for c in response.get("citations", [])
+            ],
+            cited_quoted_texts=[
+                c.get("quoted_text") or "" for c in response.get("citations", [])
+            ],
         )
 
         scores: dict[str, float] = {}
@@ -235,7 +242,8 @@ def _aggregate(name: str, side: list[CaseRunResult]) -> dict[str, Any]:
         for ev_name, score in r.scores.items():
             by_evaluator.setdefault(ev_name, []).append(score)
     means: dict[str, float | None] = {
-        ev: statistics.mean(scores) if scores else None for ev, scores in by_evaluator.items()
+        ev: statistics.mean(scores) if scores else None
+        for ev, scores in by_evaluator.items()
     }
     return {"side": name, "n": len(side), "means": means}
 
@@ -293,7 +301,9 @@ def _render_report(
     lines.append("")
     lines.append("## Score table")
     lines.append("")
-    lines.append("| Evaluator | Before mean | After mean | Δ | Improved | Regressed | Tied |")
+    lines.append(
+        "| Evaluator | Before mean | After mean | Δ | Improved | Regressed | Tied |"
+    )
     lines.append("|---|---:|---:|---:|---:|---:|---:|")
     for ev in evaluators:
         bm = before_agg["means"].get(ev)
@@ -441,9 +451,11 @@ async def _run(args: argparse.Namespace) -> int:
 
     report = _render_report(
         comparison=comparison,
-        dataset_label="fixture (smoke)"
-        if args.dataset_id is None
-        else f"dataset {args.dataset_id}",
+        dataset_label=(
+            "fixture (smoke)"
+            if args.dataset_id is None
+            else f"dataset {args.dataset_id}"
+        ),
         before_results=before,
         after_results=after,
     )
@@ -486,7 +498,9 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
-        "--token", required=True, help="Bearer token (Keycloak access token, or 'dev' for local)."
+        "--token",
+        required=True,
+        help="Bearer token (Keycloak access token, or 'dev' for local).",
     )
     p.add_argument(
         "--collection-ids",
@@ -495,7 +509,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Collection UUIDs to scope the queries to.",
     )
     p.add_argument(
-        "--compare", required=True, choices=sorted(COMPARISONS), help="Which comparison to run."
+        "--compare",
+        required=True,
+        choices=sorted(COMPARISONS),
+        help="Which comparison to run.",
     )
     p.add_argument(
         "--dataset-id",
@@ -512,10 +529,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Where to write the rendered markdown report.",
     )
     p.add_argument(
-        "--before-prompt-id", help="Prompt version UUID for the before-side (prompt-v2-vs-v1 only)."
+        "--before-prompt-id",
+        help="Prompt version UUID for the before-side (prompt-v2-vs-v1 only).",
     )
     p.add_argument(
-        "--after-prompt-id", help="Prompt version UUID for the after-side (prompt-v2-vs-v1 only)."
+        "--after-prompt-id",
+        help="Prompt version UUID for the after-side (prompt-v2-vs-v1 only).",
     )
     return p
 

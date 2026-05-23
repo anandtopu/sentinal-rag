@@ -29,7 +29,9 @@ class GenerationStage:
 
     async def run(self, ctx: QueryContext) -> None:
         if ctx.resolved_prompt is None:
-            msg = "GenerationStage requires PromptStage to have resolved a prompt first."
+            msg = (
+                "GenerationStage requires PromptStage to have resolved a prompt first."
+            )
             raise RuntimeError(msg)
         if not ctx.effective_model:
             msg = "GenerationStage requires BudgetStage to have set effective_model first."
@@ -37,9 +39,11 @@ class GenerationStage:
 
         generator = LiteLLMGenerator(
             model_name=ctx.effective_model,
-            api_base=ctx.ollama_base_url
-            if ctx.effective_model.startswith("ollama/")
-            else None,
+            api_base=(
+                ctx.ollama_base_url
+                if ctx.effective_model.startswith("ollama/")
+                else None
+            ),
             request_timeout_seconds=self._timeout,
         )
         user_prompt = fill_prompt(

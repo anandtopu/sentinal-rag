@@ -60,4 +60,6 @@ class ConnectorRegistry:
         for connector in self._connectors:
             if connector.supports(source_uri):
                 return await connector.fetch(source_uri)
-        raise UnsupportedSourceError(f"No connector registered for source URI: {source_uri}")
+        raise UnsupportedSourceError(
+            f"No connector registered for source URI: {source_uri}"
+        )

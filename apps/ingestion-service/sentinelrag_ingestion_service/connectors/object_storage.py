@@ -8,7 +8,10 @@ from urllib.parse import unquote, urlparse
 
 from sentinelrag_shared.object_storage.interface import ObjectMetadata, ObjectStorage
 
-from sentinelrag_ingestion_service.connectors.base import ConnectorError, FetchedDocument
+from sentinelrag_ingestion_service.connectors.base import (
+    ConnectorError,
+    FetchedDocument,
+)
 
 
 class ObjectStorageConnector:
@@ -20,7 +23,9 @@ class ObjectStorageConnector:
 
     name = "object_storage"
 
-    def __init__(self, storage: ObjectStorage, *, schemes: set[str] | None = None) -> None:
+    def __init__(
+        self, storage: ObjectStorage, *, schemes: set[str] | None = None
+    ) -> None:
         self._storage = storage
         self._schemes = schemes or {"s3", "gs", "minio"}
 
@@ -31,11 +36,15 @@ class ObjectStorageConnector:
     async def fetch(self, source_uri: str) -> FetchedDocument:
         parsed = urlparse(source_uri)
         if not parsed.netloc:
-            raise ConnectorError(f"Object-storage URI must include a bucket: {source_uri}")
+            raise ConnectorError(
+                f"Object-storage URI must include a bucket: {source_uri}"
+            )
 
         key = unquote(parsed.path.lstrip("/"))
         if not key:
-            raise ConnectorError(f"Object-storage URI must include an object key: {source_uri}")
+            raise ConnectorError(
+                f"Object-storage URI must include an object key: {source_uri}"
+            )
 
         if parsed.netloc != self._storage.bucket:
             raise ConnectorError(

@@ -63,7 +63,9 @@ class _PrecomputedEmbedder:
     orchestrator (for budget accounting + persistence) is the point.
     """
 
-    def __init__(self, *, model_name: str, dimension: int, result: EmbeddingResult) -> None:
+    def __init__(
+        self, *, model_name: str, dimension: int, result: EmbeddingResult
+    ) -> None:
         self.model_name = model_name
         self.dimension = dimension
         self._result = result
@@ -301,10 +303,7 @@ class HttpRetrievalClient:
                         },
                     )
                     if response.status_code in self._RETRYABLE_STATUS:
-                        msg = (
-                            f"retrieval-service returned {response.status_code}; "
-                            "retryable."
-                        )
+                        msg = f"retrieval-service returned {response.status_code}; retryable."
                         raise _RetryableRetrievalError(msg)
                     response.raise_for_status()
                     break
@@ -315,10 +314,7 @@ class HttpRetrievalClient:
             msg = f"retrieval-service exhausted retries: {exc}"
             raise RetrievalClientError(msg) from exc
         except httpx.HTTPStatusError as exc:
-            msg = (
-                f"retrieval-service {exc.response.status_code}: "
-                f"{exc.response.text[:200]}"
-            )
+            msg = f"retrieval-service {exc.response.status_code}: {exc.response.text[:200]}"
             raise RetrievalClientError(msg) from exc
         except httpx.RequestError as exc:
             msg = f"retrieval-service unreachable: {exc!r}"
@@ -337,9 +333,7 @@ def _to_hybrid_result(payload: RetrieveResponse) -> HybridRetrievalResult:
     return HybridRetrievalResult(
         bm25_candidates=[_candidate_from_dto(c) for c in payload.bm25_candidates],
         vector_candidates=[_candidate_from_dto(c) for c in payload.vector_candidates],
-        merged_candidates=[
-            _candidate_from_dto(c) for c in payload.merged_candidates
-        ],
+        merged_candidates=[_candidate_from_dto(c) for c in payload.merged_candidates],
         metadata=dict(payload.metadata),
         embedding_usage=_usage_from_dto(payload.embedding_usage),
     )
@@ -371,5 +365,3 @@ def _usage_from_dto(dto: EmbeddingUsageDTO | None) -> UsageRecord | None:
         total_cost_usd=dto.total_cost_usd,
         latency_ms=dto.latency_ms,
     )
-
-

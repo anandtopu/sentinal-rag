@@ -85,13 +85,13 @@ INDEX_MAPPINGS: dict[str, Any] = {
     "mappings": {
         "dynamic": "strict",
         "properties": {
-            "chunk_id":       {"type": "keyword"},
-            "document_id":    {"type": "keyword"},
-            "tenant_id":      {"type": "keyword"},
-            "collection_id":  {"type": "keyword"},
-            "content":        {"type": "text",    "analyzer": "standard"},
-            "page_number":    {"type": "integer"},
-            "section_title":  {"type": "keyword"},
+            "chunk_id": {"type": "keyword"},
+            "document_id": {"type": "keyword"},
+            "tenant_id": {"type": "keyword"},
+            "collection_id": {"type": "keyword"},
+            "content": {"type": "text", "analyzer": "standard"},
+            "page_number": {"type": "integer"},
+            "section_title": {"type": "keyword"},
         },
     },
 }
@@ -166,8 +166,12 @@ class OpenSearchKeywordSearch:
                         }
                     ],
                     "filter": [
-                        {"term":  {"tenant_id": str(auth.tenant_id)}},
-                        {"terms": {"collection_id": [str(cid) for cid in authorized_ids]}},
+                        {"term": {"tenant_id": str(auth.tenant_id)}},
+                        {
+                            "terms": {
+                                "collection_id": [str(cid) for cid in authorized_ids]
+                            }
+                        },
                     ],
                 }
             },
@@ -206,7 +210,9 @@ class OpenSearchKeywordSearch:
         predicate = self.access_filter.build(auth=auth, collection_ids=requested)
         # CTE plus a trivial SELECT against it. predicate.params already
         # carries auth_user_id, auth_tenant_id, min_access_rank.
-        sql = (predicate.cte_sql or "") + "\nSELECT collection_id FROM authorized_collections"
+        sql = (
+            predicate.cte_sql or ""
+        ) + "\nSELECT collection_id FROM authorized_collections"
 
         result = await self.session.execute(text(sql), predicate.params)
         ids = [UUID(str(row.collection_id)) for row in result.fetchall()]
@@ -234,15 +240,19 @@ class OpenSearchKeywordSearch:
         for chunk in chunks:
             header = {"index": {"_index": self.index_name, "_id": str(chunk.chunk_id)}}
             lines.append(json.dumps(header))
-            lines.append(json.dumps({
-                "chunk_id":      str(chunk.chunk_id),
-                "document_id":   str(chunk.document_id),
-                "tenant_id":     str(chunk.tenant_id),
-                "collection_id": str(chunk.collection_id),
-                "content":       chunk.content,
-                "page_number":   chunk.page_number,
-                "section_title": chunk.section_title,
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "chunk_id": str(chunk.chunk_id),
+                        "document_id": str(chunk.document_id),
+                        "tenant_id": str(chunk.tenant_id),
+                        "collection_id": str(chunk.collection_id),
+                        "content": chunk.content,
+                        "page_number": chunk.page_number,
+                        "section_title": chunk.section_title,
+                    }
+                )
+            )
         body = "\n".join(lines) + "\n"
 
         response = await self.client.bulk(
@@ -268,7 +278,7 @@ class OpenSearchKeywordSearch:
             "query": {
                 "bool": {
                     "filter": [
-                        {"term": {"tenant_id":   str(tenant_id)}},
+                        {"term": {"tenant_id": str(tenant_id)}},
                         {"term": {"document_id": str(document_id)}},
                     ]
                 }

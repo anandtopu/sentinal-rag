@@ -55,7 +55,11 @@ class IngestionWorkflow:
 
         await workflow.execute_activity(
             activities.mark_job_running,
-            args=[str(payload.job_id), str(payload.tenant_id), str(payload.document_id)],
+            args=[
+                str(payload.job_id),
+                str(payload.tenant_id),
+                str(payload.document_id),
+            ],
             start_to_close_timeout=timedelta(seconds=15),
             retry_policy=_STANDARD_RETRY,
         )

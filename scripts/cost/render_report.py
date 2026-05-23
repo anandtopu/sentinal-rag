@@ -36,7 +36,9 @@ def _fmt_usd(x: float) -> str:
     return f"${x:,.2f}"
 
 
-def render(rows: list[dict[str, Any]]) -> str:  # noqa: PLR0915 — straight-line markdown emit
+def render(
+    rows: list[dict[str, Any]],
+) -> str:  # noqa: PLR0915 — straight-line markdown emit
     if not rows:
         return "# Cost report\n\n_No data._\n"
 
@@ -84,7 +86,9 @@ def render(rows: list[dict[str, Any]]) -> str:  # noqa: PLR0915 — straight-lin
     lines.append(f"- **Tenants:** {n_tenants}")
     lines.append(f"- **Total spend:** {_fmt_usd(total)}")
     if n_days and n_tenants:
-        lines.append(f"- **Avg spend / tenant / day:** {_fmt_usd(total / n_tenants / n_days)}")
+        lines.append(
+            f"- **Avg spend / tenant / day:** {_fmt_usd(total / n_tenants / n_days)}"
+        )
     lines.append("")
 
     # ---- Per-tenant ----
@@ -104,7 +108,9 @@ def render(rows: list[dict[str, Any]]) -> str:  # noqa: PLR0915 — straight-lin
     # ---- Per-model ----
     lines.append("## Spend by model")
     lines.append("")
-    lines.append("| Model | Requests | Input tokens | Output tokens | Spend | % of total |")
+    lines.append(
+        "| Model | Requests | Input tokens | Output tokens | Spend | % of total |"
+    )
     lines.append("|---|---:|---:|---:|---:|---:|")
     sorted_models = sorted(by_model.items(), key=lambda kv: -kv[1]["cost"])
     for model, m in sorted_models:

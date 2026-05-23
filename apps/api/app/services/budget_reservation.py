@@ -89,9 +89,7 @@ class BudgetReservationService:
             )
             return False
 
-    async def release(
-        self, *, tenant_id: UUID, request_id: UUID
-    ) -> None:
+    async def release(self, *, tenant_id: UUID, request_id: UUID) -> None:
         """Drop a reservation when the request completes (any outcome).
 
         Idempotent: deleting an absent key is fine. We don't fail loudly

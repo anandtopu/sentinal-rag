@@ -276,7 +276,9 @@ async def _build_trace(
                 prompt_version_id=gen_row.prompt_version_id,
                 input_tokens=gen_row.input_tokens,
                 output_tokens=gen_row.output_tokens,
-                cost_usd=float(gen_row.cost_usd) if gen_row.cost_usd is not None else None,
+                cost_usd=(
+                    float(gen_row.cost_usd) if gen_row.cost_usd is not None else None
+                ),
                 grounding_score=gen_row.grounding_score,
                 hallucination_risk_score=gen_row.hallucination_risk_score,
                 confidence_score=gen_row.confidence_score,

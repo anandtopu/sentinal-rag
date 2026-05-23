@@ -94,7 +94,5 @@ IdempotencyDep = Annotated[IdempotencyService, Depends(get_idempotency_service)]
 BudgetReservationDep = Annotated[
     BudgetReservationService, Depends(get_budget_reservation_service)
 ]
-RetrievalClientDep = Annotated[
-    "RetrievalClient | None", Depends(get_retrieval_client)
-]
+RetrievalClientDep = Annotated["RetrievalClient | None", Depends(get_retrieval_client)]
 EmbedderDep = Annotated[LiteLLMEmbedder, Depends(get_embedder)]

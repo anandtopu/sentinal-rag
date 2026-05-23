@@ -1,2 +1,1 @@
 """Standalone retrieval-service package."""
-

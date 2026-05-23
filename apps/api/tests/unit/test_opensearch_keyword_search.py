@@ -55,7 +55,9 @@ class FakeSession:
         self._returns = return_collection_ids or []
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def execute(self, statement, params: dict[str, Any] | None = None) -> FakeResult:
+    async def execute(
+        self, statement, params: dict[str, Any] | None = None
+    ) -> FakeResult:
         # ``statement`` is a TextClause; rendering with str() gives the SQL.
         self.calls.append((str(statement), dict(params or {})))
         return FakeResult([FakeRow(cid) for cid in self._returns])
@@ -85,7 +87,9 @@ class TestSearch:
             client=_make_client(),
             session=FakeSession(),
         )
-        out = await adapter.search(query="   ", auth=_auth(), collection_ids=None, top_k=5)
+        out = await adapter.search(
+            query="   ", auth=_auth(), collection_ids=None, top_k=5
+        )
         assert out == []
 
     async def test_zero_top_k_short_circuits(self) -> None:
@@ -93,7 +97,9 @@ class TestSearch:
             client=_make_client(),
             session=FakeSession(),
         )
-        out = await adapter.search(query="kubernetes", auth=_auth(), collection_ids=None, top_k=0)
+        out = await adapter.search(
+            query="kubernetes", auth=_auth(), collection_ids=None, top_k=0
+        )
         assert out == []
 
     async def test_no_authorized_collections_returns_empty(self) -> None:
@@ -103,7 +109,9 @@ class TestSearch:
             client=client,
             session=FakeSession(return_collection_ids=[]),
         )
-        out = await adapter.search(query="kubernetes", auth=_auth(), collection_ids=None, top_k=10)
+        out = await adapter.search(
+            query="kubernetes", auth=_auth(), collection_ids=None, top_k=10
+        )
         assert out == []
         client.search.assert_not_called()
 
@@ -118,10 +126,10 @@ class TestSearch:
                         {
                             "_score": 4.2,
                             "_source": {
-                                "chunk_id":      str(chunk_id),
-                                "document_id":   str(doc_id),
-                                "content":       "kubernetes rolling update guide",
-                                "page_number":   3,
+                                "chunk_id": str(chunk_id),
+                                "document_id": str(doc_id),
+                                "content": "kubernetes rolling update guide",
+                                "page_number": 3,
                                 "section_title": "Rollouts",
                             },
                         }
@@ -134,7 +142,9 @@ class TestSearch:
             session=FakeSession(return_collection_ids=[cid_a, cid_b]),
         )
 
-        out = await adapter.search(query="kubernetes", auth=_auth(), collection_ids=None, top_k=5)
+        out = await adapter.search(
+            query="kubernetes", auth=_auth(), collection_ids=None, top_k=5
+        )
 
         assert len(out) == 1
         assert out[0].chunk_id == chunk_id
@@ -152,7 +162,9 @@ class TestSearch:
         filters = body["query"]["bool"]["filter"]
         assert {"term": {"tenant_id": str(_auth().tenant_id)}} in filters
         terms = next(f for f in filters if "terms" in f)
-        assert sorted(terms["terms"]["collection_id"]) == sorted([str(cid_a), str(cid_b)])
+        assert sorted(terms["terms"]["collection_id"]) == sorted(
+            [str(cid_a), str(cid_b)]
+        )
         assert body["size"] == 5
 
     async def test_caller_supplied_collection_intersects_authorized(self) -> None:
@@ -177,7 +189,8 @@ class TestSearch:
 
         # OpenSearch query terms-match only the intersection.
         terms = next(
-            f for f in client.search.await_args.kwargs["body"]["query"]["bool"]["filter"]
+            f
+            for f in client.search.await_args.kwargs["body"]["query"]["bool"]["filter"]
             if "terms" in f
         )
         assert terms["terms"]["collection_id"] == [str(cid_a)]
@@ -334,5 +347,5 @@ class TestDeleteByDocument:
         body = client.delete_by_query.await_args.kwargs["body"]
         assert client.delete_by_query.await_args.kwargs["params"] == {"refresh": "true"}
         filters = body["query"]["bool"]["filter"]
-        assert {"term": {"tenant_id":   str(tenant_id)}} in filters
+        assert {"term": {"tenant_id": str(tenant_id)}} in filters
         assert {"term": {"document_id": str(doc_id)}} in filters

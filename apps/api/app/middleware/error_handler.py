@@ -1,82 +1,49 @@
-"""Error-handler middleware translating DomainError → JSON envelope.
-
-Envelope shape per Enterprise_RAG_Database_Design.md §24:
-
-    {
-      "error": {
-        "code": "RBAC_DENIED",
-        "message": "...",
-        "request_id": "req_...",
-        "details": {}
-      }
-    }
-"""
-
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sentinelrag_shared.errors import DomainError, ErrorCode
-from sentinelrag_shared.logging import get_logger
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.db.session import current_request_id
-
-log = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-def _envelope(
-    code: str,
-    message: str,
-    *,
-    details: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    return {
-        "error": {
-            "code": code,
-            "message": message,
-            "request_id": current_request_id.get(),
-            "details": details or {},
-        }
-    }
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    del request
+    detail = exc.detail if isinstance(exc.detail, (dict, list, str)) else str(exc.detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail},
+    )
+
+
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    del request
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
+
+async def unhandled_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    logger.exception("Unhandled application exception", exc_info=exc)
+    del request
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    @app.exception_handler(DomainError)
-    async def _handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
-        log.info(
-            "request.domain_error",
-            code=str(exc.code),
-            message=exc.message,
-        )
-        return JSONResponse(
-            status_code=exc.http_status,
-            content=_envelope(str(exc.code), exc.message, details=exc.details),
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def _handle_validation_error(
-        _: Request, exc: RequestValidationError
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=422,
-            content=_envelope(
-                str(ErrorCode.VALIDATION_FAILED),
-                "Request validation failed.",
-                details={"errors": exc.errors()},
-            ),
-        )
-
-    @app.exception_handler(Exception)
-    async def _handle_unexpected(_: Request, exc: Exception) -> JSONResponse:
-        # Don't leak internal details. Log them; return generic message.
-        log.exception("request.unexpected_error", exc_class=type(exc).__name__)
-        return JSONResponse(
-            status_code=500,
-            content=_envelope(
-                str(ErrorCode.INTERNAL_ERROR),
-                "Internal server error.",
-            ),
-        )
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)

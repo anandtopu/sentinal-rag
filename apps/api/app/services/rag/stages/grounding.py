@@ -120,9 +120,7 @@ class GroundingStage:
         # against; their verdicts would be uninformative.
         return not ctx.context_text.strip()
 
-    def _should_judge(
-        self, nli_verdict: str | None, sample_rate: float
-    ) -> bool:
+    def _should_judge(self, nli_verdict: str | None, sample_rate: float) -> bool:
         """Judge runs on high-risk verdicts OR on a sampled fraction."""
         if nli_verdict in {"neutral", "contradict", "skipped"}:
             return True

@@ -36,8 +36,7 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX idx_prompt_templates_tenant_id "
-        "ON prompt_templates(tenant_id)"
+        "CREATE INDEX idx_prompt_templates_tenant_id " "ON prompt_templates(tenant_id)"
     )
 
     op.execute("""

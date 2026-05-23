@@ -73,7 +73,9 @@ def _build_reranker() -> Reranker:
         return NoOpReranker()
     try:
         return BgeReranker(
-            model_name=os.environ.get("DEFAULT_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+            model_name=os.environ.get(
+                "DEFAULT_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"
+            )
         )
     except RerankerError:
         return NoOpReranker()
@@ -92,8 +94,7 @@ async def mark_run_running(run_id: str, tenant_id: str) -> None:
     async with _session_for_tenant(_as_uuid(tenant_id)) as session:
         result = await session.execute(
             text(
-                "UPDATE evaluation_runs SET status='running', started_at=now() "
-                "WHERE id=:id"
+                "UPDATE evaluation_runs SET status='running', started_at=now() WHERE id=:id"
             ),
             {"id": str(_as_uuid(run_id))},
         )
@@ -108,8 +109,7 @@ async def list_case_ids(dataset_id: str, tenant_id: str) -> list[str]:
         rows = (
             await session.execute(
                 text(
-                    "SELECT id FROM evaluation_cases "
-                    "WHERE dataset_id=:did ORDER BY created_at"
+                    "SELECT id FROM evaluation_cases WHERE dataset_id=:did ORDER BY created_at"
                 ),
                 {"did": str(_as_uuid(dataset_id))},
             )
@@ -208,13 +208,9 @@ async def score_case(
             session=session,
             embedding_model=model_config.get(
                 "embedding_model",
-                os.environ.get(
-                    "DEFAULT_EMBEDDING_MODEL", "ollama/nomic-embed-text"
-                ),
+                os.environ.get("DEFAULT_EMBEDDING_MODEL", "ollama/nomic-embed-text"),
             ),
-            ollama_base_url=os.environ.get(
-                "OLLAMA_BASE_URL", "http://localhost:11434"
-            ),
+            ollama_base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
             reranker=_build_reranker(),
         )
 
@@ -222,21 +218,34 @@ async def score_case(
             query=str(case_row.input_query),
             auth=auth,
             collection_ids=[_as_uuid(c) for c in collection_ids],
-            retrieval=RetrievalConfig(**{
-                k: v
-                for k, v in retrieval_config.items()
-                if k in {"mode", "top_k_bm25", "top_k_vector", "top_k_hybrid",
-                          "top_k_rerank", "ef_search"}
-            }) if retrieval_config else RetrievalConfig(),
+            retrieval=(
+                RetrievalConfig(
+                    **{
+                        k: v
+                        for k, v in retrieval_config.items()
+                        if k
+                        in {
+                            "mode",
+                            "top_k_bm25",
+                            "top_k_vector",
+                            "top_k_hybrid",
+                            "top_k_rerank",
+                            "ef_search",
+                        }
+                    }
+                )
+                if retrieval_config
+                else RetrievalConfig()
+            ),
             generation=GenerationConfig(
                 model=model_config.get("model", "ollama/llama3.1:8b"),
                 temperature=model_config.get("temperature", 0.1),
                 max_tokens=model_config.get("max_tokens", 800),
             ),
             options=QueryOptions(
-                prompt_version_id=_as_uuid(prompt_version_id)
-                if prompt_version_id
-                else None,
+                prompt_version_id=(
+                    _as_uuid(prompt_version_id) if prompt_version_id else None
+                ),
             ),
         )
 
@@ -364,8 +373,7 @@ async def finalize_run(run_id: str, tenant_id: str, status: str = "completed") -
     async with _session_for_tenant(_as_uuid(tenant_id)) as session:
         result = await session.execute(
             text(
-                "UPDATE evaluation_runs "
-                "SET status=:status, completed_at=now() WHERE id=:id"
+                "UPDATE evaluation_runs SET status=:status, completed_at=now() WHERE id=:id"
             ),
             {"id": str(_as_uuid(run_id)), "status": status},
         )

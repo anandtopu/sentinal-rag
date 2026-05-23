@@ -20,7 +20,12 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from sentinelrag_shared.chunking.base import Chunk, Chunker, ChunkingStrategy, count_tokens
+from sentinelrag_shared.chunking.base import (
+    Chunk,
+    Chunker,
+    ChunkingStrategy,
+    count_tokens,
+)
 from sentinelrag_shared.parsing.elements import ParsedElement
 
 # Tokens contributed by joining "\n\n" between paragraphs. Approximate; we

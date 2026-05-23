@@ -104,7 +104,9 @@ def test_fill_prompt_substitutes_query_and_context() -> None:
 def test_fill_prompt_preserves_literal_braces_in_context() -> None:
     """A context block carrying JSON or LaTeX must not crash the prompt fill."""
     code_context = '{"deploy": "ok", "config": {"region": "us-east-1"}}'
-    out = fill_prompt("Q: {query}\n\nCtx:\n{context}", query="how?", context=code_context)
+    out = fill_prompt(
+        "Q: {query}\n\nCtx:\n{context}", query="how?", context=code_context
+    )
     assert code_context in out
     assert "Q: how?" in out
 

@@ -101,9 +101,7 @@ class GcsStorage:
         for key in await asyncio.to_thread(_list):
             yield key
 
-    async def presign_get_url(
-        self, key: str, *, expires_in_seconds: int = 3600
-    ) -> str:
+    async def presign_get_url(self, key: str, *, expires_in_seconds: int = 3600) -> str:
         def _sign() -> str:
             blob = self._bucket.blob(key)
             return blob.generate_signed_url(
@@ -119,7 +117,9 @@ class GcsStorage:
             await asyncio.to_thread(close)
 
 
-def _metadata_from_blob(blob: storage.Blob, *, key: str | None = None) -> ObjectMetadata:
+def _metadata_from_blob(
+    blob: storage.Blob, *, key: str | None = None
+) -> ObjectMetadata:
     updated = blob.updated
     if updated is not None and updated.tzinfo is None:
         updated = updated.replace(tzinfo=UTC)
