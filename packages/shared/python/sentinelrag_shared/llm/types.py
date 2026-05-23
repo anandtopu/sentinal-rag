@@ -17,46 +17,63 @@ class UsageRecord:
     latency_ms: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def usagetype(self) -> str | None:
+        return self.usage_type
 
-@dataclass(slots=True, init=False)
+    @property
+    def modelname(self) -> str | None:
+        return self.model_name
+
+    @property
+    def inputtokens(self) -> int:
+        return self.input_tokens
+
+    @property
+    def outputtokens(self) -> int:
+        return self.output_tokens
+
+    @property
+    def totaltokens(self) -> int:
+        return self.total_tokens
+
+    @property
+    def totalcostusd(self) -> Decimal | None:
+        return self.total_cost_usd
+
+    @property
+    def latencyms(self) -> int | None:
+        return self.latency_ms
+
+
+@dataclass(slots=True)
 class EmbeddingResult:
-    vectors: list[list[float]]
-    model_name: str | None
-    dimensions: int | None
-    usage: UsageRecord | None
-    metadata: dict[str, Any]
-
-    def __init__(
-        self,
-        vectors: list[list[float]],
-        model_name: str | None = None,
-        dimensions: int | None = None,
-        dimension: int | None = None,
-        usage: UsageRecord | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> None:
-        self.vectors = vectors
-        self.model_name = model_name
-        self.dimensions = dimensions if dimensions is not None else dimension
-        self.usage = usage
-        self.metadata = metadata or {}
+    embeddings: list[list[float]]
+    model_name: str | None = None
+    usage: UsageRecord | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    dimensions: int | None = None
 
     @property
-    def embeddings(self) -> list[list[float]]:
-        return self.vectors
+    def vectors(self) -> list[list[float]]:
+        return self.embeddings
 
     @property
-    def dimension(self) -> int | None:
-        return self.dimensions
+    def modelname(self) -> str | None:
+        return self.model_name
 
 
 @dataclass(slots=True)
 class RerankResult:
-    indices: list[int]
-    scores: list[float]
+    indices: list[int] = field(default_factory=list)
+    scores: list[float] = field(default_factory=list)
     model_name: str | None = None
     usage: UsageRecord | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def modelname(self) -> str | None:
+        return self.model_name
 
 
 @dataclass(slots=True)
@@ -66,3 +83,11 @@ class GenerateResult:
     model_name: str | None = None
     usage: UsageRecord | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def finishreason(self) -> str | None:
+        return self.finish_reason
+
+    @property
+    def modelname(self) -> str | None:
+        return self.model_name
