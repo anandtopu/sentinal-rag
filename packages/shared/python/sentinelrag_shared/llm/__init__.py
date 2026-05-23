@@ -9,6 +9,7 @@ from sentinelrag_shared.llm.generator import (
 from sentinelrag_shared.llm.reranker import (
     BgeReranker,
     NoOpReranker,
+    RerankCandidate,
     Reranker,
     RerankerError,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "LiteLLMEmbedder",
     "LiteLLMGenerator",
     "NoOpReranker",
+    "RerankCandidate",
     "RerankResult",
     "Reranker",
     "RerankerError",
