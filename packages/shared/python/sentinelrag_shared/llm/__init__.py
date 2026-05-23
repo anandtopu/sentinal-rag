@@ -4,6 +4,7 @@ from sentinelrag_shared.llm.generator import (
     Generator,
     GeneratorError,
     GeneratorTimeoutError,
+    LiteLLMGenerator,
 )
 from sentinelrag_shared.llm.reranker import (
     BgeReranker,
@@ -23,6 +24,7 @@ __all__ = [
     "GeneratorError",
     "GeneratorTimeoutError",
     "LiteLLMEmbedder",
+    "LiteLLMGenerator",
     "NoOpReranker",
     "RerankResult",
     "Reranker",

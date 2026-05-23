@@ -96,12 +96,13 @@ class EmbeddingResult:
         *,
         vectors: list[list[float]] | None = None,
         modelname: str | None = None,
+        dimension: int | None = None,
     ) -> None:
         self.embeddings = embeddings if embeddings is not None else (vectors or [])
         self.model_name = model_name if model_name is not None else modelname
         self.usage = usage
         self.metadata = {} if metadata is None else metadata
-        self.dimensions = dimensions
+        self.dimensions = dimensions if dimensions is not None else dimension
 
     @property
     def vectors(self) -> list[list[float]]:
@@ -110,6 +111,10 @@ class EmbeddingResult:
     @property
     def modelname(self) -> str | None:
         return self.model_name
+
+    @property
+    def dimension(self) -> int | None:
+        return self.dimensions
 
 
 @dataclass(slots=True)
