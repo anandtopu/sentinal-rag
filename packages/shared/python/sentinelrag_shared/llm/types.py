@@ -17,6 +17,38 @@ class UsageRecord:
     latency_ms: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __init__(
+        self,
+        usage_type: str | None = None,
+        provider: str | None = None,
+        model_name: str | None = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        total_tokens: int = 0,
+        total_cost_usd: Decimal | None = None,
+        latency_ms: int | None = None,
+        metadata: dict[str, Any] | None = None,
+        *,
+        usagetype: str | None = None,
+        modelname: str | None = None,
+        inputtokens: int | None = None,
+        outputtokens: int | None = None,
+        totaltokens: int | None = None,
+        totalcostusd: Decimal | None = None,
+        latencyms: int | None = None,
+    ) -> None:
+        self.usage_type = usage_type if usage_type is not None else usagetype
+        self.provider = provider
+        self.model_name = model_name if model_name is not None else modelname
+        self.input_tokens = input_tokens if inputtokens is None else inputtokens
+        self.output_tokens = output_tokens if outputtokens is None else outputtokens
+        self.total_tokens = total_tokens if totaltokens is None else totaltokens
+        self.total_cost_usd = (
+            total_cost_usd if totalcostusd is None else totalcostusd
+        )
+        self.latency_ms = latency_ms if latencyms is None else latencyms
+        self.metadata = {} if metadata is None else metadata
+
     @property
     def usagetype(self) -> str | None:
         return self.usage_type
@@ -46,13 +78,30 @@ class UsageRecord:
         return self.latency_ms
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class EmbeddingResult:
     embeddings: list[list[float]]
-    model_name: str | None = None
-    usage: UsageRecord | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    dimensions: int | None = None
+    model_name: str | None
+    usage: UsageRecord | None
+    metadata: dict[str, Any]
+    dimensions: int | None
+
+    def __init__(
+        self,
+        embeddings: list[list[float]] | None = None,
+        model_name: str | None = None,
+        usage: UsageRecord | None = None,
+        metadata: dict[str, Any] | None = None,
+        dimensions: int | None = None,
+        *,
+        vectors: list[list[float]] | None = None,
+        modelname: str | None = None,
+    ) -> None:
+        self.embeddings = embeddings if embeddings is not None else (vectors or [])
+        self.model_name = model_name if model_name is not None else modelname
+        self.usage = usage
+        self.metadata = {} if metadata is None else metadata
+        self.dimensions = dimensions
 
     @property
     def vectors(self) -> list[list[float]]:
