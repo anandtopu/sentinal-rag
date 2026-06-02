@@ -105,7 +105,7 @@ fi
   done
   echo
   echo '  },'
-  echo '  "ok":' $([[ ${#failures[@]} -eq 0 ]] && echo true || echo false)
+  echo '  "ok":' "$([[ ${#failures[@]} -eq 0 ]] && echo true || echo false)"
   echo '}'
 }
 
